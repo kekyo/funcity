@@ -1,0 +1,39 @@
+// funcity - A functional language interpreter with text processing
+// Copyright (c) Kouji Matsui (@kekyo@mi.kekyo.net)
+// Under MIT.
+// https://github.com/kekyo/funcity/
+
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import dts from 'vite-plugin-dts';
+import prettierMax from 'prettier-max';
+import screwUp from 'screw-up';
+
+export default defineConfig({
+  plugins: [
+    dts({
+      insertTypesEntry: true,
+    }),
+    prettierMax(),
+    screwUp(),
+  ],
+  build: {
+    lib: {
+      entry: resolve(
+        fileURLToPath(new URL('.', import.meta.url)),
+        'src/index.ts'
+      ),
+      name: 'funcity',
+      fileName: (format, entryName) =>
+        `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,
+      formats: ['es', 'cjs'],
+    },
+    rollupOptions: {
+      external: [],
+    },
+    target: 'es2018',
+    sourcemap: true,
+    minify: false,
+  },
+});

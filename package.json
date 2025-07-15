@@ -1,0 +1,27 @@
+{
+  "name": "funcity-root",
+  "version": "0.0.1",
+  "author": "Kouji Matsui (@kekyo@mi.kekyo.net)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kekyo/funcity.git"
+  },
+  "homepage": "https://github.com/kekyo/funcity#readme",
+  "readme": "README_pack.md",
+  "private": true,
+  "files": [
+    "LICENSE"
+  ],
+  "workspaces": [
+    "funcity",
+    "funcity-cli"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "pack": "npm run pack --workspaces"
+  },
+  "dependencies": {
+  }
+}
