@@ -4,9 +4,9 @@
 // https://github.com/kekyo/funcity/
 
 import type {
-  MtrScriptErrorInfo,
-  MtrScriptLocation,
-  MtrScriptRange,
+  FunCityErrorInfo,
+  FunCityLocation,
+  FunCityRange,
 } from './scripting';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -14,94 +14,94 @@ import type {
 /**
  * The string token.
  */
-export interface MtrScriptStringToken {
+export interface FunCityStringToken {
   readonly kind: 'string';
   /**
    * String value.
    */
   readonly value: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * The number (numeric) token.
  */
-export interface MtrScriptNumberToken {
+export interface FunCityNumberToken {
   readonly kind: 'number';
   /**
    * Numeric value.
    */
   readonly value: number;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * The identity (variable name) token.
  */
-export interface MtrScriptIdentityToken {
+export interface FunCityIdentityToken {
   readonly kind: 'identity';
   /**
    * Identity.
    */
   readonly name: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Open parenthesis or bracket node.
  */
-export interface MtrScriptOpenToken {
+export interface FunCityOpenToken {
   readonly kind: 'open';
   /**
    * Open symbol.
    */
   readonly symbol: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Close parenthesis or bracket token.
  */
-export interface MtrScriptCloseToken {
+export interface FunCityCloseToken {
   readonly kind: 'close';
   /**
    * Close symbol.
    */
   readonly symbol: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * End of line token.
  */
-export interface MtrScriptEndOfLineToken {
+export interface FunCityEndOfLineToken {
   readonly kind: 'eol';
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Free form text token.
  */
-export interface MtrScriptTextToken {
+export interface FunCityTextToken {
   readonly kind: 'text';
   /**
    * Text value.
    */
   readonly text: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * The token.
  */
-export type MtrScriptToken =
-  | MtrScriptStringToken
-  | MtrScriptNumberToken
-  | MtrScriptIdentityToken
-  | MtrScriptOpenToken
-  | MtrScriptCloseToken
-  | MtrScriptEndOfLineToken
-  | MtrScriptTextToken;
+export type FunCityToken =
+  | FunCityStringToken
+  | FunCityNumberToken
+  | FunCityIdentityToken
+  | FunCityOpenToken
+  | FunCityCloseToken
+  | FunCityEndOfLineToken
+  | FunCityTextToken;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +162,7 @@ interface TokenizerCursor {
    * @param type - Location type.
    * @returns Location object.
    */
-  location: (type: LocationTypes) => MtrScriptLocation;
+  location: (type: LocationTypes) => FunCityLocation;
 }
 
 /**
@@ -176,7 +176,7 @@ interface TokenizerContext {
   /**
    * Will be stored detected warnings/errors into it
    */
-  readonly errors: MtrScriptErrorInfo[];
+  readonly errors: FunCityErrorInfo[];
 }
 
 /**
@@ -184,7 +184,7 @@ interface TokenizerContext {
  * @param context Tokenizer context
  * @returns String token
  */
-const tokenizeString = (context: TokenizerContext): MtrScriptStringToken => {
+const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
   const start = context.cursor.location('start');
 
   // Skip open quote
@@ -220,7 +220,7 @@ const numericChars = '0123456789';
  * @param context Tokenizer context
  * @returns Number token
  */
-const tokenizeNumber = (context: TokenizerContext): MtrScriptNumberToken => {
+const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
   const start = context.cursor.location('start');
 
   let index = 1;
@@ -278,9 +278,7 @@ const variableChars =
  * @param context Tokenizer context
  * @returns Identity token
  */
-const tokenizeIdentity = (
-  context: TokenizerContext
-): MtrScriptIdentityToken => {
+const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
   const start = context.cursor.location('start');
 
   let index = 1;
@@ -315,13 +313,13 @@ const tokenizeIdentity = (
  * @param context Tokenizer context
  * @returns The token list
  */
-const tokenizeCodeBlock = (context: TokenizerContext): MtrScriptToken[] => {
+const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const openStart = context.cursor.location('start');
 
   // Skip open brackets '{{'
   context.cursor.skip(2);
 
-  const tokens: MtrScriptToken[] = [
+  const tokens: FunCityToken[] = [
     {
       kind: 'open',
       symbol: '{{',
@@ -329,7 +327,7 @@ const tokenizeCodeBlock = (context: TokenizerContext): MtrScriptToken[] => {
     },
   ];
 
-  let unknownStartLocation: MtrScriptLocation | undefined;
+  let unknownStartLocation: FunCityLocation | undefined;
   const finalizeUnknown = () => {
     if (unknownStartLocation) {
       context.errors.push({
@@ -549,7 +547,7 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
       return result;
     }
   };
-  const location = (type: LocationTypes): MtrScriptLocation =>
+  const location = (type: LocationTypes): FunCityLocation =>
     type === 'end'
       ? {
           line: lastLine + 1,
@@ -583,14 +581,14 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
  */
 export const runTokenizer = (
   script: string,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptToken[] => {
+  errors: FunCityErrorInfo[]
+): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
     errors,
   };
 
-  const tokens: MtrScriptToken[] = [];
+  const tokens: FunCityToken[] = [];
 
   const readTextBlock = () => {
     if (context.cursor.eot()) {

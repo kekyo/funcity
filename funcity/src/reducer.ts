@@ -6,16 +6,16 @@
 import {
   fromError,
   asIterable,
-  type MtrScriptErrorInfo,
-  type MtrScriptVariables,
+  type FunCityErrorInfo,
+  type FunCityVariables,
   isConditionalTrue,
   isSpecialFunction,
 } from './scripting';
 import type {
-  MtrScriptExpressionNode,
-  MtrScriptLambdaNode,
-  MtrScriptBlockNode,
-  MtrScriptVariableNode,
+  FunCityExpressionNode,
+  FunCityLambdaNode,
+  FunCityBlockNode,
+  FunCityVariableNode,
 } from './parser';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -37,7 +37,7 @@ export interface ValueResult {
 /**
  * Native function context.
  */
-export interface MtrScriptFunctionContext {
+export interface FunCityFunctionContext {
   /**
    * Current scope variables.
    */
@@ -45,24 +45,24 @@ export interface MtrScriptFunctionContext {
   /**
    * Current function application node.
    */
-  readonly thisNode: MtrScriptExpressionNode;
+  readonly thisNode: FunCityExpressionNode;
   /**
    * Reduce expression node with this context.
    * @param node - Target node
    * @returns Reduced value.
    */
-  readonly reduce: (node: MtrScriptExpressionNode) => Promise<unknown>;
+  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
   /**
    * Append directly error information.
    * @param error - Error or warning information.
    */
-  readonly appendError: (error: MtrScriptErrorInfo) => void;
+  readonly appendError: (error: FunCityErrorInfo) => void;
 }
 
 /**
  * The reducer context.
  */
-export interface MtrScriptReducerContext {
+export interface FunCityReducerContext {
   /**
    * Get current context (scope) variable value.
    * @param name - Variable name
@@ -79,7 +79,7 @@ export interface MtrScriptReducerContext {
    * Append context error.
    * @param error - Error or warning information.
    */
-  readonly appendError: (error: MtrScriptErrorInfo) => void;
+  readonly appendError: (error: FunCityErrorInfo) => void;
   /**
    * Indicate error received.
    * @returns The context is received any errors.
@@ -89,15 +89,15 @@ export interface MtrScriptReducerContext {
    * Create new scoped context.
    * @returns New reducer context.
    */
-  readonly newScope: () => MtrScriptReducerContext;
+  readonly newScope: () => FunCityReducerContext;
   /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
    * @returns Native function context proxy instance.
    */
   readonly createFunctionContext: (
-    thisNode: MtrScriptExpressionNode
-  ) => MtrScriptFunctionContext;
+    thisNode: FunCityExpressionNode
+  ) => FunCityFunctionContext;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -134,8 +134,8 @@ const deconstructConditionalCombine = (
 // ex: `foo.bar.baz`     --> traverse to baz or cause error
 // ex: `foo?.bar?.baz`   --> traverse to baz may undefined incompletion or cause error (at the tail baz)
 const traverseVariable = (
-  context: MtrScriptReducerContext,
-  name: MtrScriptVariableNode
+  context: FunCityReducerContext,
+  name: FunCityVariableNode
 ) => {
   const names = name.name.split('.');
   const n0 = names[0]!;
@@ -174,8 +174,8 @@ const traverseVariable = (
 
 // Create native function object from lambda node.
 const fromLambda = (
-  context: MtrScriptReducerContext,
-  lambda: MtrScriptLambdaNode
+  context: FunCityReducerContext,
+  lambda: FunCityLambdaNode
 ): Function => {
   return async (...args: readonly unknown[]) => {
     if (args.length < lambda.names.length) {
@@ -210,8 +210,8 @@ const fromLambda = (
  * @returns Reduced native value
  */
 export const reduceExpressionNode = async (
-  context: MtrScriptReducerContext,
-  node: MtrScriptExpressionNode
+  context: FunCityReducerContext,
+  node: FunCityExpressionNode
 ): Promise<unknown> => {
   switch (node.kind) {
     case 'number':
@@ -293,8 +293,8 @@ export const reduceExpressionNode = async (
  * @returns Reduced native value list
  */
 export const reduceNode = async (
-  context: MtrScriptReducerContext,
-  node: MtrScriptBlockNode
+  context: FunCityReducerContext,
+  node: FunCityBlockNode
 ): Promise<unknown[]> => {
   switch (node.kind) {
     case 'text': {
@@ -370,9 +370,9 @@ export const reduceNode = async (
  * @returns Reducer context
  */
 export const createReducerContext = (
-  variables: MtrScriptVariables,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptReducerContext => {
+  variables: FunCityVariables,
+  errors: FunCityErrorInfo[]
+): FunCityReducerContext => {
   let vs = variables;
   let mvs: Map<string, unknown> | undefined;
   let variablesProxy: any;
@@ -405,7 +405,7 @@ export const createReducerContext = (
     }
   };
 
-  const appendError = (error: MtrScriptErrorInfo) => {
+  const appendError = (error: FunCityErrorInfo) => {
     errors.push(error);
   };
 
@@ -418,8 +418,8 @@ export const createReducerContext = (
     return newContext;
   };
 
-  let context: MtrScriptReducerContext;
-  const reduceByProxy = (node: MtrScriptExpressionNode) =>
+  let context: FunCityReducerContext;
+  const reduceByProxy = (node: FunCityExpressionNode) =>
     reduceExpressionNode(context, node);
   const getVariablesFromProxy = () => {
     // Makes cached variable proxy.
@@ -437,8 +437,8 @@ export const createReducerContext = (
   };
 
   const createFunctionContext = (
-    thisNode: MtrScriptExpressionNode
-  ): MtrScriptFunctionContext => {
+    thisNode: FunCityExpressionNode
+  ): FunCityFunctionContext => {
     return {
       get variables() {
         return getVariablesFromProxy();
@@ -479,9 +479,9 @@ const unwrap = (results: unknown[]): unknown[] => {
  * @returns Reduced native value list
  */
 export function runReducer(
-  node: MtrScriptBlockNode,
-  variables: MtrScriptVariables,
-  errors: MtrScriptErrorInfo[]
+  node: FunCityBlockNode,
+  variables: FunCityVariables,
+  errors: FunCityErrorInfo[]
 ): Promise<unknown[]>;
 
 /**
@@ -492,9 +492,9 @@ export function runReducer(
  * @returns Reduced native value list
  */
 export function runReducer(
-  nodes: readonly MtrScriptBlockNode[],
-  variables: MtrScriptVariables,
-  errors: MtrScriptErrorInfo[]
+  nodes: readonly FunCityBlockNode[],
+  variables: FunCityVariables,
+  errors: FunCityErrorInfo[]
 ): Promise<unknown[]>;
 
 /**
@@ -505,9 +505,9 @@ export function runReducer(
  * @returns Reduced native values
  */
 export async function runReducer(
-  nodes: readonly MtrScriptBlockNode[] | MtrScriptBlockNode,
-  variables: MtrScriptVariables,
-  errors: MtrScriptErrorInfo[]
+  nodes: readonly FunCityBlockNode[] | FunCityBlockNode,
+  variables: FunCityVariables,
+  errors: FunCityErrorInfo[]
 ): Promise<unknown[]> {
   const context = createReducerContext(variables, errors);
   if (Array.isArray(nodes)) {
@@ -519,7 +519,7 @@ export async function runReducer(
     }
     return unwrap(resultList);
   } else {
-    const results = await reduceNode(context, nodes as MtrScriptExpressionNode);
+    const results = await reduceNode(context, nodes as FunCityExpressionNode);
     return unwrap(results);
   }
 }

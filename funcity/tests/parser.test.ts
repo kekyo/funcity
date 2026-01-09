@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type MtrScriptErrorInfo } from '../src/scripting';
-import type { MtrScriptToken } from '../src/tokenizer';
+import { type FunCityErrorInfo } from '../src/scripting';
+import type { FunCityToken } from '../src/tokenizer';
 import { runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -14,8 +14,8 @@ import { runParser } from '../src/parser';
 describe('scripting parser test', () => {
   it('nop token 1', () => {
     // ""
-    const token: MtrScriptToken[] = [];
-    const errors: MtrScriptErrorInfo[] = [];
+    const token: FunCityToken[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -26,7 +26,7 @@ describe('scripting parser test', () => {
 
   it('nop token 2', () => {
     // "{{}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -44,7 +44,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -55,7 +55,7 @@ describe('scripting parser test', () => {
 
   it('number token', () => {
     // "{{12345}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -81,7 +81,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -101,7 +101,7 @@ describe('scripting parser test', () => {
 
   it('string token', () => {
     // "{{'hello'}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -127,7 +127,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -147,7 +147,7 @@ describe('scripting parser test', () => {
 
   it('variable token', () => {
     // "{{foobar}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -173,7 +173,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -193,7 +193,7 @@ describe('scripting parser test', () => {
 
   it('member access variable token', () => {
     // "{{foo.bar}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -219,7 +219,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -239,7 +239,7 @@ describe('scripting parser test', () => {
 
   it('both text and number body', () => {
     // "Hello{{123}}World"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'text',
         text: 'Hello',
@@ -281,7 +281,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -317,7 +317,7 @@ describe('scripting parser test', () => {
 
   it('multiple tokens application', () => {
     // "{{foobar 'hello' 12345}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -359,7 +359,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -404,7 +404,7 @@ describe('scripting parser test', () => {
 
   it('nested application tokens', () => {
     // "{{foobar (baz 12345)}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -462,7 +462,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -516,7 +516,7 @@ describe('scripting parser test', () => {
 
   it('nested application tokens (empty argument)', () => {
     // "{{foobar ()}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -558,7 +558,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -586,7 +586,7 @@ describe('scripting parser test', () => {
 
   it('nested application tokens (empty argument 2)', () => {
     // "{{foobar (baz ())}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -652,7 +652,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -697,7 +697,7 @@ describe('scripting parser test', () => {
 
   it('multiple tokens application with eol (1)', () => {
     // "{{foobar\n12345}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -738,7 +738,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -775,7 +775,7 @@ describe('scripting parser test', () => {
 
   it('multiple tokens application with eol (2)', () => {
     // "{{12345\n'ABC'}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -816,7 +816,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -853,7 +853,7 @@ describe('scripting parser test', () => {
 
   it('parentheses number token', () => {
     // "{{(12345)}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -895,7 +895,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -915,7 +915,7 @@ describe('scripting parser test', () => {
 
   it('parentheses string token', () => {
     // "{{('hello')}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -957,7 +957,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -977,7 +977,7 @@ describe('scripting parser test', () => {
 
   it('parentheses variable token', () => {
     // "{{(foobar)}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1019,7 +1019,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1038,7 +1038,7 @@ describe('scripting parser test', () => {
 
   it('parentheses multiple tokens', () => {
     // "{{(foobar 'hello' 12345)}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1096,7 +1096,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1141,7 +1141,7 @@ describe('scripting parser test', () => {
 
   it('parentheses multiple scoped tokens', () => {
     // "{{(foobar\n'hello'\n12345)}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1213,7 +1213,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1258,7 +1258,7 @@ describe('scripting parser test', () => {
 
   it('nested parentheses multiple tokens', () => {
     // "{{foo (bar (baz 'hello') 12345) hoge}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1356,7 +1356,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1443,7 +1443,7 @@ describe('scripting parser test', () => {
 
   it('bracket number token', () => {
     // "{{[12345]}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1485,7 +1485,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1514,7 +1514,7 @@ describe('scripting parser test', () => {
 
   it('bracket string token', () => {
     // "{{['hello']}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1556,7 +1556,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1585,7 +1585,7 @@ describe('scripting parser test', () => {
 
   it('bracket variable token', () => {
     // "{{[foobar]}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1627,7 +1627,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1656,7 +1656,7 @@ describe('scripting parser test', () => {
 
   it('bracket multiple tokens', () => {
     // "{{[foobar 'hello' 12345]}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1714,7 +1714,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1759,7 +1759,7 @@ describe('scripting parser test', () => {
 
   it('nested bracket multiple tokens', () => {
     // "{{foo [123 [bar 'hello'] 456] baz}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -1857,7 +1857,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -1944,7 +1944,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (if)', () => {
     // "{{if 1\n123\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2008,7 +2008,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2046,7 +2046,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (applied if)', () => {
     // "{{if 1\nfoo 123\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2118,7 +2118,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2173,7 +2173,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (scoped if)', () => {
     // "{{if 1\nfoo\n123\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2252,7 +2252,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2307,7 +2307,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (if-else)', () => {
     // "{{if 1\n123\nelse\n456\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2401,7 +2401,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2448,7 +2448,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (if-else across blocks)', () => {
     // "{{if flag?}}THEN{{else}}ELSE{{end}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2546,7 +2546,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2593,7 +2593,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (nested if)', () => {
     // "{{if 1\nif 0\n123\nend\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2695,7 +2695,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2751,7 +2751,7 @@ describe('scripting parser test', () => {
 
   it('conditional token (nested if-else)', () => {
     // "{{if 1\nif 0\n123\nelse\n456\nend\nelse\n789\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -2913,7 +2913,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -2987,7 +2987,7 @@ describe('scripting parser test', () => {
 
   it('repeat token (while)', () => {
     // "{{while 1\n123\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3051,7 +3051,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3088,7 +3088,7 @@ describe('scripting parser test', () => {
 
   it('repeat token (for)', () => {
     // "{{for item items\nitem\nend}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3160,7 +3160,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3205,7 +3205,7 @@ describe('scripting parser test', () => {
 
   it('bind token (set)', () => {
     // "{{set foo 123\nfoo}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3262,7 +3262,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3314,7 +3314,7 @@ describe('scripting parser test', () => {
 
   it('lambda token (fun)', () => {
     // "{{fun foo 123}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3356,7 +3356,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3393,7 +3393,7 @@ describe('scripting parser test', () => {
 
   it('lambda token (fun, 1 args)', () => {
     // "{{fun [foo] 123}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3451,7 +3451,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3488,7 +3488,7 @@ describe('scripting parser test', () => {
 
   it('lambda token (fun, 2 args)', () => {
     // "{{fun [foo bar] 123}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3554,7 +3554,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3599,7 +3599,7 @@ describe('scripting parser test', () => {
 
   it('lambda expression in func position', () => {
     // "{{(fun [foo] foo) 123}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3681,7 +3681,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 
@@ -3735,7 +3735,7 @@ describe('scripting parser test', () => {
 
   it('lambda expression immediate application', () => {
     // "{{fun [foo] foo 123}}"
-    const token: MtrScriptToken[] = [
+    const token: FunCityToken[] = [
       {
         kind: 'open',
         symbol: '{{',
@@ -3801,7 +3801,7 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const nodes = runParser(token, errors);
 

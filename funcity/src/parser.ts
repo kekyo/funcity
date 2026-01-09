@@ -6,14 +6,14 @@
 import {
   emptyRange,
   widerRange,
-  type MtrScriptErrorInfo,
-  type MtrScriptRange,
+  type FunCityErrorInfo,
+  type FunCityRange,
 } from './scripting';
 import type {
-  MtrScriptNumberToken,
-  MtrScriptStringToken,
-  MtrScriptToken,
-  MtrScriptIdentityToken,
+  FunCityNumberToken,
+  FunCityStringToken,
+  FunCityToken,
+  FunCityIdentityToken,
 } from './tokenizer';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -21,202 +21,202 @@ import type {
 /**
  * String expression node.
  */
-export interface MtrScriptStringNode {
+export interface FunCityStringNode {
   readonly kind: 'string';
   /**
    * String value.
    */
   readonly value: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Number (numeric) expression node.
  */
-export interface MtrScriptNumberNode {
+export interface FunCityNumberNode {
   readonly kind: 'number';
   /**
    * Numeric value.
    */
   readonly value: number;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Variable (identity) expression node.
  */
-export interface MtrScriptVariableNode {
+export interface FunCityVariableNode {
   readonly kind: 'variable';
   /**
    * Variable name.
    */
   readonly name: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Application expression node.
  */
-export interface MtrScriptApplyNode {
+export interface FunCityApplyNode {
   readonly kind: 'apply';
   /**
    * Application target node.
    */
-  readonly func: MtrScriptExpressionNode;
+  readonly func: FunCityExpressionNode;
   /**
    * Application arguments.
    */
-  readonly args: readonly MtrScriptExpressionNode[];
-  readonly range: MtrScriptRange;
+  readonly args: readonly FunCityExpressionNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * Lambda expression node.
  */
-export interface MtrScriptLambdaNode {
+export interface FunCityLambdaNode {
   readonly kind: 'lambda';
   /**
    * Parameter names.
    */
-  readonly names: readonly MtrScriptVariableNode[];
+  readonly names: readonly FunCityVariableNode[];
   /**
    * Lambda body expression.
    */
-  readonly body: MtrScriptExpressionNode;
-  readonly range: MtrScriptRange;
+  readonly body: FunCityExpressionNode;
+  readonly range: FunCityRange;
 }
 
 /**
  * Expression list (array) node.
  */
-export interface MtrScriptListNode {
+export interface FunCityListNode {
   readonly kind: 'list';
   /**
    * List item nodes.
    */
-  readonly items: readonly MtrScriptExpressionNode[];
-  readonly range: MtrScriptRange;
+  readonly items: readonly FunCityExpressionNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * Variable setter node.
  */
-export interface MtrScriptSetNode {
+export interface FunCitySetNode {
   readonly kind: 'set';
   /**
    * Target variable name.
    */
-  readonly name: MtrScriptVariableNode;
+  readonly name: FunCityVariableNode;
   /**
    * Will be set the value from reduced expression.
    */
-  readonly expr: MtrScriptExpressionNode;
-  readonly range: MtrScriptRange;
+  readonly expr: FunCityExpressionNode;
+  readonly range: FunCityRange;
 }
 
 /**
  * Evaluate child scope node.
  */
-export interface MtrScriptScopeNode {
+export interface FunCityScopeNode {
   readonly kind: 'scope';
   /**
    * Scoped node list.
    * @remarks Reduced each nodes, but takes last one reduced value.
    */
-  readonly nodes: readonly MtrScriptExpressionNode[];
-  readonly range: MtrScriptRange;
+  readonly nodes: readonly FunCityExpressionNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * The expression node.
  */
-export type MtrScriptExpressionNode =
-  | MtrScriptNumberNode
-  | MtrScriptStringNode
-  | MtrScriptVariableNode
-  | MtrScriptApplyNode
-  | MtrScriptLambdaNode
-  | MtrScriptListNode
-  | MtrScriptSetNode
-  | MtrScriptScopeNode;
+export type FunCityExpressionNode =
+  | FunCityNumberNode
+  | FunCityStringNode
+  | FunCityVariableNode
+  | FunCityApplyNode
+  | FunCityLambdaNode
+  | FunCityListNode
+  | FunCitySetNode
+  | FunCityScopeNode;
 
 /**
  * Text block node.
  */
-export interface MtrScriptTextNode {
+export interface FunCityTextNode {
   readonly kind: 'text';
   /**
    * Text body.
    */
   readonly text: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
 /**
  * Conditional branch (`if`) block node contains else block.
  */
-export interface MtrScriptIfNode {
+export interface FunCityIfNode {
   readonly kind: 'if';
   /**
    * Condition expression node.
    */
-  readonly condition: MtrScriptExpressionNode;
+  readonly condition: FunCityExpressionNode;
   /**
    * Then (true) block node.
    */
-  readonly then: readonly MtrScriptBlockNode[];
+  readonly then: readonly FunCityBlockNode[];
   /**
    * Else (false) block node.
    */
-  readonly else: readonly MtrScriptBlockNode[];
-  readonly range: MtrScriptRange;
+  readonly else: readonly FunCityBlockNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * Conditional repeats (`while`) block node contains else block.
  */
-export interface MtrScriptWhileNode {
+export interface FunCityWhileNode {
   readonly kind: 'while';
   /**
    * Condition expression node.
    */
-  readonly condition: MtrScriptExpressionNode;
+  readonly condition: FunCityExpressionNode;
   /**
    * Repeat block node.
    */
-  readonly repeat: readonly MtrScriptBlockNode[];
-  readonly range: MtrScriptRange;
+  readonly repeat: readonly FunCityBlockNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * Item iteration (`for`) block node contains else block.
  */
-export interface MtrScriptForNode {
+export interface FunCityForNode {
   readonly kind: 'for';
   /**
    * Bind variable node in each iteration.
    */
-  readonly bind: MtrScriptVariableNode;
+  readonly bind: FunCityVariableNode;
   /**
    * Iteration target expression node.
    */
-  readonly iterable: MtrScriptExpressionNode;
+  readonly iterable: FunCityExpressionNode;
   /**
    * Repeat block node.
    */
-  readonly repeat: readonly MtrScriptBlockNode[];
-  readonly range: MtrScriptRange;
+  readonly repeat: readonly FunCityBlockNode[];
+  readonly range: FunCityRange;
 }
 
 /**
  * The block node.
  */
-export type MtrScriptBlockNode =
-  | MtrScriptExpressionNode
-  | MtrScriptTextNode
-  | MtrScriptIfNode
-  | MtrScriptWhileNode
-  | MtrScriptForNode;
+export type FunCityBlockNode =
+  | FunCityExpressionNode
+  | FunCityTextNode
+  | FunCityIfNode
+  | FunCityWhileNode
+  | FunCityForNode;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -225,19 +225,19 @@ interface ParserCursor {
    * Peek one token.
    * @returns A token or undefined when reached end of token.
    */
-  peekToken: () => MtrScriptToken | undefined;
+  peekToken: () => FunCityToken | undefined;
   /**
    * Get one token and advance.
    * @returns A token or undefined when reached end of token.
    */
-  takeToken: () => MtrScriptToken | undefined;
+  takeToken: () => FunCityToken | undefined;
 }
 
 const parseNumber = (
   cursor: ParserCursor,
-  _errors: MtrScriptErrorInfo[]
-): MtrScriptNumberNode => {
-  const token = cursor.takeToken() as MtrScriptNumberToken;
+  _errors: FunCityErrorInfo[]
+): FunCityNumberNode => {
+  const token = cursor.takeToken() as FunCityNumberToken;
   return {
     kind: 'number',
     value: token.value,
@@ -247,9 +247,9 @@ const parseNumber = (
 
 const parseString = (
   cursor: ParserCursor,
-  _errors: MtrScriptErrorInfo[]
-): MtrScriptStringNode => {
-  const token = cursor.takeToken() as MtrScriptStringToken;
+  _errors: FunCityErrorInfo[]
+): FunCityStringNode => {
+  const token = cursor.takeToken() as FunCityStringToken;
   return {
     kind: 'string',
     value: token.value,
@@ -259,9 +259,9 @@ const parseString = (
 
 const parseIdentity = (
   cursor: ParserCursor,
-  _errors: MtrScriptErrorInfo[]
-): MtrScriptVariableNode => {
-  const token = cursor.takeToken() as MtrScriptIdentityToken;
+  _errors: FunCityErrorInfo[]
+): FunCityVariableNode => {
+  const token = cursor.takeToken() as FunCityIdentityToken;
   return {
     kind: 'variable',
     name: token.name,
@@ -272,17 +272,17 @@ const parseIdentity = (
 const unitKind = "'()'";
 interface PartialUnitExpressionNode {
   kind: "'()'";
-  range: MtrScriptRange;
+  range: FunCityRange;
 }
 
 type PartialParsedExpressionNode =
-  | MtrScriptExpressionNode
+  | FunCityExpressionNode
   | PartialUnitExpressionNode;
 
 const combineIntoScopeMultipleExpressions = (
-  expressionList: readonly MtrScriptExpressionNode[],
-  ...outerRanges: MtrScriptRange[]
-): MtrScriptExpressionNode | undefined => {
+  expressionList: readonly FunCityExpressionNode[],
+  ...outerRanges: FunCityRange[]
+): FunCityExpressionNode | undefined => {
   switch (expressionList.length) {
     case 0: {
       return undefined;
@@ -305,9 +305,9 @@ const combineIntoScopeMultipleExpressions = (
 
 const parseLambdaExpression = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptLambdaNode | undefined => {
-  const funToken = cursor.takeToken() as MtrScriptIdentityToken;
+  errors: FunCityErrorInfo[]
+): FunCityLambdaNode | undefined => {
+  const funToken = cursor.takeToken() as FunCityIdentityToken;
   const namesPartial = parsePartialExpression(cursor, errors);
   const bodyPartial = namesPartial
     ? parsePartialExpression(cursor, errors)
@@ -353,7 +353,7 @@ const parseLambdaExpression = (
 
 const parsePartialExpression = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
+  errors: FunCityErrorInfo[]
 ): PartialParsedExpressionNode | undefined => {
   const token = cursor.peekToken()!;
   switch (token.kind) {
@@ -383,7 +383,7 @@ const parsePartialExpression = (
             errors
           );
           const closeToken = cursor.peekToken();
-          let range: MtrScriptRange;
+          let range: FunCityRange;
           if (!closeToken) {
             range = widerRange(
               token.range,
@@ -428,7 +428,7 @@ const parsePartialExpression = (
         case '[': {
           const itemNodes = parseListExpression(cursor, errors);
           const closeToken = cursor.peekToken();
-          let range: MtrScriptRange;
+          let range: FunCityRange;
           if (!closeToken) {
             range = widerRange(
               token.range,
@@ -476,8 +476,8 @@ const parsePartialExpression = (
 
 const normalizePartialUnitNode = (
   node: PartialParsedExpressionNode,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode => {
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode => {
   if (node.kind === unitKind) {
     errors.push({
       type: 'error',
@@ -496,8 +496,8 @@ const normalizePartialUnitNode = (
 
 const finalizeApplicationException = (
   partialNodes: readonly PartialParsedExpressionNode[],
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode | undefined => {
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode | undefined => {
   // Empty inputs
   if (partialNodes.length === 0) {
     return;
@@ -538,9 +538,9 @@ const finalizeApplicationException = (
 
 const parseMultipleApplicationExpressions = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode[] => {
-  const expressionList: MtrScriptExpressionNode[] = [];
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode[] => {
+  const expressionList: FunCityExpressionNode[] = [];
   const partialNodes: PartialParsedExpressionNode[] = [];
 
   while (true) {
@@ -575,9 +575,9 @@ const parseMultipleApplicationExpressions = (
 
 const parseListExpression = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode[] => {
-  const itemNodes: MtrScriptExpressionNode[] = [];
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode[] => {
+  const itemNodes: FunCityExpressionNode[] = [];
 
   while (true) {
     const token = cursor.peekToken();
@@ -605,7 +605,7 @@ const parseListExpression = (
 
 const drainEndOfLineAndPeek = (
   cursor: ParserCursor
-): MtrScriptToken | undefined => {
+): FunCityToken | undefined => {
   let token = cursor.peekToken();
   while (token) {
     if (token.kind === 'eol') {
@@ -626,8 +626,8 @@ const drainEndOfLineAndPeek = (
  */
 export const parseExpression = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode | undefined => {
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode | undefined => {
   // Ignored when reached end of line or end of cursor.
   let token = drainEndOfLineAndPeek(cursor);
   if (!token) {
@@ -673,8 +673,8 @@ export const parseExpression = (
 //////////////////////////////////////////////////////////////////////////////
 
 interface BranchState {
-  blocks: MtrScriptBlockNode[];
-  exprBuffer: MtrScriptExpressionNode[];
+  blocks: FunCityBlockNode[];
+  exprBuffer: FunCityExpressionNode[];
 }
 
 const createBranchState = (): BranchState => ({
@@ -684,14 +684,14 @@ const createBranchState = (): BranchState => ({
 
 interface RootStatementState {
   readonly kind: 'root';
-  readonly startRange: MtrScriptRange;
+  readonly startRange: FunCityRange;
   readonly branch: BranchState;
 }
 
 interface IfStatementState {
   readonly kind: 'if';
-  readonly startRange: MtrScriptRange;
-  readonly condition: MtrScriptExpressionNode;
+  readonly startRange: FunCityRange;
+  readonly condition: FunCityExpressionNode;
   readonly then: BranchState;
   readonly else: BranchState;
   currentBlock: 'then' | 'else';
@@ -699,16 +699,16 @@ interface IfStatementState {
 
 interface WhileStatementState {
   readonly kind: 'while';
-  readonly startRange: MtrScriptRange;
-  readonly condition: MtrScriptExpressionNode;
+  readonly startRange: FunCityRange;
+  readonly condition: FunCityExpressionNode;
   readonly repeat: BranchState;
 }
 
 interface ForStatementState {
   readonly kind: 'for';
-  readonly startRange: MtrScriptRange;
-  readonly bind: MtrScriptVariableNode;
-  readonly iterable: MtrScriptExpressionNode;
+  readonly startRange: FunCityRange;
+  readonly bind: FunCityVariableNode;
+  readonly iterable: FunCityExpressionNode;
   readonly repeat: BranchState;
 }
 
@@ -777,7 +777,7 @@ const flushStatementState = (statementState: LogicalStatementState) => {
 
 const pushExpressionNode = (
   statementStates: LogicalStatementState[],
-  node: MtrScriptExpressionNode
+  node: FunCityExpressionNode
 ) => {
   const statementState = statementStates[statementStates.length - 1]!;
   const branch = getBranchState(statementState);
@@ -786,7 +786,7 @@ const pushExpressionNode = (
 
 const pushBlockNode = (
   statementStates: LogicalStatementState[],
-  node: MtrScriptBlockNode
+  node: FunCityBlockNode
 ) => {
   const statementState = statementStates[statementStates.length - 1]!;
   const branch = getBranchState(statementState);
@@ -796,7 +796,7 @@ const pushBlockNode = (
 
 const pushNode = (
   statementStates: LogicalStatementState[],
-  node: MtrScriptBlockNode
+  node: FunCityBlockNode
 ) => {
   switch (node.kind) {
     case 'text':
@@ -815,9 +815,9 @@ const pushNode = (
 
 const parseStatementArguments = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptExpressionNode[] => {
-  const args: MtrScriptExpressionNode[] = [];
+  errors: FunCityErrorInfo[]
+): FunCityExpressionNode[] => {
+  const args: FunCityExpressionNode[] = [];
 
   while (true) {
     const token = cursor.peekToken();
@@ -842,15 +842,15 @@ const parseStatementArguments = (
 };
 
 const extractParameterArguments = (
-  namesNode: MtrScriptExpressionNode,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptVariableNode[] | undefined => {
+  namesNode: FunCityExpressionNode,
+  errors: FunCityErrorInfo[]
+): FunCityVariableNode[] | undefined => {
   switch (namesNode.kind) {
     case 'variable': {
       return [namesNode];
     }
     case 'list': {
-      const nameNodes: MtrScriptVariableNode[] = [];
+      const nameNodes: FunCityVariableNode[] = [];
       for (const nameNode of namesNode.items) {
         if (nameNode.kind !== 'variable') {
           errors.push({
@@ -883,8 +883,8 @@ const extractParameterArguments = (
  */
 export const parseBlock = (
   cursor: ParserCursor,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptBlockNode[] => {
+  errors: FunCityErrorInfo[]
+): FunCityBlockNode[] => {
   // Logical statement state is started at 'root' state.
   // All block node will be aggregated into it.
   const rootState: RootStatementState = {
@@ -1235,9 +1235,7 @@ export const parseBlock = (
 
 //////////////////////////////////////////////////////////////////////////////
 
-const createParserCursor = (
-  tokens: readonly MtrScriptToken[]
-): ParserCursor => {
+const createParserCursor = (tokens: readonly FunCityToken[]): ParserCursor => {
   let index = 0;
 
   const peekToken = () => {
@@ -1266,9 +1264,9 @@ const createParserCursor = (
  * @returns Parsed node list
  */
 export const runParser = (
-  tokens: readonly MtrScriptToken[],
-  errors: MtrScriptErrorInfo[]
-): MtrScriptBlockNode[] => {
+  tokens: readonly FunCityToken[],
+  errors: FunCityErrorInfo[]
+): FunCityBlockNode[] => {
   const cursor = createParserCursor(tokens);
 
   const blockNodes = parseBlock(cursor, errors);

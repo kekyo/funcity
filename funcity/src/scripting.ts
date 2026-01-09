@@ -5,35 +5,35 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
-export interface MtrScriptLocation {
+export interface FunCityLocation {
   readonly line: number;
   readonly column: number;
 }
 
-export interface MtrScriptRange {
-  readonly start: MtrScriptLocation;
-  readonly end: MtrScriptLocation;
+export interface FunCityRange {
+  readonly start: FunCityLocation;
+  readonly end: FunCityLocation;
 }
 
-export const emptyLocation: MtrScriptLocation = {
+export const emptyLocation: FunCityLocation = {
   line: 0,
   column: 0,
 } as const;
 
-export const emptyRange: MtrScriptRange = {
+export const emptyRange: FunCityRange = {
   start: emptyLocation,
   end: emptyLocation,
 } as const;
 
-export type MtrScriptErrorType = 'warning' | 'error';
+export type FunCityErrorType = 'warning' | 'error';
 
-export interface MtrScriptErrorInfo {
-  readonly type: MtrScriptErrorType;
+export interface FunCityErrorInfo {
+  readonly type: FunCityErrorType;
   readonly description: string;
-  readonly range: MtrScriptRange;
+  readonly range: FunCityRange;
 }
 
-export type MtrScriptVariables = ReadonlyMap<string, unknown>;
+export type FunCityVariables = ReadonlyMap<string, unknown>;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -72,11 +72,11 @@ export const asIterable = (v: unknown): Iterable<unknown> | undefined => {
 };
 
 export const combineVariables = (
-  ...variablesList: readonly (MtrScriptVariables | Record<string, unknown>)[]
-): MtrScriptVariables => {
+  ...variablesList: readonly (FunCityVariables | Record<string, unknown>)[]
+): FunCityVariables => {
   const variables = new Map<string, unknown>();
 
-  const appendVariables = (vs: MtrScriptVariables) =>
+  const appendVariables = (vs: FunCityVariables) =>
     vs.forEach((v, k) => variables.set(k, v));
   const appendRecord = (vs: Record<string, unknown>) =>
     Object.keys(vs).forEach((k) => variables.set(k, vs[k]));
@@ -84,7 +84,7 @@ export const combineVariables = (
   variablesList.forEach((vs) => {
     if (vs['forEach'] !== undefined) {
       // ReadonlyMap.forEach
-      appendVariables(vs as MtrScriptVariables);
+      appendVariables(vs as FunCityVariables);
     } else {
       appendRecord(vs as Record<string, unknown>);
     }
@@ -103,7 +103,7 @@ export const fromError = (error: any): string => {
   }
 };
 
-export const widerRange = (...ranges: MtrScriptRange[]): MtrScriptRange => {
+export const widerRange = (...ranges: FunCityRange[]): FunCityRange => {
   let start = emptyRange.start;
   let end = emptyRange.end;
 
@@ -133,15 +133,15 @@ export const widerRange = (...ranges: MtrScriptRange[]): MtrScriptRange => {
   return { start, end };
 };
 
-const locationEquals = (lhs: MtrScriptLocation, rhs: MtrScriptLocation) =>
+const locationEquals = (lhs: FunCityLocation, rhs: FunCityLocation) =>
   lhs.line === rhs.line && lhs.column === rhs.column;
 
-const getLocationString = (range: MtrScriptRange) =>
+const getLocationString = (range: FunCityRange) =>
   locationEquals(range.start, range.end)
     ? `${range.start.line}:${range.start.column}`
     : `${range.start.line}:${range.start.column}:${range.end.line}:${range.end.column}`;
 
-const printErrorString = (path: string, error: MtrScriptErrorInfo) => {
+const printErrorString = (path: string, error: FunCityErrorInfo) => {
   switch (error.type) {
     case 'warning':
       console.warn(
@@ -159,7 +159,7 @@ const printErrorString = (path: string, error: MtrScriptErrorInfo) => {
 
 export const outputErrors = (
   path: string,
-  errors: readonly MtrScriptErrorInfo[]
+  errors: readonly FunCityErrorInfo[]
 ) => {
   let isError = false;
   for (const error of errors) {

@@ -5,17 +5,17 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import type {
-  MtrScriptApplyNode,
-  MtrScriptExpressionNode,
-  MtrScriptLambdaNode,
-  MtrScriptListNode,
-  MtrScriptBlockNode,
-  MtrScriptNumberNode,
-  MtrScriptStringNode,
-  MtrScriptVariableNode,
+  FunCityApplyNode,
+  FunCityExpressionNode,
+  FunCityLambdaNode,
+  FunCityListNode,
+  FunCityBlockNode,
+  FunCityNumberNode,
+  FunCityStringNode,
+  FunCityVariableNode,
 } from '../src/parser';
 import { runReducer } from '../src/reducer';
-import type { MtrScriptErrorInfo } from '../src/scripting';
+import type { FunCityErrorInfo } from '../src/scripting';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -26,30 +26,30 @@ const range = {
   start: { line: 1, column: 1 },
   end: { line: 1, column: 1 },
 };
-const numberNode = (value: number): MtrScriptNumberNode => ({
+const numberNode = (value: number): FunCityNumberNode => ({
   kind: 'number' as const,
   value,
   range,
 });
-const stringNode = (value: string): MtrScriptStringNode => ({
+const stringNode = (value: string): FunCityStringNode => ({
   kind: 'string' as const,
   value,
   range,
 });
-const variableNode = (name: string): MtrScriptVariableNode => ({
+const variableNode = (name: string): FunCityVariableNode => ({
   kind: 'variable' as const,
   name,
   range,
 });
-const listNode = (items: MtrScriptExpressionNode[]): MtrScriptListNode => ({
+const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
   kind: 'list' as const,
   items,
   range,
 });
 const applyNode = (
   name: string,
-  args: MtrScriptExpressionNode[]
-): MtrScriptApplyNode => ({
+  args: FunCityExpressionNode[]
+): FunCityApplyNode => ({
   kind: 'apply' as const,
   func: variableNode(name),
   args,
@@ -57,14 +57,14 @@ const applyNode = (
 });
 const lambdaNode = (
   names: string[],
-  body: MtrScriptExpressionNode
-): MtrScriptLambdaNode => ({
+  body: FunCityExpressionNode
+): FunCityLambdaNode => ({
   kind: 'lambda' as const,
   names: names.map((name) => variableNode(name)),
   body,
   range,
 });
-const nodes: MtrScriptBlockNode[] = [
+const nodes: FunCityBlockNode[] = [
   variableNode('true'),
   variableNode('false'),
   applyNode('add', [numberNode(1), numberNode(2)]),
@@ -177,7 +177,7 @@ const nodes: MtrScriptBlockNode[] = [
 
 describe('standard variables test', () => {
   let reduced: unknown[] = [];
-  let errors: MtrScriptErrorInfo[] = [];
+  let errors: FunCityErrorInfo[] = [];
   let nowBefore = 0;
   let nowAfter = 0;
 

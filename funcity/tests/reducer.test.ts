@@ -5,12 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type {
-  MtrScriptBlockNode,
-  MtrScriptExpressionNode,
-} from '../src/parser';
-import { runReducer, type MtrScriptFunctionContext } from '../src/reducer';
-import type { MtrScriptErrorInfo } from '../src/scripting';
+import type { FunCityBlockNode, FunCityExpressionNode } from '../src/parser';
+import { runReducer, type FunCityFunctionContext } from '../src/reducer';
+import type { FunCityErrorInfo } from '../src/scripting';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -40,44 +37,41 @@ const textNode = (text: string) => ({
   text,
   range,
 });
-const listNode = (items: MtrScriptExpressionNode[]) => ({
+const listNode = (items: FunCityExpressionNode[]) => ({
   kind: 'list' as const,
   items,
   range,
 });
 const applyNode = (
-  func: MtrScriptExpressionNode,
-  args: MtrScriptExpressionNode[]
+  func: FunCityExpressionNode,
+  args: FunCityExpressionNode[]
 ) => ({
   kind: 'apply' as const,
   func,
   args,
   range,
 });
-const lambdaNode = (
-  names: readonly string[],
-  body: MtrScriptExpressionNode
-) => ({
+const lambdaNode = (names: readonly string[], body: FunCityExpressionNode) => ({
   kind: 'lambda' as const,
   names: names.map(variableNode),
   body,
   range,
 });
-const scopeNode = (nodes: MtrScriptExpressionNode[]) => ({
+const scopeNode = (nodes: FunCityExpressionNode[]) => ({
   kind: 'scope' as const,
   nodes,
   range,
 });
-const setNode = (name: string, expr: MtrScriptExpressionNode) => ({
+const setNode = (name: string, expr: FunCityExpressionNode) => ({
   kind: 'set' as const,
   name: variableNode(name),
   expr,
   range,
 });
 const ifNode = (
-  condition: MtrScriptExpressionNode,
-  thenNodes: MtrScriptBlockNode[],
-  elseNodes: MtrScriptBlockNode[]
+  condition: FunCityExpressionNode,
+  thenNodes: FunCityBlockNode[],
+  elseNodes: FunCityBlockNode[]
 ) => ({
   kind: 'if' as const,
   condition,
@@ -86,8 +80,8 @@ const ifNode = (
   range,
 });
 const whileNode = (
-  condition: MtrScriptExpressionNode,
-  repeat: MtrScriptBlockNode[]
+  condition: FunCityExpressionNode,
+  repeat: FunCityBlockNode[]
 ) => ({
   kind: 'while' as const,
   condition,
@@ -96,8 +90,8 @@ const whileNode = (
 });
 const forNode = (
   bind: string,
-  iterable: MtrScriptExpressionNode,
-  repeat: MtrScriptBlockNode[]
+  iterable: FunCityExpressionNode,
+  repeat: FunCityBlockNode[]
 ) => ({
   kind: 'for' as const,
   bind: variableNode(bind),
@@ -109,8 +103,8 @@ const forNode = (
 describe('scripting reducer test', () => {
   it('empty', async () => {
     // "{{}}"
-    const nodes: MtrScriptBlockNode[] = [];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -121,8 +115,8 @@ describe('scripting reducer test', () => {
 
   it('number node', async () => {
     // "{{12345}}"
-    const nodes: MtrScriptBlockNode[] = [numberNode(12345)];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [numberNode(12345)];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -133,8 +127,8 @@ describe('scripting reducer test', () => {
 
   it('string node', async () => {
     // "{{'hello'}}"
-    const nodes: MtrScriptBlockNode[] = [stringNode('hello')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [stringNode('hello')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -145,8 +139,8 @@ describe('scripting reducer test', () => {
 
   it('variable node', async () => {
     // "{{true}}"
-    const nodes: MtrScriptBlockNode[] = [variableNode('true')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [variableNode('true')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
     const reduced = await runReducer(nodes, variables, errors);
@@ -157,8 +151,8 @@ describe('scripting reducer test', () => {
 
   it('text node', async () => {
     // "Hello"
-    const nodes: MtrScriptBlockNode[] = [textNode('Hello')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [textNode('Hello')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -169,8 +163,8 @@ describe('scripting reducer test', () => {
 
   it('variable node (not bind)', async () => {
     // "{{foobar}}"
-    const nodes: MtrScriptBlockNode[] = [variableNode('foobar')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [variableNode('foobar')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -187,8 +181,8 @@ describe('scripting reducer test', () => {
 
   it('variable node (traverse)', async () => {
     // "{{foo.bar}}"
-    const nodes: MtrScriptBlockNode[] = [variableNode('foo.bar')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [variableNode('foo.bar')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables({
       foo: {
@@ -203,8 +197,8 @@ describe('scripting reducer test', () => {
 
   it('variable node (conditional combine)', async () => {
     // "{{siteName?}}"
-    const nodes: MtrScriptBlockNode[] = [variableNode('siteName?')];
-    const errors: MtrScriptErrorInfo[] = [];
+    const nodes: FunCityBlockNode[] = [variableNode('siteName?')];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables({
       siteName: 'My Site',
@@ -217,12 +211,12 @@ describe('scripting reducer test', () => {
 
   it('root list', async () => {
     // "Hello{{add 123 456}}World"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       textNode('Hello'),
       applyNode(variableNode('add'), [numberNode(123), numberNode(456)]),
       textNode('World'),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `add`
     const reduced = await runReducer(nodes, variables, errors);
@@ -233,10 +227,10 @@ describe('scripting reducer test', () => {
 
   it('application node', async () => {
     // "{{add 123 456}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('add'), [numberNode(123), numberNode(456)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `add`
     const reduced = await runReducer(nodes, variables, errors);
@@ -247,10 +241,10 @@ describe('scripting reducer test', () => {
 
   it('multiple sentence', async () => {
     // "{{12345\n'hello'\ntrue}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       scopeNode([numberNode(12345), stringNode('hello'), variableNode('true')]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
     const reduced = await runReducer(nodes, variables, errors);
@@ -261,10 +255,10 @@ describe('scripting reducer test', () => {
 
   it('multiple expressions in the list', async () => {
     // "{{[12345 'hello' true]}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       listNode([numberNode(12345), stringNode('hello'), variableNode('true')]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
     const reduced = await runReducer(nodes, variables, errors);
@@ -275,11 +269,11 @@ describe('scripting reducer test', () => {
 
   it('set variable', async () => {
     // "{{set foo 123\nfoo}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('foo', numberNode(123)),
       variableNode('foo'),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -290,7 +284,7 @@ describe('scripting reducer test', () => {
 
   it('for', async () => {
     // "{{for i [1 2 3 4 5]}}ABC{{end}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       forNode(
         'i',
         listNode([
@@ -303,7 +297,7 @@ describe('scripting reducer test', () => {
         [stringNode('ABC')]
       ),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -314,7 +308,7 @@ describe('scripting reducer test', () => {
 
   it('while', async () => {
     // "{{set count 10\nwhile count}}ABC{{set count (sub count 1)\nend}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('count', numberNode(10)),
       whileNode(variableNode('count'), [
         stringNode('ABC'),
@@ -324,7 +318,7 @@ describe('scripting reducer test', () => {
         ),
       ]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -346,11 +340,11 @@ describe('scripting reducer test', () => {
 
   it('if true', async () => {
     // "{{set flag true\nif flag}}ABC{{end}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('flag', variableNode('true')),
       ifNode(variableNode('flag'), [stringNode('ABC')], [stringNode('DEF')]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
     const reduced = await runReducer(nodes, variables, errors);
@@ -361,11 +355,11 @@ describe('scripting reducer test', () => {
 
   it('if false', async () => {
     // "{{set flag false\nif flag}}ABC{{end}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('flag', variableNode('false')),
       ifNode(variableNode('flag'), [stringNode('ABC')], [stringNode('DEF')]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `false`
     const reduced = await runReducer(nodes, variables, errors);
@@ -376,10 +370,10 @@ describe('scripting reducer test', () => {
 
   it('apply lambda function', async () => {
     // "{{(fun foo foo) 123}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       applyNode(lambdaNode(['foo'], variableNode('foo')), [numberNode(123)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -390,10 +384,10 @@ describe('scripting reducer test', () => {
 
   it('apply lambda function (empty parameter)', async () => {
     // "{{(fun [] 123) ()}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       applyNode(lambdaNode([], numberNode(123)), []),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -404,7 +398,7 @@ describe('scripting reducer test', () => {
 
   it('apply lambda function (multiple parameter)', async () => {
     // "{{(fun [a b] (add a b)) 1 2}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       applyNode(
         lambdaNode(
           ['a', 'b'],
@@ -413,7 +407,7 @@ describe('scripting reducer test', () => {
         [numberNode(1), numberNode(2)]
       ),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -424,10 +418,10 @@ describe('scripting reducer test', () => {
 
   it('native function calling', async () => {
     // "{{foo 123}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const customVars = {
       foo: (v: unknown) => Number(v) + 100,
@@ -442,7 +436,7 @@ describe('scripting reducer test', () => {
 
   it('bind function and apply', async () => {
     // "{{set foo (fun abc (add abc 100))\nfoo 123}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode(
         'foo',
         lambdaNode(
@@ -452,7 +446,7 @@ describe('scripting reducer test', () => {
       ),
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -480,11 +474,11 @@ describe('scripting reducer test', () => {
       falseNode,
     ]);
 
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('foo', lambdaNode(['n'], condApplyNode)),
       applyNode(variableNode('foo'), [numberNode(5)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
     const reduced = await runReducer(nodes, variables, errors);
@@ -495,13 +489,13 @@ describe('scripting reducer test', () => {
 
   it('native function calling and use context', async () => {
     // "{{set bar 100\nfoo 123}}"
-    const nodes: MtrScriptBlockNode[] = [
+    const nodes: FunCityBlockNode[] = [
       setNode('bar', numberNode(100)),
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: MtrScriptErrorInfo[] = [];
+    const errors: FunCityErrorInfo[] = [];
 
-    async function foo(this: MtrScriptFunctionContext, v: unknown) {
+    async function foo(this: FunCityFunctionContext, v: unknown) {
       return Number(v) + this.variables.bar;
     }
     const customVars = {
