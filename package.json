@@ -11,7 +11,8 @@
   "readme": "README_pack.md",
   "private": true,
   "files": [
-    "LICENSE"
+    "LICENSE",
+    "images/funcity.120.png"
   ],
   "workspaces": [
     "funcity",
