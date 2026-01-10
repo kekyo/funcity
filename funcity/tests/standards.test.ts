@@ -400,6 +400,38 @@ describe('standard variables test', () => {
       '123,ABC,true,false,(undefined),(null),[111,222],fun<#1>'
     );
   });
+  it('toBoolean true', async () => {
+    const value = await reduceSingle(applyNode('toBoolean', [numberNode(1)]));
+    expect(value).toBe(true);
+  });
+  it('toBoolean false', async () => {
+    const value = await reduceSingle(applyNode('toBoolean', [numberNode(0)]));
+    expect(value).toBe(false);
+  });
+  it('toNumber', async () => {
+    const value = await reduceSingle(applyNode('toNumber', [stringNode('123')]));
+    expect(value).toBe(123);
+  });
+  it('toBigInt', async () => {
+    const value = await reduceSingle(applyNode('toBigInt', [stringNode('123')]));
+    expect(value).toBe(123n);
+  });
+  it('url', async () => {
+    const value = await reduceSingle(
+      applyNode('url', [stringNode('https://example.com/foo')])
+    );
+    expect(value).toBeInstanceOf(URL);
+    expect((value as URL).href).toBe('https://example.com/foo');
+  });
+  it('url with base', async () => {
+    const value = await reduceSingle(
+      applyNode('url', [
+        stringNode('bar'),
+        stringNode('https://example.com/base/'),
+      ])
+    );
+    expect((value as URL).href).toBe('https://example.com/base/bar');
+  });
   it('typeof number', async () => {
     const value = await reduceSingle(applyNode('typeof', [numberNode(111)]));
     expect(value).toBe('number');

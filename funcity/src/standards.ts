@@ -50,6 +50,32 @@ const _toString = async (...args: unknown[]) => {
   return results.join(',');
 };
 
+const _toBoolean = async (arg0: unknown) => {
+  const r = isConditionalTrue(arg0);
+  return r;
+};
+
+const _toNumber = async (arg0: unknown) => {
+  const r = Number(arg0);
+  return r;
+};
+
+const _toBigInt = async (arg0: unknown) => {
+  switch (typeof arg0) {
+    case 'number':
+    case 'bigint':
+    case 'string':
+    case 'boolean': {
+      const r = BigInt(arg0);
+      return r;
+    }
+    default: {
+      const r = BigInt(await _toString(arg0));
+      return r;
+    }
+  }
+};
+
 const _add = async (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 + Number(v), Number(arg0));
   return r;
@@ -351,6 +377,11 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
   return predicate.bind(undefined, ...args);
 };
 
+const _url = async (arg0: unknown, arg1: unknown) => {
+  const url = new URL(convertToString(arg0), arg1 !== undefined ? convertToString(arg1) : undefined);
+  return url;
+};
+
 //////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -363,6 +394,9 @@ export const standardVariables = Object.freeze({
   false: false,
   cond: _cond,
   toString: _toString,
+  toBoolean: _toBoolean,
+  toNumber: _toNumber,
+  toBigInt: _toBigInt,
   typeof: _typeof,
   add: _add,
   sub: _sub,
@@ -395,6 +429,7 @@ export const standardVariables = Object.freeze({
   replace: _replace,
   regex: _regex,
   bind: _bind,
+  url: _url,
 } as const);
 
 /**

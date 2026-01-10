@@ -229,7 +229,10 @@ The following are the standard functions:
 | :--- | :--- |
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third. |
-| `toString` | Converts the first argument to a string. |
+| `toString` | Converts the arguments to a string. |
+| `toBoolean` | Converts the first argument to a boolean. |
+| `toNumber` | Converts the first argument to a number. |
+| `toBigInt` | Converts the first argument to a bigint. |
 | `add` | Adds all arguments as numbers. |
 | `sub` | Subtracts all arguments as numbers. |
 | `mul` | Multiplies all arguments as numbers. |
@@ -261,6 +264,7 @@ The following are the standard functions:
 | `replace` | For the third argument, replaces matches of the regex in the first argument with the second argument. |
 | `regex` | Creates a regex object from the pattern in the first argument and the options in the second argument. |
 | `bind` | Partially applies the arguments after the first to the function in the first argument. |
+| `url` | Creates a URL object from the first argument and optional base in the second argument. |
 
 ### typeof
 
@@ -284,6 +288,22 @@ The `cond` function returns either the value of the second argument or the value
 In regular functions, all arguments are evaluated.
 
 However, this function is special: only one of the second and third arguments is evaluated, depending on the result of the first argument.
+
+### toString,toBoolean,toNumber,toBigInt
+
+These functions convert the first argument to a string, boolean, number, or bigint.
+
+```funcity
+{{toString 123 'ABC'}}
+{{toBoolean 0}}
+{{toNumber '123'}}
+{{toBigInt '9007199254740993'}}
+```
+
+- `toString` converts each argument group into a string and concatenates them with commas. Stringification follows its own pretty-printing rules.
+- `toBoolean` follows funcity's conditional semantics: `null`/`undefined` are false, `0`/`0n` are false, and all other values are true.
+- `toNumber` uses JavaScript's `Number(...)`, and `toBigInt` uses `BigInt(...)`.
+- When `toBigInt` receives a non-primitive type, it performs the same string conversion as `toString` before converting to `BigInt`.
 
 ### add,mul,and,or
 
@@ -389,6 +409,16 @@ Returns a function with partially applied arguments:
 ```
 
 The result is `223`.
+
+### url
+
+Creates a URL object using the first argument and an optional base URL in the second argument:
+
+```funcity
+{{set u (url '/path' 'https://example.com/base/')}}
+```
+
+The result is a `URL` object that represents `https://example.com/base/path`.
 
 ---
 

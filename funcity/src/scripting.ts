@@ -300,6 +300,12 @@ export const convertToString = (v: unknown): string => {
           if (iterable) {
             const arr = Array.from(iterable);
             return JSON.stringify(arr);
+          } else if (v instanceof Date) {
+            return v.toISOString();
+          } else if (v instanceof Error) {
+            return `${v.name}: ${v.message}`;
+          } else if (v instanceof URL) {
+            return v.origin;
           } else {
             return JSON.stringify(v);
           }
