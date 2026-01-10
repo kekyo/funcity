@@ -146,18 +146,23 @@ const run = async (
 
   // Concatenate all results as text
   const text: string = results.join('');
-
   return text;
 };
 ```
-
-(This code is exposed as a similar function named `runScriptOnce()`.)
 
 - The reducer's output is raw computational results.
   Multiple results may also be obtained.
   Therefore, these are concatenated as strings to produce the final output text.
 - If a script does not change once loaded and you want to run only the reducer many times,
   you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
+- Errors and warnings are added to `errors`.
+  If you want to terminate early due to errors or warnings, you can check whether `errors` contains any entries after each operation completes.
+- Even if errors and/or warnings exist, processing can continue to the interpreter.
+  The location where the error occurred may have been replaced with an appropriate token node,
+  and executing the interpreter using that information will likely not function correctly.
+  However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate errors.
+
+Note: This code is exposed as a similar function named `runScriptOnce()`. That it actually converts `results` to text using `convertToString()`.
 
 ### Variable binding
 
@@ -207,13 +212,16 @@ TODO:
 
 ## Standard Functions
 
-Standard functions are defined on the object exposed from `standardVariables`,
-and are implemented only with features that are available by default and do not depend on external libraries.
-For example, there is a `length` function that returns the length of a string or an array (`Iterable` object):
+Standard functions are implemented using only features that are publicly available from `standardVariables` or included in the functions returned by `buildCandidateVariables()`,
+and that are standardly usable and independent of external libraries.
+
+For example, there is a `length` standard function that returns the length of a string or an array (`Iterable` object):
 
 ```funcity
 {{length 'ABC'}}
 ```
+
+The following are the standard functions:
 
 | Function | Description |
 | :--- | :--- |
