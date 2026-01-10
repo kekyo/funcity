@@ -10,6 +10,9 @@ import dts from 'vite-plugin-dts';
 import prettierMax from 'prettier-max';
 import screwUp from 'screw-up';
 
+/**
+ * Vite configuration for building the library bundle.
+ */
 export default defineConfig({
   plugins: [
     dts({

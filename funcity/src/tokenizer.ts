@@ -4,9 +4,9 @@
 // https://github.com/kekyo/funcity/
 
 import type {
-  MtrScriptErrorInfo,
-  MtrScriptLocation,
-  MtrScriptRange,
+  FunCityErrorInfo,
+  FunCityLocation,
+  FunCityRange,
 } from './scripting';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -14,94 +14,136 @@ import type {
 /**
  * The string token.
  */
-export interface MtrScriptStringToken {
+export interface FunCityStringToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'string';
   /**
    * String value.
    */
   readonly value: string;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * The number (numeric) token.
  */
-export interface MtrScriptNumberToken {
+export interface FunCityNumberToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'number';
   /**
    * Numeric value.
    */
   readonly value: number;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * The identity (variable name) token.
  */
-export interface MtrScriptIdentityToken {
+export interface FunCityIdentityToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'identity';
   /**
    * Identity.
    */
   readonly name: string;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * Open parenthesis or bracket node.
  */
-export interface MtrScriptOpenToken {
+export interface FunCityOpenToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'open';
   /**
    * Open symbol.
    */
   readonly symbol: string;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * Close parenthesis or bracket token.
  */
-export interface MtrScriptCloseToken {
+export interface FunCityCloseToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'close';
   /**
    * Close symbol.
    */
   readonly symbol: string;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * End of line token.
  */
-export interface MtrScriptEndOfLineToken {
+export interface FunCityEndOfLineToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'eol';
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * Free form text token.
  */
-export interface MtrScriptTextToken {
+export interface FunCityTextToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'text';
   /**
    * Text value.
    */
   readonly text: string;
-  readonly range: MtrScriptRange;
+  /**
+   * Token range in source text.
+   */
+  readonly range: FunCityRange;
 }
 
 /**
  * The token.
  */
-export type MtrScriptToken =
-  | MtrScriptStringToken
-  | MtrScriptNumberToken
-  | MtrScriptIdentityToken
-  | MtrScriptOpenToken
-  | MtrScriptCloseToken
-  | MtrScriptEndOfLineToken
-  | MtrScriptTextToken;
+export type FunCityToken =
+  | FunCityStringToken
+  | FunCityNumberToken
+  | FunCityIdentityToken
+  | FunCityOpenToken
+  | FunCityCloseToken
+  | FunCityEndOfLineToken
+  | FunCityTextToken;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +204,7 @@ interface TokenizerCursor {
    * @param type - Location type.
    * @returns Location object.
    */
-  location: (type: LocationTypes) => MtrScriptLocation;
+  location: (type: LocationTypes) => FunCityLocation;
 }
 
 /**
@@ -176,7 +218,7 @@ interface TokenizerContext {
   /**
    * Will be stored detected warnings/errors into it
    */
-  readonly errors: MtrScriptErrorInfo[];
+  readonly errors: FunCityErrorInfo[];
 }
 
 /**
@@ -184,7 +226,7 @@ interface TokenizerContext {
  * @param context Tokenizer context
  * @returns String token
  */
-const tokenizeString = (context: TokenizerContext): MtrScriptStringToken => {
+const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
   const start = context.cursor.location('start');
 
   // Skip open quote
@@ -220,7 +262,7 @@ const numericChars = '0123456789';
  * @param context Tokenizer context
  * @returns Number token
  */
-const tokenizeNumber = (context: TokenizerContext): MtrScriptNumberToken => {
+const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
   const start = context.cursor.location('start');
 
   let index = 1;
@@ -278,9 +320,7 @@ const variableChars =
  * @param context Tokenizer context
  * @returns Identity token
  */
-const tokenizeIdentity = (
-  context: TokenizerContext
-): MtrScriptIdentityToken => {
+const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
   const start = context.cursor.location('start');
 
   let index = 1;
@@ -315,13 +355,13 @@ const tokenizeIdentity = (
  * @param context Tokenizer context
  * @returns The token list
  */
-const tokenizeCodeBlock = (context: TokenizerContext): MtrScriptToken[] => {
+const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const openStart = context.cursor.location('start');
 
   // Skip open brackets '{{'
   context.cursor.skip(2);
 
-  const tokens: MtrScriptToken[] = [
+  const tokens: FunCityToken[] = [
     {
       kind: 'open',
       symbol: '{{',
@@ -329,7 +369,7 @@ const tokenizeCodeBlock = (context: TokenizerContext): MtrScriptToken[] => {
     },
   ];
 
-  let unknownStartLocation: MtrScriptLocation | undefined;
+  let unknownStartLocation: FunCityLocation | undefined;
   const finalizeUnknown = () => {
     if (unknownStartLocation) {
       context.errors.push({
@@ -468,25 +508,27 @@ const tokenizeCodeBlock = (context: TokenizerContext): MtrScriptToken[] => {
 //////////////////////////////////////////////////////////////////////////////
 
 /**
- * Create a tonenizer cursor object.
- * @param text - A text.
- * @returns Tonenizer cursor object.
+ * Create a tonenizer cursor.
+ * @param script - Input script text
+ * @returns Tonenizer cursor
  */
-const createTokenizerCursor = (text: string): TokenizerCursor => {
+const createTokenizerCursor = (script: string): TokenizerCursor => {
   let currentIndex = 0;
   let rawLine = 0;
   let rawColumn = 0;
   let lastLine = 0;
   let lastColumn = 0;
 
-  const eot = () => currentIndex >= text.length;
-  const getChar = (index?: number) => text[(index ?? 0) + currentIndex]!;
+  const eot = () => currentIndex >= script.length;
+
+  const getChar = (index?: number) => script[(index ?? 0) + currentIndex]!;
+
   const skip = (length: number) => {
     let lastch = '\0';
     while (length > 0) {
       lastColumn = rawColumn;
       lastLine = rawLine;
-      const ch = text[currentIndex]!;
+      const ch = script[currentIndex]!;
       if (ch === '\r') {
         rawColumn = 0;
       } else if (ch === '\n' && lastch !== '\r') {
@@ -500,6 +542,7 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
       lastch = ch;
     }
   };
+
   const skipChars = (ch: string) => {
     while (!eot()) {
       if (getChar() !== ch) {
@@ -509,9 +552,10 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
     }
     return false;
   };
+
   const skipUntil = (word: string) => {
     while (!eot()) {
-      const index = text.indexOf(word, currentIndex);
+      const index = script.indexOf(word, currentIndex);
       if (index === currentIndex) {
         skip(word.length);
         return true;
@@ -520,36 +564,40 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
     }
     return false;
   };
+
   const assert = (word: string) => {
-    if (text.length - currentIndex < word.length) {
+    if (script.length - currentIndex < word.length) {
       return false;
     }
-    if (text.substring(currentIndex, currentIndex + word.length) === word) {
+    if (script.substring(currentIndex, currentIndex + word.length) === word) {
       return true;
     }
     return false;
   };
+
   const getRangeAndSkip = (length: number) => {
-    const result = text.substring(currentIndex, currentIndex + length);
+    const result = script.substring(currentIndex, currentIndex + length);
     skip(result.length);
     return result;
   };
+
   const getUntil = (word: string) => {
-    if (currentIndex >= text.length) {
+    if (currentIndex >= script.length) {
       return undefined;
     }
-    const index = text.indexOf(word, currentIndex);
+    const index = script.indexOf(word, currentIndex);
     if (index >= 0) {
-      const result = text.substring(currentIndex, index);
+      const result = script.substring(currentIndex, index);
       skip(index - currentIndex);
       return result;
     } else {
-      const result = text.substring(currentIndex, text.length);
-      skip(text.length - currentIndex);
+      const result = script.substring(currentIndex, script.length);
+      skip(script.length - currentIndex);
       return result;
     }
   };
-  const location = (type: LocationTypes): MtrScriptLocation =>
+
+  const location = (type: LocationTypes): FunCityLocation =>
     type === 'end'
       ? {
           line: lastLine + 1,
@@ -576,21 +624,21 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
 //////////////////////////////////////////////////////////////////////////////
 
 /**
- * Run tokenizer.
+ * Run the tokenizer.
  * @param script - Input script text
- * @errors - Will be stored detected warnings/errors into it
+ * @param errors - Will be stored detected warnings/errors into it
  * @returns The token list
  */
 export const runTokenizer = (
   script: string,
-  errors: MtrScriptErrorInfo[]
-): MtrScriptToken[] => {
+  errors: FunCityErrorInfo[]
+): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
     errors,
   };
 
-  const tokens: MtrScriptToken[] = [];
+  const tokens: FunCityToken[] = [];
 
   const readTextBlock = () => {
     if (context.cursor.eot()) {

@@ -3,19 +3,19 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
-  MtrScriptApplyNode,
-  MtrScriptExpressionNode,
-  MtrScriptLambdaNode,
-  MtrScriptListNode,
-  MtrScriptBlockNode,
-  MtrScriptNumberNode,
-  MtrScriptStringNode,
-  MtrScriptVariableNode,
+  FunCityApplyNode,
+  FunCityExpressionNode,
+  FunCityLambdaNode,
+  FunCityListNode,
+  FunCityBlockNode,
+  FunCityNumberNode,
+  FunCityStringNode,
+  FunCityVariableNode,
 } from '../src/parser';
 import { runReducer } from '../src/reducer';
-import type { MtrScriptErrorInfo } from '../src/scripting';
+import type { FunCityErrorInfo } from '../src/scripting';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -26,30 +26,30 @@ const range = {
   start: { line: 1, column: 1 },
   end: { line: 1, column: 1 },
 };
-const numberNode = (value: number): MtrScriptNumberNode => ({
+const numberNode = (value: number): FunCityNumberNode => ({
   kind: 'number' as const,
   value,
   range,
 });
-const stringNode = (value: string): MtrScriptStringNode => ({
+const stringNode = (value: string): FunCityStringNode => ({
   kind: 'string' as const,
   value,
   range,
 });
-const variableNode = (name: string): MtrScriptVariableNode => ({
+const variableNode = (name: string): FunCityVariableNode => ({
   kind: 'variable' as const,
   name,
   range,
 });
-const listNode = (items: MtrScriptExpressionNode[]): MtrScriptListNode => ({
+const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
   kind: 'list' as const,
   items,
   range,
 });
 const applyNode = (
   name: string,
-  args: MtrScriptExpressionNode[]
-): MtrScriptApplyNode => ({
+  args: FunCityExpressionNode[]
+): FunCityApplyNode => ({
   kind: 'apply' as const,
   func: variableNode(name),
   args,
@@ -57,286 +57,361 @@ const applyNode = (
 });
 const lambdaNode = (
   names: string[],
-  body: MtrScriptExpressionNode
-): MtrScriptLambdaNode => ({
+  body: FunCityExpressionNode
+): FunCityLambdaNode => ({
   kind: 'lambda' as const,
   names: names.map((name) => variableNode(name)),
   body,
   range,
 });
-const nodes: MtrScriptBlockNode[] = [
-  variableNode('true'),
-  variableNode('false'),
-  applyNode('add', [numberNode(1), numberNode(2)]),
-  applyNode('sub', [numberNode(5), numberNode(3)]),
-  applyNode('mul', [numberNode(7), numberNode(2)]),
-  applyNode('div', [numberNode(8), numberNode(2)]),
-  applyNode('mod', [numberNode(9), numberNode(4)]),
-  applyNode('equal', [numberNode(1), numberNode(1)]),
-  applyNode('equal', [numberNode(1), numberNode(2)]),
-  applyNode('now', []),
-  applyNode('concat', [
-    numberNode(12),
-    listNode([numberNode(34), numberNode(56)]),
-    numberNode(78),
-  ]),
-  applyNode('join', [
-    stringNode(','),
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('trim', [stringNode(' ABC ')]),
-  applyNode('toUpper', [stringNode('AbC')]),
-  applyNode('toLower', [stringNode('AbC')]),
-  applyNode('length', [listNode([numberNode(12), numberNode(34)])]),
-  applyNode('length', [stringNode('ABC')]),
-  applyNode('and', [variableNode('true'), variableNode('false')]),
-  applyNode('and', [variableNode('true'), variableNode('true')]),
-  applyNode('or', [variableNode('false'), variableNode('false')]),
-  applyNode('or', [variableNode('false'), variableNode('true')]),
-  applyNode('not', [variableNode('false')]),
-  applyNode('not', [variableNode('true')]),
-  applyNode('cond', [variableNode('true'), numberNode(123), numberNode(456)]),
-  applyNode('cond', [variableNode('false'), numberNode(123), numberNode(456)]),
-  applyNode('at', [
-    numberNode(1),
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('at', [numberNode(1), stringNode('ABC')]),
-  applyNode('first', [
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('last', [
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('range', [numberNode(3), numberNode(5)]),
-  applyNode('reverse', [
-    listNode([numberNode(1), numberNode(2), numberNode(3)]),
-  ]),
-  applyNode('sort', [listNode([numberNode(3), numberNode(5), numberNode(1)])]),
-  applyNode('map', [
-    lambdaNode(
-      ['foo'],
-      applyNode('mul', [variableNode('foo'), numberNode(10)])
-    ),
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('flatMap', [
-    lambdaNode(
-      ['foo'],
-      listNode([applyNode('mul', [variableNode('foo'), numberNode(10)])])
-    ),
-    listNode([numberNode(12), numberNode(34), numberNode(56)]),
-  ]),
-  applyNode('filter', [
-    lambdaNode(['foo'], applyNode('mod', [variableNode('foo'), numberNode(2)])),
-    listNode([numberNode(1), numberNode(2), numberNode(3)]),
-  ]),
-  applyNode('collect', [
-    listNode([numberNode(1), variableNode('undefined'), numberNode(3)]),
-  ]),
-  applyNode('reduce', [
-    stringNode('A'),
-    lambdaNode(
-      ['acc', 'v'],
-      applyNode('concat', [variableNode('acc'), variableNode('v')])
-    ),
-    listNode([stringNode('B'), stringNode('C'), stringNode('D')]),
-  ]),
-  applyNode('match', [
-    stringNode('[A-Z]'),
-    stringNode('The quick brown fox jumps over the lazy dog. It barked.'),
-  ]),
-  applyNode('replace', [
-    stringNode('dog'),
-    stringNode('ferret'),
-    stringNode("I think Ruth's dog is cuter than your dog!"),
-  ]),
-  applyNode('regex', [stringNode('[A-Z]'), stringNode('gi')]),
-  applyNode('regex', [stringNode('[A-Z]')]),
-  {
-    kind: 'apply',
-    func: applyNode('bind', [variableNode('add'), numberNode(123)]),
-    args: [numberNode(100)],
-    range,
-  },
-  applyNode('toString', []),
-  applyNode('toString', [
-    numberNode(123),
-    stringNode('ABC'),
-    variableNode('true'),
-    variableNode('false'),
-    variableNode('undefined'),
-    variableNode('null'),
-    listNode([numberNode(111), numberNode(222)]),
-    lambdaNode(['a'], variableNode('a')),
-  ]),
-  applyNode('typeof', [numberNode(111)]),
-  applyNode('typeof', [stringNode('ABC')]),
-  applyNode('typeof', [variableNode('null')]),
-];
 
 describe('standard variables test', () => {
-  let reduced: unknown[] = [];
-  let errors: MtrScriptErrorInfo[] = [];
-  let nowBefore = 0;
-  let nowAfter = 0;
-
-  beforeAll(async () => {
-    errors = [];
+  const reduceSingle = async (node: FunCityBlockNode) => {
+    const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
-    nowBefore = Date.now();
-    reduced = await runReducer(nodes, variables, errors);
-    nowAfter = Date.now();
-  });
-
-  it('true', () => {
-    expect(reduced).toHaveLength(47);
+    const reduced = await runReducer([node], variables, errors);
     expect(errors).toEqual([]);
-    expect(reduced[0]).toBe(true);
+    expect(reduced).toHaveLength(1);
+    return reduced[0];
+  };
+
+  it('true', async () => {
+    const value = await reduceSingle(variableNode('true'));
+    expect(value).toBe(true);
   });
-  it('false', () => {
-    expect(reduced[1]).toBe(false);
+  it('false', async () => {
+    const value = await reduceSingle(variableNode('false'));
+    expect(value).toBe(false);
   });
-  it('add', () => {
-    expect(reduced[2]).toBe(3);
+  it('add', async () => {
+    const value = await reduceSingle(
+      applyNode('add', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(3);
   });
-  it('sub', () => {
-    expect(reduced[3]).toBe(2);
+  it('sub', async () => {
+    const value = await reduceSingle(
+      applyNode('sub', [numberNode(5), numberNode(3)])
+    );
+    expect(value).toBe(2);
   });
-  it('mul', () => {
-    expect(reduced[4]).toBe(14);
+  it('mul', async () => {
+    const value = await reduceSingle(
+      applyNode('mul', [numberNode(7), numberNode(2)])
+    );
+    expect(value).toBe(14);
   });
-  it('div', () => {
-    expect(reduced[5]).toBe(4);
+  it('div', async () => {
+    const value = await reduceSingle(
+      applyNode('div', [numberNode(8), numberNode(2)])
+    );
+    expect(value).toBe(4);
   });
-  it('mod', () => {
-    expect(reduced[6]).toBe(1);
+  it('mod', async () => {
+    const value = await reduceSingle(
+      applyNode('mod', [numberNode(9), numberNode(4)])
+    );
+    expect(value).toBe(1);
   });
-  it('equal true', () => {
-    expect(reduced[7]).toBe(true);
+  it('equal true', async () => {
+    const value = await reduceSingle(
+      applyNode('equal', [numberNode(1), numberNode(1)])
+    );
+    expect(value).toBe(true);
   });
-  it('equal false', () => {
-    expect(reduced[8]).toBe(false);
+  it('equal false', async () => {
+    const value = await reduceSingle(
+      applyNode('equal', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(false);
   });
-  it('now', () => {
-    const nowValue = reduced[9] as number;
+  it('now', async () => {
+    const errors: FunCityErrorInfo[] = [];
+    const variables = buildCandidateVariables();
+    const nowBefore = Date.now();
+    const reduced = await runReducer([applyNode('now', [])], variables, errors);
+    const nowAfter = Date.now();
+    expect(errors).toEqual([]);
+    expect(reduced).toHaveLength(1);
+    const nowValue = reduced[0] as number;
     expect(typeof nowValue).toBe('number');
     expect(nowValue).toBeGreaterThanOrEqual(nowBefore);
     expect(nowValue).toBeLessThanOrEqual(nowAfter);
   });
-  it('concat', () => {
-    expect(reduced[10]).toBe('12345678');
-  });
-  it('join', () => {
-    expect(reduced[11]).toBe('12,34,56');
-  });
-  it('trim', () => {
-    expect(reduced[12]).toBe('ABC');
-  });
-  it('toUpper', () => {
-    expect(reduced[13]).toBe('ABC');
-  });
-  it('toLower', () => {
-    expect(reduced[14]).toBe('abc');
-  });
-  it('length array', () => {
-    expect(reduced[15]).toBe(2);
-  });
-  it('length string', () => {
-    expect(reduced[16]).toBe(3);
-  });
-  it('and false', () => {
-    expect(reduced[17]).toBe(false);
-  });
-  it('and true', () => {
-    expect(reduced[18]).toBe(true);
-  });
-  it('or false', () => {
-    expect(reduced[19]).toBe(false);
-  });
-  it('or true', () => {
-    expect(reduced[20]).toBe(true);
-  });
-  it('not false', () => {
-    expect(reduced[21]).toBe(true);
-  });
-  it('not true', () => {
-    expect(reduced[22]).toBe(false);
-  });
-  it('cond true', () => {
-    expect(reduced[23]).toBe(123);
-  });
-  it('cond false', () => {
-    expect(reduced[24]).toBe(456);
-  });
-  it('at array', () => {
-    expect(reduced[25]).toBe(34);
-  });
-  it('at string', () => {
-    expect(reduced[26]).toBe('B');
-  });
-  it('first', () => {
-    expect(reduced[27]).toBe(12);
-  });
-  it('last', () => {
-    expect(reduced[28]).toBe(56);
-  });
-  it('range', () => {
-    expect(reduced[29]).toStrictEqual([3, 4, 5, 6, 7]);
-  });
-  it('reverse', () => {
-    expect(reduced[30]).toStrictEqual([3, 2, 1]);
-  });
-  it('sort', () => {
-    expect(reduced[31]).toStrictEqual([1, 3, 5]);
-  });
-  it('map', () => {
-    expect(reduced[32]).toStrictEqual([120, 340, 560]);
-  });
-  it('flatMap', () => {
-    expect(reduced[33]).toStrictEqual([120, 340, 560]);
-  });
-  it('filter', () => {
-    expect(reduced[34]).toStrictEqual([1, 3]);
-  });
-  it('collect', () => {
-    expect(reduced[35]).toStrictEqual([1, 3]);
-  });
-  it('reduce', () => {
-    expect(reduced[36]).toBe('ABCD');
-  });
-  it('match', () => {
-    expect(reduced[37]).toStrictEqual(['T', 'I']);
-  });
-  it('replace', () => {
-    expect(reduced[38]).toBe(
-      "I think Ruth's ferret is cuter than your ferret!"
+  it('concat', async () => {
+    const value = await reduceSingle(
+      applyNode('concat', [
+        numberNode(12),
+        listNode([numberNode(34), numberNode(56)]),
+        numberNode(78),
+      ])
     );
+    expect(value).toBe('12345678');
   });
-  it('regex gi', () => {
-    expect(reduced[39]!.toString()).toBe('/[A-Z]/gi');
+  it('join', async () => {
+    const value = await reduceSingle(
+      applyNode('join', [
+        stringNode(','),
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toBe('12,34,56');
   });
-  it('regex', () => {
-    expect(reduced[40]!.toString()).toBe('/[A-Z]/');
+  it('trim', async () => {
+    const value = await reduceSingle(applyNode('trim', [stringNode(' ABC ')]));
+    expect(value).toBe('ABC');
   });
-  it('bind', () => {
-    expect(reduced[41]).toBe(223);
+  it('toUpper', async () => {
+    const value = await reduceSingle(applyNode('toUpper', [stringNode('AbC')]));
+    expect(value).toBe('ABC');
   });
-  it('toString empty', () => {
-    expect(reduced[42]).toBe('');
+  it('toLower', async () => {
+    const value = await reduceSingle(applyNode('toLower', [stringNode('AbC')]));
+    expect(value).toBe('abc');
   });
-  it('toString values', () => {
-    expect(reduced[43]).toBe(
+  it('length array', async () => {
+    const value = await reduceSingle(
+      applyNode('length', [listNode([numberNode(12), numberNode(34)])])
+    );
+    expect(value).toBe(2);
+  });
+  it('length string', async () => {
+    const value = await reduceSingle(applyNode('length', [stringNode('ABC')]));
+    expect(value).toBe(3);
+  });
+  it('and false', async () => {
+    const value = await reduceSingle(
+      applyNode('and', [variableNode('true'), variableNode('false')])
+    );
+    expect(value).toBe(false);
+  });
+  it('and true', async () => {
+    const value = await reduceSingle(
+      applyNode('and', [variableNode('true'), variableNode('true')])
+    );
+    expect(value).toBe(true);
+  });
+  it('or false', async () => {
+    const value = await reduceSingle(
+      applyNode('or', [variableNode('false'), variableNode('false')])
+    );
+    expect(value).toBe(false);
+  });
+  it('or true', async () => {
+    const value = await reduceSingle(
+      applyNode('or', [variableNode('false'), variableNode('true')])
+    );
+    expect(value).toBe(true);
+  });
+  it('not false', async () => {
+    const value = await reduceSingle(applyNode('not', [variableNode('false')]));
+    expect(value).toBe(true);
+  });
+  it('not true', async () => {
+    const value = await reduceSingle(applyNode('not', [variableNode('true')]));
+    expect(value).toBe(false);
+  });
+  it('cond true', async () => {
+    const value = await reduceSingle(
+      applyNode('cond', [
+        variableNode('true'),
+        numberNode(123),
+        numberNode(456),
+      ])
+    );
+    expect(value).toBe(123);
+  });
+  it('cond false', async () => {
+    const value = await reduceSingle(
+      applyNode('cond', [
+        variableNode('false'),
+        numberNode(123),
+        numberNode(456),
+      ])
+    );
+    expect(value).toBe(456);
+  });
+  it('at array', async () => {
+    const value = await reduceSingle(
+      applyNode('at', [
+        numberNode(1),
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toBe(34);
+  });
+  it('at string', async () => {
+    const value = await reduceSingle(
+      applyNode('at', [numberNode(1), stringNode('ABC')])
+    );
+    expect(value).toBe('B');
+  });
+  it('first', async () => {
+    const value = await reduceSingle(
+      applyNode('first', [
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toBe(12);
+  });
+  it('last', async () => {
+    const value = await reduceSingle(
+      applyNode('last', [
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toBe(56);
+  });
+  it('range', async () => {
+    const value = await reduceSingle(
+      applyNode('range', [numberNode(3), numberNode(5)])
+    );
+    expect(value).toStrictEqual([3, 4, 5, 6, 7]);
+  });
+  it('reverse', async () => {
+    const value = await reduceSingle(
+      applyNode('reverse', [
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value).toStrictEqual([3, 2, 1]);
+  });
+  it('sort', async () => {
+    const value = await reduceSingle(
+      applyNode('sort', [
+        listNode([numberNode(3), numberNode(5), numberNode(1)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 3, 5]);
+  });
+  it('map', async () => {
+    const value = await reduceSingle(
+      applyNode('map', [
+        lambdaNode(
+          ['foo'],
+          applyNode('mul', [variableNode('foo'), numberNode(10)])
+        ),
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toStrictEqual([120, 340, 560]);
+  });
+  it('flatMap', async () => {
+    const value = await reduceSingle(
+      applyNode('flatMap', [
+        lambdaNode(
+          ['foo'],
+          listNode([applyNode('mul', [variableNode('foo'), numberNode(10)])])
+        ),
+        listNode([numberNode(12), numberNode(34), numberNode(56)]),
+      ])
+    );
+    expect(value).toStrictEqual([120, 340, 560]);
+  });
+  it('filter', async () => {
+    const value = await reduceSingle(
+      applyNode('filter', [
+        lambdaNode(
+          ['foo'],
+          applyNode('mod', [variableNode('foo'), numberNode(2)])
+        ),
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 3]);
+  });
+  it('collect', async () => {
+    const value = await reduceSingle(
+      applyNode('collect', [
+        listNode([numberNode(1), variableNode('undefined'), numberNode(3)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 3]);
+  });
+  it('reduce', async () => {
+    const value = await reduceSingle(
+      applyNode('reduce', [
+        stringNode('A'),
+        lambdaNode(
+          ['acc', 'v'],
+          applyNode('concat', [variableNode('acc'), variableNode('v')])
+        ),
+        listNode([stringNode('B'), stringNode('C'), stringNode('D')]),
+      ])
+    );
+    expect(value).toBe('ABCD');
+  });
+  it('match', async () => {
+    const value = await reduceSingle(
+      applyNode('match', [
+        stringNode('[A-Z]'),
+        stringNode('The quick brown fox jumps over the lazy dog. It barked.'),
+      ])
+    );
+    expect(value).toStrictEqual(['T', 'I']);
+  });
+  it('replace', async () => {
+    const value = await reduceSingle(
+      applyNode('replace', [
+        stringNode('dog'),
+        stringNode('ferret'),
+        stringNode("I think Ruth's dog is cuter than your dog!"),
+      ])
+    );
+    expect(value).toBe("I think Ruth's ferret is cuter than your ferret!");
+  });
+  it('regex gi', async () => {
+    const value = await reduceSingle(
+      applyNode('regex', [stringNode('[A-Z]'), stringNode('gi')])
+    );
+    expect((value as RegExp).toString()).toBe('/[A-Z]/gi');
+  });
+  it('regex', async () => {
+    const value = await reduceSingle(applyNode('regex', [stringNode('[A-Z]')]));
+    expect((value as RegExp).toString()).toBe('/[A-Z]/');
+  });
+  it('bind', async () => {
+    const value = await reduceSingle({
+      kind: 'apply',
+      func: applyNode('bind', [variableNode('add'), numberNode(123)]),
+      args: [numberNode(100)],
+      range,
+    });
+    expect(value).toBe(223);
+  });
+  it('toString empty', async () => {
+    const value = await reduceSingle(applyNode('toString', []));
+    expect(value).toBe('');
+  });
+  it('toString values', async () => {
+    const value = await reduceSingle(
+      applyNode('toString', [
+        numberNode(123),
+        stringNode('ABC'),
+        variableNode('true'),
+        variableNode('false'),
+        variableNode('undefined'),
+        variableNode('null'),
+        listNode([numberNode(111), numberNode(222)]),
+        lambdaNode(['a'], variableNode('a')),
+      ])
+    );
+    expect(value).toBe(
       '123,ABC,true,false,(undefined),(null),[111,222],fun<#1>'
     );
   });
-  it('typeof number', () => {
-    expect(reduced[44]).toBe('number');
+  it('typeof number', async () => {
+    const value = await reduceSingle(applyNode('typeof', [numberNode(111)]));
+    expect(value).toBe('number');
   });
-  it('typeof string', () => {
-    expect(reduced[45]).toBe('string');
+  it('typeof string', async () => {
+    const value = await reduceSingle(applyNode('typeof', [stringNode('ABC')]));
+    expect(value).toBe('string');
   });
-  it('typeof null', () => {
-    expect(reduced[46]).toBe('null');
+  it('typeof null', async () => {
+    const value = await reduceSingle(
+      applyNode('typeof', [variableNode('null')])
+    );
+    expect(value).toBe('null');
   });
 });

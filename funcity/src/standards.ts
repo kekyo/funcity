@@ -8,19 +8,19 @@ import {
   combineVariables,
   isConditionalTrue,
   makeSpecialFunction,
-  type MtrScriptVariables,
+  type FunCityVariables,
 } from './scripting';
-import { MtrScriptExpressionNode } from './parser';
-import { MtrScriptFunctionContext } from './reducer';
+import { FunCityExpressionNode } from './parser';
+import { FunCityFunctionContext } from './reducer';
 
 //////////////////////////////////////////////////////////////////////////////
 
 // `cond` function requires delayed execution both then/else expressions.
 const _cond = makeSpecialFunction(async function (
-  this: MtrScriptFunctionContext,
-  arg0: MtrScriptExpressionNode,
-  arg1: MtrScriptExpressionNode,
-  arg2: MtrScriptExpressionNode
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode,
+  arg1: FunCityExpressionNode,
+  arg2: FunCityExpressionNode
 ) {
   const cond = await this.reduce(arg0);
   if (isConditionalTrue(cond)) {
@@ -398,8 +398,10 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
 
 //////////////////////////////////////////////////////////////////////////////
 
-// Standard variables
-export const standardVariables = {
+/**
+ * Built-in standard variables and functions.
+ */
+export const standardVariables = Object.freeze({
   undefined: undefined,
   null: null,
   true: true,
@@ -438,10 +440,15 @@ export const standardVariables = {
   replace: _replace,
   regex: _regex,
   bind: _bind,
-} as const;
+} as const);
 
+/**
+ * Build a variable map that includes standard variables.
+ * @param variablesList - Additional variable sources.
+ * @returns Combined variable map.
+ */
 export const buildCandidateVariables = (
-  ...variablesList: readonly (MtrScriptVariables | Record<string, unknown>)[]
-): MtrScriptVariables => {
+  ...variablesList: readonly (FunCityVariables | Record<string, unknown>)[]
+): FunCityVariables => {
   return combineVariables(standardVariables, ...variablesList);
 };
