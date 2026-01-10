@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type FunCityErrorInfo } from '../src/scripting';
+import { type FunCityErrorInfo } from '../src/types';
 import { runTokenizer } from '../src/tokenizer';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -524,6 +524,29 @@ describe('scripting tokenize test', () => {
       },
     ]);
     expect(errors).toEqual([]);
+  });
+
+  it('string token with escapes', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const tokens = runTokenizer("{{'a\\n\\t\\r\\v\\f\\0\\\\\\'b'}}", errors);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: "a\n\t\r\v\f\0\\'b",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('string token with invalid escape keeps raw', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const tokens = runTokenizer("{{'a\\xb'}}", errors);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: 'a\\xb',
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.description).toBe('invalid escape sequence: \\x');
   });
 
   it('number token 12345', () => {

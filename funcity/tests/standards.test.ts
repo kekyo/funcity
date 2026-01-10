@@ -4,7 +4,9 @@
 // https://github.com/kekyo/funcity/
 
 import { describe, expect, it } from 'vitest';
+
 import type {
+  FunCityErrorInfo,
   FunCityApplyNode,
   FunCityExpressionNode,
   FunCityLambdaNode,
@@ -13,9 +15,8 @@ import type {
   FunCityNumberNode,
   FunCityStringNode,
   FunCityVariableNode,
-} from '../src/parser';
+} from '../src/types';
 import { runReducer } from '../src/reducer';
-import type { FunCityErrorInfo } from '../src/scripting';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +74,12 @@ describe('standard variables test', () => {
     expect(errors).toEqual([]);
     expect(reduced).toHaveLength(1);
     return reduced[0];
+  };
+  const reduceWithErrors = async (node: FunCityBlockNode) => {
+    const errors: FunCityErrorInfo[] = [];
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer([node], variables, errors);
+    return { reduced, errors };
   };
 
   it('true', async () => {
@@ -202,6 +209,20 @@ describe('standard variables test', () => {
       applyNode('or', [variableNode('false'), variableNode('true')])
     );
     expect(value).toBe(true);
+  });
+  it('and short-circuit', async () => {
+    const { reduced, errors } = await reduceWithErrors(
+      applyNode('and', [variableNode('false'), variableNode('missing')])
+    );
+    expect(reduced).toEqual([false]);
+    expect(errors).toEqual([]);
+  });
+  it('or short-circuit', async () => {
+    const { reduced, errors } = await reduceWithErrors(
+      applyNode('or', [variableNode('true'), variableNode('missing')])
+    );
+    expect(reduced).toEqual([true]);
+    expect(errors).toEqual([]);
   });
   it('not false', async () => {
     const value = await reduceSingle(applyNode('not', [variableNode('false')]));
@@ -399,6 +420,42 @@ describe('standard variables test', () => {
     expect(value).toBe(
       '123,ABC,true,false,(undefined),(null),[111,222],fun<#1>'
     );
+  });
+  it('toBoolean true', async () => {
+    const value = await reduceSingle(applyNode('toBoolean', [numberNode(1)]));
+    expect(value).toBe(true);
+  });
+  it('toBoolean false', async () => {
+    const value = await reduceSingle(applyNode('toBoolean', [numberNode(0)]));
+    expect(value).toBe(false);
+  });
+  it('toNumber', async () => {
+    const value = await reduceSingle(
+      applyNode('toNumber', [stringNode('123')])
+    );
+    expect(value).toBe(123);
+  });
+  it('toBigInt', async () => {
+    const value = await reduceSingle(
+      applyNode('toBigInt', [stringNode('123')])
+    );
+    expect(value).toBe(123n);
+  });
+  it('url', async () => {
+    const value = await reduceSingle(
+      applyNode('url', [stringNode('https://example.com/foo')])
+    );
+    expect(value).toBeInstanceOf(URL);
+    expect((value as URL).href).toBe('https://example.com/foo');
+  });
+  it('url with base', async () => {
+    const value = await reduceSingle(
+      applyNode('url', [
+        stringNode('bar'),
+        stringNode('https://example.com/base/'),
+      ])
+    );
+    expect((value as URL).href).toBe('https://example.com/base/bar');
   });
   it('typeof number', async () => {
     const value = await reduceSingle(applyNode('typeof', [numberNode(111)]));

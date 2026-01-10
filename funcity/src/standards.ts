@@ -4,30 +4,68 @@
 // https://github.com/kekyo/funcity/
 
 import {
+  FunCityExpressionNode,
+  FunCityVariables,
+  FunCityFunctionContext,
+} from './types';
+import {
   asIterable,
   combineVariables,
+  convertToString,
   isConditionalTrue,
-  makeSpecialFunction,
-  type FunCityVariables,
-} from './scripting';
-import { FunCityExpressionNode } from './parser';
-import { FunCityFunctionContext } from './reducer';
+  makeFunCityFunction,
+} from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
 // `cond` function requires delayed execution both then/else expressions.
-const _cond = makeSpecialFunction(async function (
+const _cond = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
-  arg0: FunCityExpressionNode,
-  arg1: FunCityExpressionNode,
-  arg2: FunCityExpressionNode
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  arg2: FunCityExpressionNode | undefined
 ) {
+  if (!arg0 || !arg1 || !arg2) {
+    this.appendError({
+      type: 'error',
+      description: 'Required `cond` condition, true and false expressions',
+      range: this.thisNode.range,
+    });
+    return undefined;
+  }
   const cond = await this.reduce(arg0);
   if (isConditionalTrue(cond)) {
     return await this.reduce(arg1); // Delayed execution when condition is true.
   } else {
     return await this.reduce(arg2); // Delayed execution when condition is false.
   }
+});
+
+const _set = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0 || !arg1 || rest.length !== 0) {
+    this.appendError({
+      type: 'error',
+      description: 'Required `set` bind identity and expression',
+      range: this.thisNode.range,
+    });
+    return undefined;
+  }
+  if (arg0.kind !== 'variable') {
+    this.appendError({
+      type: 'error',
+      description: 'Required `set` bind identity',
+      range: arg0.range,
+    });
+    return undefined;
+  }
+  const value = await this.reduce(arg1);
+  this.setValue(arg0.name, value);
+  return undefined;
 });
 
 const _typeof = async (arg0: unknown) => {
@@ -44,55 +82,35 @@ const _typeof = async (arg0: unknown) => {
   }
 };
 
-const funcIds = new WeakMap<Function, number>();
-let nextId = 1;
-
-const getFuncId = (fn: Function) => {
-  const cached = funcIds.get(fn);
-  if (cached) return cached;
-  const id = nextId++;
-  funcIds.set(fn, id);
-  return id;
+const _toString = async (...args: unknown[]) => {
+  const results = args.map((arg0) => convertToString(arg0));
+  return results.join(',');
 };
 
-const _toString = async (...args: unknown[]) => {
-  const results = args.map((arg0) => {
-    switch (arg0) {
-      case undefined:
-        return '(undefined)';
-      case null:
-        return '(null)';
-      default:
-        switch (typeof arg0) {
-          case 'string':
-            return arg0;
-          case 'boolean':
-            return arg0 ? 'true' : 'false';
-          case 'number':
-          case 'bigint':
-          case 'symbol':
-            return arg0.toString();
-          case 'function':
-            if (arg0.name) {
-              return `fun<${arg0.name}:#${getFuncId(arg0)}>`;
-            } else {
-              return `fun<#${getFuncId(arg0)}>`;
-            }
-          default:
-            if (Array.isArray(arg0)) {
-              return JSON.stringify(arg0);
-            }
-            const iterable = asIterable(arg0);
-            if (iterable) {
-              const arr = Array.from(iterable);
-              return JSON.stringify(arr);
-            } else {
-              return JSON.stringify(arg0);
-            }
-        }
+const _toBoolean = async (arg0: unknown) => {
+  const r = isConditionalTrue(arg0);
+  return r;
+};
+
+const _toNumber = async (arg0: unknown) => {
+  const r = Number(arg0);
+  return r;
+};
+
+const _toBigInt = async (arg0: unknown) => {
+  switch (typeof arg0) {
+    case 'number':
+    case 'bigint':
+    case 'string':
+    case 'boolean': {
+      const r = BigInt(arg0);
+      return r;
     }
-  });
-  return results.join(',');
+    default: {
+      const r = BigInt(await _toString(arg0));
+      return r;
+    }
+  }
 };
 
 const _add = async (arg0: unknown, ...args: unknown[]) => {
@@ -203,21 +221,47 @@ const _length = async (arg0: unknown) => {
   return 0;
 };
 
-const _and = async (...args: unknown[]) => {
+const _and = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  ...args: FunCityExpressionNode[]
+) {
   if (args.length === 0) {
-    throw new Error('empty arguments');
+    this.appendError({
+      type: 'error',
+      description: 'empty arguments',
+      range: this.thisNode.range,
+    });
+    return undefined;
   }
-  const r = args.reduce((v0: boolean, v) => v0 && isConditionalTrue(v), true);
-  return r;
-};
+  for (const arg of args) {
+    const value = await this.reduce(arg);
+    if (!isConditionalTrue(value)) {
+      return false;
+    }
+  }
+  return true;
+});
 
-const _or = async (...args: unknown[]) => {
+const _or = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  ...args: FunCityExpressionNode[]
+) {
   if (args.length === 0) {
-    throw new Error('empty arguments');
+    this.appendError({
+      type: 'error',
+      description: 'empty arguments',
+      range: this.thisNode.range,
+    });
+    return undefined;
   }
-  const r = args.reduce((v0: boolean, v) => v0 || isConditionalTrue(v), false);
-  return r;
-};
+  for (const arg of args) {
+    const value = await this.reduce(arg);
+    if (isConditionalTrue(value)) {
+      return true;
+    }
+  }
+  return false;
+});
 
 const _not = async (arg0: unknown) => {
   return !isConditionalTrue(arg0);
@@ -396,6 +440,14 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
   return predicate.bind(undefined, ...args);
 };
 
+const _url = async (arg0: unknown, arg1: unknown) => {
+  const url = new URL(
+    convertToString(arg0),
+    arg1 !== undefined ? convertToString(arg1) : undefined
+  );
+  return url;
+};
+
 //////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -407,7 +459,11 @@ export const standardVariables = Object.freeze({
   true: true,
   false: false,
   cond: _cond,
+  set: _set,
   toString: _toString,
+  toBoolean: _toBoolean,
+  toNumber: _toNumber,
+  toBigInt: _toBigInt,
   typeof: _typeof,
   add: _add,
   sub: _sub,
@@ -440,6 +496,7 @@ export const standardVariables = Object.freeze({
   replace: _replace,
   regex: _regex,
   bind: _bind,
+  url: _url,
 } as const);
 
 /**

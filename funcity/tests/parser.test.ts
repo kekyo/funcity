@@ -5,8 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type FunCityErrorInfo } from '../src/scripting';
-import type { FunCityToken } from '../src/tokenizer';
+import type { FunCityErrorInfo, FunCityToken } from '../src/types';
 import { runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -3272,23 +3271,33 @@ describe('scripting parser test', () => {
         kind: 'scope',
         nodes: [
           {
-            kind: 'set',
-            name: {
+            kind: 'apply',
+            func: {
               kind: 'variable',
-              name: 'foo',
+              name: 'set',
               range: {
-                start: { line: 1, column: 7 },
-                end: { line: 1, column: 9 },
+                start: { line: 1, column: 3 },
+                end: { line: 1, column: 5 },
               },
             },
-            expr: {
-              kind: 'number',
-              value: 123,
-              range: {
-                start: { line: 1, column: 11 },
-                end: { line: 1, column: 13 },
+            args: [
+              {
+                kind: 'variable',
+                name: 'foo',
+                range: {
+                  start: { line: 1, column: 7 },
+                  end: { line: 1, column: 9 },
+                },
               },
-            },
+              {
+                kind: 'number',
+                value: 123,
+                range: {
+                  start: { line: 1, column: 11 },
+                  end: { line: 1, column: 13 },
+                },
+              },
+            ],
             range: {
               start: { line: 1, column: 3 },
               end: { line: 1, column: 13 },

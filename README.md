@@ -120,6 +120,11 @@ flowchart LR
   Reducer --> Text["Text output"]
 ```
 
+- The tokenizer analyzes the script text and splits it into the words used by funcity.
+- The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
+- The interpreter (Reducer) interprets and computes each node.
+  This chain of operations recursively executes the entire script code.
+
 ### Basic operation
 
 Writing the whole operation in code gives a minimal example like this:
@@ -141,25 +146,30 @@ const run = async (
 
   // Concatenate all results as text
   const text: string = results.join('');
-
   return text;
 };
 ```
 
-(This code is exposed as a similar function named `runScriptOnce()`.)
+“The core” of the core engine is truly concentrated in this code:
 
-- The tokenizer analyzes the script text and splits it into the words used by funcity.
-- The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
-- The reducer evaluates the nodes and performs computation.
-  Chaining these steps results in script execution.
 - The reducer's output is raw computational results.
   Multiple results may also be obtained.
   Therefore, these are concatenated as strings to produce the final output text.
+- If a script does not change once loaded and you want to run only the reducer many times,
+  you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
+- Errors and warnings are added to `errors`.
+  If you want to terminate early due to errors or warnings, you can check whether `errors` contains any entries after each operation completes.
+- Even if errors and/or warnings exist, processing can continue to the interpreter.
+  The location where the error occurred may have been replaced with an appropriate token node,
+  and executing the interpreter using that information will likely not function correctly.
+  However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate errors.
+- Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
+  Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
-For example, if a script does not change once loaded and you want to run only the reducer many times,
-you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
+Note: This code is exposed as a similar function named `runScriptOnce()`.
+That it actually converts `results` to text using `convertToString()`.
 
-### Variable binding
+### Bind the value to a variable
 
 The reducer can accept a predefined set of variables as an argument.
 If you define (bind) variables in advance, you can reference them inside the script:
@@ -176,7 +186,7 @@ const variables = buildCandidateVariables(
 const results = await runReducer(nodes, variables, errors);
 ```
 
-### Binding function objects
+### Bind function objects
 
 Variables can bind not only literal values like strings and numbers, but also arbitrary function objects:
 
@@ -201,25 +211,82 @@ const results = await runReducer(nodes, variables, errors);
 With this variable binding feature, your application features can be referenced inside scripts.
 If you expose the scripting capability to users, they can extend functionality however they like.
 
-TODO:
+### funcity Functions (Advanced Topics)
+
+A "funcity function" is not a normal JavaScript function object; it can receive nodes obtained from the parser directly as arguments.
+You can define one using `makeFunCityFunction()`.
+
+In the example below, the second argument is evaluated and returned only when the value passed to the first argument is truthy.
+With ordinary functions, all arguments are evaluated before they are passed, so a function like this can only be defined as a funcity function:
+
+```typescript
+const variables = buildCandidateVariables(
+  {
+    // funcity function
+    baz: makeFunCityFunction(
+      async function (  // function keyword required
+        this: FunCityFunctionContext, // Access reducer features
+        c: FunCityExpressionNode | undefined,    // First-argument node
+        n: FunCityExpressionNode | undefined) {  // Second-argument node
+        // c or n is missing
+        if (!c || !n) {
+          // Record an error
+          this.appendError({
+            type: 'error',
+            description: 'Required arguments',
+            range: this.thisNode.range,  // Current function-application node
+          });
+          // Return undefined due to the error
+          return undefined;
+        }
+        // Only when c is truthy
+        if (isConditionalTrue(c)) {
+          // Evaluate n and return it
+          return await this.reduce(n);
+        }
+        // When c is falsy
+        return -1;
+    }),
+  }
+);
+
+// ex: `{{baz true 5}}` ---> [5]
+// ex: `{{baz false 5}}` ---> [-1]   (The expression `5` is not reduced)
+const results = await runReducer(nodes, variables, errors);
+```
+
+- `FunCityFunctionContext` is an interface for using some interpreter features inside funcity functions.
+  It is passed as the JavaScript `this` reference, so you need to use a `function` statement and define `this` as the first argument.
+  Note that you can obtain and operate on this context not only in funcity functions but also in normal functions.
+- As with normal functions, arguments might not be passed (you don't know at runtime whether the required number of arguments was provided),
+  so you should assume they can be `undefined`.
+- In this example we return `undefined` when an error is recorded, but this is not required; you can return any value.
+  If you return a meaningful value, evaluation continues using that value
+  (processing usually continues even if errors are recorded).
 
 ---
 
 ## Standard Functions
 
-Standard functions are defined on the object exposed from `standardVariables`,
-and are implemented only with features that are available by default and do not depend on external libraries.
-For example, there is a `length` function that returns the length of a string or an array (`Iterable` object):
+Standard functions are implemented using only features that are publicly available from `standardVariables` or included in the functions returned by `buildCandidateVariables()`,
+and that are standardly usable and independent of external libraries.
+
+For example, there is a `length` standard function that returns the length of a string or an array (`Iterable` object):
 
 ```funcity
 {{length 'ABC'}}
 ```
 
+The following are the standard functions:
+
 | Function | Description |
 | :--- | :--- |
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third. |
-| `toString` | Converts the first argument to a string. |
+| `toString` | Converts the arguments to a string. |
+| `toBoolean` | Converts the first argument to a boolean. |
+| `toNumber` | Converts the first argument to a number. |
+| `toBigInt` | Converts the first argument to a bigint. |
 | `add` | Adds all arguments as numbers. |
 | `sub` | Subtracts all arguments as numbers. |
 | `mul` | Multiplies all arguments as numbers. |
@@ -233,8 +300,8 @@ For example, there is a `length` function that returns the length of a string or
 | `toUpper` | Uppercases the first argument. |
 | `toLower` | Lowercases the first argument. |
 | `length` | Returns the length of the string/array/`Iterable` in the first argument. |
-| `and` | ANDs arguments as booleans (error if no arguments). |
-| `or` | ORs arguments as booleans (error if no arguments). |
+| `and` | ANDs arguments as booleans. |
+| `or` | ORs arguments as booleans. |
 | `not` | Returns the negation of the first argument as a boolean. |
 | `at` | Uses the first argument as an index to fetch an element from the array/`Iterable` in the second argument. |
 | `first` | Returns the first element of the array/`Iterable` in the first argument. |
@@ -251,6 +318,7 @@ For example, there is a `length` function that returns the length of a string or
 | `replace` | For the third argument, replaces matches of the regex in the first argument with the second argument. |
 | `regex` | Creates a regex object from the pattern in the first argument and the options in the second argument. |
 | `bind` | Partially applies the arguments after the first to the function in the first argument. |
+| `url` | Creates a URL object from the first argument and optional base in the second argument. |
 
 ### typeof
 
@@ -272,8 +340,23 @@ The `cond` function returns either the value of the second argument or the value
 ```
 
 In regular functions, all arguments are evaluated.
+However, this function is special ("funcity function"): only one of the second and third arguments is evaluated, depending on the result of the first argument.
 
-However, this function is special: only one of the second and third arguments is evaluated, depending on the result of the first argument.
+### toString,toBoolean,toNumber,toBigInt
+
+These functions convert the first argument to a string, boolean, number, or bigint.
+
+```funcity
+{{toString 123 'ABC'}}
+{{toBoolean 0}}
+{{toNumber '123'}}
+{{toBigInt '9007199254740993'}}
+```
+
+- `toString` converts each argument group into a string and concatenates them with commas. Stringification follows its own pretty-printing rules.
+- `toBoolean` follows funcity's conditional semantics: `null`/`undefined` are false, `0`/`0n` are false, and all other values are true.
+- `toNumber` uses JavaScript's `Number(...)`, and `toBigInt` uses `BigInt(...)`.
+- When `toBigInt` receives a non-primitive type, it performs the same string conversion as `toString` before converting to `BigInt`.
 
 ### add,mul,and,or
 
@@ -284,6 +367,7 @@ These functions can take multiple arguments:
 ```
 
 For `and` and `or`, at least one argument is required.
+They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`. They are "funcity function").
 
 ### at,first,last
 
@@ -379,6 +463,19 @@ Returns a function with partially applied arguments:
 ```
 
 The result is `223`.
+
+Be aware that this is different from variable binding, despite the similar-sounding name.
+This function is nearly equivalent to `bind()` for function objects in JavaScript.
+
+### url
+
+Creates a URL object using the first argument and an optional base URL in the second argument:
+
+```funcity
+{{set u (url '/path' 'https://example.com/base/')}}
+```
+
+The result is a `URL` object that represents `https://example.com/base/path`.
 
 ---
 

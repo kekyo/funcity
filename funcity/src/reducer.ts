@@ -3,102 +3,23 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import {
-  fromError,
-  asIterable,
-  type FunCityErrorInfo,
-  type FunCityVariables,
-  isConditionalTrue,
-  isSpecialFunction,
-} from './scripting';
 import type {
+  FunCityErrorInfo,
+  FunCityVariables,
   FunCityExpressionNode,
   FunCityLambdaNode,
   FunCityBlockNode,
   FunCityVariableNode,
-} from './parser';
-
-//////////////////////////////////////////////////////////////////////////////
-
-/**
- * Variable value result.
- */
-export interface ValueResult {
-  /**
-   * Variable value.
-   */
-  readonly value: unknown;
-  /**
-   * Is this found?
-   */
-  readonly isFound: boolean;
-}
-
-/**
- * Native function context.
- */
-export interface FunCityFunctionContext {
-  /**
-   * Current scope variables.
-   */
-  readonly variables: any;
-  /**
-   * Current function application node.
-   */
-  readonly thisNode: FunCityExpressionNode;
-  /**
-   * Reduce expression node with this context.
-   * @param node - Target node
-   * @returns Reduced value.
-   */
-  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
-  /**
-   * Append directly error information.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-}
-
-/**
- * The reducer context.
- */
-export interface FunCityReducerContext {
-  /**
-   * Get current context (scope) variable value.
-   * @param name - Variable name
-   * @returns Variable value information
-   */
-  readonly getValue: (name: string) => ValueResult;
-  /**
-   * Set current context (scope) variable value.
-   * @param name - Variable name
-   * @param value - New value
-   */
-  readonly setValue: (name: string, value: unknown) => void;
-  /**
-   * Append context error.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
-  /**
-   * Create new scoped context.
-   * @returns New reducer context.
-   */
-  readonly newScope: () => FunCityReducerContext;
-  /**
-   * Create native function context proxy.
-   * @param thisNode Current node (Indicating the current application is expected)
-   * @returns Native function context proxy instance.
-   */
-  readonly createFunctionContext: (
-    thisNode: FunCityExpressionNode
-  ) => FunCityFunctionContext;
-}
+  FunCityReducerContext,
+  FunCityReducerContextValueResult,
+  FunCityFunctionContext,
+} from './types';
+import {
+  fromError,
+  asIterable,
+  isConditionalTrue,
+  isFunCityFunction,
+} from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -222,6 +143,7 @@ export const reduceExpressionNode = async (
       return traverseVariable(context, node);
     }
     case 'apply': {
+      context.abortSignal?.throwIfAborted();
       const func = await reduceExpressionNode(context, node.func);
       if (typeof func !== 'function') {
         context.appendError({
@@ -231,28 +153,30 @@ export const reduceExpressionNode = async (
         });
         return undefined;
       }
-      const thisProxy = context.createFunctionContext(node);
-      if (isSpecialFunction(func)) {
-        const value = await func.call(thisProxy, ...node.args);
-        return value;
-      } else {
-        const args = await Promise.all(
-          node.args.map(async (argNode) => {
-            try {
+      const args = isFunCityFunction(func)
+        ? node.args // Passing directly node objects
+        : await Promise.all(
+            node.args.map(async (argNode) => {
               const arg = await reduceExpressionNode(context, argNode);
               return arg;
-            } catch (e: unknown) {
-              context.appendError({
-                type: 'error',
-                description: fromError(e),
-                range: argNode.range,
-              });
-              return undefined;
-            }
-          })
-        );
+            })
+          );
+      const thisProxy = context.createFunctionContext(node);
+      try {
+        // Call the function
         const value = await func.call(thisProxy, ...args);
         return value;
+      } catch (e: unknown) {
+        // Will through abort signal
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw e;
+        }
+        context.appendError({
+          type: 'error',
+          description: fromError(e),
+          range: node.range,
+        });
+        return undefined;
       }
     }
     case 'lambda': {
@@ -263,11 +187,6 @@ export const reduceExpressionNode = async (
         node.items.map((item) => reduceExpressionNode(context, item))
       );
       return results;
-    }
-    case 'set': {
-      const expr = await reduceExpressionNode(context, node.expr);
-      context.setValue(node.name.name, expr);
-      return undefined;
     }
     case 'scope': {
       if (node.nodes.length === 0) {
@@ -363,46 +282,94 @@ export const reduceNode = async (
 
 //////////////////////////////////////////////////////////////////////////////
 
+const createScopedReducerContext = (
+  parent: FunCityReducerContext
+): FunCityReducerContext => {
+  let thisVars: Map<string, unknown> | undefined;
+  let thisContext: FunCityReducerContext;
+
+  const getValue = (name: string): FunCityReducerContextValueResult => {
+    parent.abortSignal?.throwIfAborted();
+    if (thisVars?.has(name)) {
+      return { value: thisVars.get(name), isFound: true };
+    } else {
+      return parent.getValue(name);
+    }
+  };
+
+  const setValue = (name: string, value: unknown): void => {
+    parent.abortSignal?.throwIfAborted();
+    if (!thisVars) {
+      thisVars = new Map();
+    }
+    thisVars.set(name, value);
+  };
+
+  const createFunctionContext = (
+    thisNode: FunCityExpressionNode
+  ): FunCityFunctionContext => {
+    const newContext: FunCityFunctionContext = {
+      thisNode,
+      abortSignal: parent.abortSignal,
+      getValue,
+      setValue,
+      isFailed: parent.isFailed,
+      appendError: parent.appendError,
+      reduce: (node: FunCityExpressionNode) => {
+        parent.abortSignal?.throwIfAborted();
+        return reduceExpressionNode(thisContext, node);
+      },
+    };
+    return newContext;
+  };
+
+  thisContext = {
+    abortSignal: parent.abortSignal,
+    getValue,
+    setValue,
+    isFailed: parent.isFailed,
+    appendError: parent.appendError,
+    newScope: () => {
+      parent.abortSignal?.throwIfAborted();
+      return createScopedReducerContext(thisContext);
+    },
+    createFunctionContext,
+  };
+  return thisContext;
+};
+
 /**
  * Create reducer context.
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
+ * @param signal - Abort signal
  * @returns Reducer context
  */
 export const createReducerContext = (
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
+  errors: FunCityErrorInfo[],
+  signal?: AbortSignal
 ): FunCityReducerContext => {
-  let vs = variables;
-  let mvs: Map<string, unknown> | undefined;
-  let variablesProxy: any;
+  let thisVars: Map<string, unknown> | undefined;
+  let thisContext: FunCityReducerContext;
 
-  const getValue = (name: string): ValueResult => {
-    if (vs.has(name)) {
-      return { value: vs.get(name), isFound: true };
+  const getValue = (name: string): FunCityReducerContextValueResult => {
+    signal?.throwIfAborted();
+    if (thisVars?.has(name)) {
+      return { value: thisVars.get(name), isFound: true };
+    } else if (variables.has(name)) {
+      return { value: variables.get(name), isFound: true };
     } else {
       return { value: undefined, isFound: false };
     }
   };
 
   const setValue = (name: string, value: unknown) => {
-    // Clone (makes scoped) and update it.
-    if (!mvs) {
-      mvs = new Map(vs);
-      vs = mvs;
+    signal?.throwIfAborted();
+    if (!thisVars) {
+      thisVars = new Map();
     }
-    mvs.set(name, value);
-
-    // Updates variable proxy when already created.
-    if (variablesProxy !== undefined) {
-      Object.defineProperty(variablesProxy, name, {
-        get() {
-          return vs.get(name);
-        },
-        configurable: true,
-        enumerable: true,
-      });
-    }
+    thisVars.set(name, value);
   };
 
   const appendError = (error: FunCityErrorInfo) => {
@@ -413,51 +380,37 @@ export const createReducerContext = (
     return errors.some((error) => error.type === 'error');
   };
 
-  const newScope = () => {
-    const newContext = createReducerContext(vs, errors);
-    return newContext;
-  };
-
-  let context: FunCityReducerContext;
-  const reduceByProxy = (node: FunCityExpressionNode) =>
-    reduceExpressionNode(context, node);
-  const getVariablesFromProxy = () => {
-    // Makes cached variable proxy.
-    if (variablesProxy === undefined) {
-      variablesProxy = {};
-      for (const key of vs.keys()) {
-        Object.defineProperty(variablesProxy, key, {
-          get: () => vs.get(key),
-          configurable: true,
-          enumerable: true,
-        });
-      }
-    }
-    return variablesProxy;
-  };
-
   const createFunctionContext = (
     thisNode: FunCityExpressionNode
   ): FunCityFunctionContext => {
-    return {
-      get variables() {
-        return getVariablesFromProxy();
-      },
+    const newContext: FunCityFunctionContext = {
       thisNode,
+      abortSignal: signal,
+      getValue,
+      setValue,
+      isFailed,
       appendError,
-      reduce: reduceByProxy,
-    } as const;
+      reduce: (node: FunCityExpressionNode) => {
+        signal?.throwIfAborted();
+        return reduceExpressionNode(thisContext, node);
+      },
+    };
+    return newContext;
   };
 
-  context = {
+  thisContext = {
+    abortSignal: signal,
     getValue,
     setValue,
     appendError,
     isFailed,
-    newScope,
+    newScope: () => {
+      signal?.throwIfAborted();
+      return createScopedReducerContext(thisContext);
+    },
     createFunctionContext,
   };
-  return context;
+  return thisContext;
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -467,14 +420,16 @@ export const createReducerContext = (
  * @param nodes - Target nodes
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
+ * @param signal - Abort signal
  * @returns Reduced native values
  */
 export async function runReducer(
   nodes: readonly FunCityBlockNode[],
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
+  errors: FunCityErrorInfo[],
+  signal?: AbortSignal
 ): Promise<unknown[]> {
-  const context = createReducerContext(variables, errors);
+  const context = createReducerContext(variables, errors, signal);
 
   const resultList: unknown[] = [];
   for (const node of nodes) {

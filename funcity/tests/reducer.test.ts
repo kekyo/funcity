@@ -5,10 +5,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode, FunCityExpressionNode } from '../src/parser';
-import { runReducer, type FunCityFunctionContext } from '../src/reducer';
-import type { FunCityErrorInfo } from '../src/scripting';
+import type {
+  FunCityErrorInfo,
+  FunCityBlockNode,
+  FunCityExpressionNode,
+  FunCityFunctionContext,
+} from '../src/types';
 import { buildCandidateVariables } from '../src/standards';
+import { runReducer } from '../src/reducer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +67,9 @@ const scopeNode = (nodes: FunCityExpressionNode[]) => ({
   range,
 });
 const setNode = (name: string, expr: FunCityExpressionNode) => ({
-  kind: 'set' as const,
-  name: variableNode(name),
-  expr,
+  kind: 'apply' as const,
+  func: variableNode('set'),
+  args: [variableNode(name), expr],
   range,
 });
 const ifNode = (
@@ -282,6 +286,102 @@ describe('scripting reducer test', () => {
     expect(errors).toEqual([]);
   });
 
+  it('set returns undefined', async () => {
+    // "{{set foo 123}}"
+    const nodes: FunCityBlockNode[] = [setNode('foo', numberNode(123))];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  it('set inside lambda scope', async () => {
+    // "{{(fun [] (set foo 1\nfoo)) ()}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(
+        lambdaNode(
+          [],
+          scopeNode([setNode('foo', numberNode(1)), variableNode('foo')])
+        ),
+        []
+      ),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([1]);
+    expect(errors).toEqual([]);
+  });
+
+  it('set requires bind identity', async () => {
+    // "{{set 1 missing}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [numberNode(1), variableNode('missing')]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity',
+        range,
+      },
+    ]);
+  });
+
+  it('set requires two arguments (missing)', async () => {
+    // "{{set foo}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [variableNode('foo')]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity and expression',
+        range,
+      },
+    ]);
+  });
+
+  it('set requires two arguments (too many)', async () => {
+    // "{{set foo 1 2}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [
+        variableNode('foo'),
+        numberNode(1),
+        numberNode(2),
+      ]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity and expression',
+        range,
+      },
+    ]);
+  });
+
   it('for', async () => {
     // "{{for i [1 2 3 4 5]}}ABC{{end}}"
     const nodes: FunCityBlockNode[] = [
@@ -336,6 +436,46 @@ describe('scripting reducer test', () => {
       'ABC',
     ]);
     expect(errors).toEqual([]);
+  });
+
+  it('abort signal during loop', async () => {
+    const iterations = 40;
+    const delayMs = 10;
+    const abortAfterMs = 30;
+
+    const nodes: FunCityBlockNode[] = [
+      setNode('count', numberNode(iterations)),
+      whileNode(variableNode('count'), [
+        applyNode(variableNode('delay'), [numberNode(delayMs)]),
+        setNode(
+          'count',
+          applyNode(variableNode('sub'), [variableNode('count'), numberNode(1)])
+        ),
+      ]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables({
+      delay: async (ms: unknown) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, Number(ms)));
+        return undefined;
+      },
+    });
+
+    const controller = new AbortController();
+    const start = Date.now();
+    const abortTimer = setTimeout(() => controller.abort(), abortAfterMs);
+
+    try {
+      await expect(
+        runReducer(nodes, variables, errors, controller.signal)
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    const elapsedMs = Date.now() - start;
+    expect(elapsedMs).toBeLessThan(iterations * delayMs);
   });
 
   it('if true', async () => {
@@ -496,7 +636,7 @@ describe('scripting reducer test', () => {
     const errors: FunCityErrorInfo[] = [];
 
     async function foo(this: FunCityFunctionContext, v: unknown) {
-      return Number(v) + this.variables.bar;
+      return Number(v) + Number(this.getValue('bar').value);
     }
     const customVars = {
       foo,
@@ -506,6 +646,39 @@ describe('scripting reducer test', () => {
     const reduced = await runReducer(nodes, variables, errors);
 
     expect(reduced).toEqual([223]);
+    expect(errors).toEqual([]);
+  });
+
+  it('scope should see parent updates after local write', async () => {
+    const errors: FunCityErrorInfo[] = [];
+
+    const delay = async (ms: unknown) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, Number(ms)));
+      return undefined;
+    };
+    const variables = buildCandidateVariables({ x: 1, delay });
+
+    const childExpr = applyNode(
+      lambdaNode(
+        [],
+        scopeNode([
+          setNode('local', numberNode(0)),
+          applyNode(variableNode('delay'), [numberNode(100)]),
+          variableNode('x'),
+        ])
+      ),
+      []
+    );
+    const parentUpdateExpr = scopeNode([
+      applyNode(variableNode('delay'), [numberNode(10)]),
+      setNode('x', numberNode(2)),
+    ]);
+
+    const nodes: FunCityBlockNode[] = [listNode([childExpr, parentUpdateExpr])];
+
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([[2, undefined]]);
     expect(errors).toEqual([]);
   });
 });
