@@ -3,7 +3,7 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { FunCityErrorInfo, FunCityVariables } from './scripting';
+import { FunCityErrorInfo, FunCityVariables, convertToString } from './scripting';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { runReducer } from './reducer';
@@ -31,6 +31,6 @@ export const runScriptOnce = async (
   const blocks = runTokenizer(script, errors);
   const nodes = runParser(blocks, errors);
   const results = await runReducer(nodes, variables, errors);
-  const text: string = results.join('');
+  const text = results.map(result => convertToString(result)).join('');
   return text;
 };

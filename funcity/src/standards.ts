@@ -6,6 +6,7 @@
 import {
   asIterable,
   combineVariables,
+  convertToString,
   isConditionalTrue,
   makeSpecialFunction,
   type FunCityVariables,
@@ -44,54 +45,8 @@ const _typeof = async (arg0: unknown) => {
   }
 };
 
-const funcIds = new WeakMap<Function, number>();
-let nextId = 1;
-
-const getFuncId = (fn: Function) => {
-  const cached = funcIds.get(fn);
-  if (cached) return cached;
-  const id = nextId++;
-  funcIds.set(fn, id);
-  return id;
-};
-
 const _toString = async (...args: unknown[]) => {
-  const results = args.map((arg0) => {
-    switch (arg0) {
-      case undefined:
-        return '(undefined)';
-      case null:
-        return '(null)';
-      default:
-        switch (typeof arg0) {
-          case 'string':
-            return arg0;
-          case 'boolean':
-            return arg0 ? 'true' : 'false';
-          case 'number':
-          case 'bigint':
-          case 'symbol':
-            return arg0.toString();
-          case 'function':
-            if (arg0.name) {
-              return `fun<${arg0.name}:#${getFuncId(arg0)}>`;
-            } else {
-              return `fun<#${getFuncId(arg0)}>`;
-            }
-          default:
-            if (Array.isArray(arg0)) {
-              return JSON.stringify(arg0);
-            }
-            const iterable = asIterable(arg0);
-            if (iterable) {
-              const arr = Array.from(iterable);
-              return JSON.stringify(arr);
-            } else {
-              return JSON.stringify(arg0);
-            }
-        }
-    }
-  });
+  const results = args.map((arg0) => convertToString(arg0));
   return results.join(',');
 };
 

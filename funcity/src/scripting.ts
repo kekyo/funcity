@@ -251,3 +251,58 @@ export const outputErrors = (
   }
   return isError;
 };
+
+const funcIds = new WeakMap<Function, number>();
+let nextId = 1;
+
+const getFuncId = (fn: Function) => {
+  const cached = funcIds.get(fn);
+  if (cached) {
+    return cached;
+  }
+  const id = nextId++;
+  funcIds.set(fn, id);
+  return id;
+};
+
+/**
+ * Convert to string.
+ * @param v Target instance
+ * @returns String
+ */
+export const convertToString = (v: unknown): string => {
+  switch (v) {
+    case undefined:
+      return '(undefined)';
+    case null:
+      return '(null)';
+    default:
+      switch (typeof v) {
+        case 'string':
+          return v;
+        case 'boolean':
+          return v ? 'true' : 'false';
+        case 'number':
+        case 'bigint':
+        case 'symbol':
+          return v.toString();
+        case 'function':
+          if (v.name) {
+            return `fun<${v.name}:#${getFuncId(v)}>`;
+          } else {
+            return `fun<#${getFuncId(v)}>`;
+          }
+        default:
+          if (Array.isArray(v)) {
+            return JSON.stringify(v);
+          }
+          const iterable = asIterable(v);
+          if (iterable) {
+            const arr = Array.from(iterable);
+            return JSON.stringify(arr);
+          } else {
+            return JSON.stringify(v);
+          }
+      }
+  }
+};
