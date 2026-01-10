@@ -105,7 +105,8 @@ npm install funcity
 
 ## 使い方 (ライブラリ)
 
-funcityのコアエンジンは、ソースコードとなるスクリプト文字列を受け取り、それを実行し、結果として文字列を受け取ります。この一連の流れは、以下のようなプログラム言語処理系の典型的なワークフローで実現されます:
+funcityのコアエンジンは、ソースコードとなるスクリプト文字列を受け取り、それを実行し、結果として文字列を受け取ります。
+この一連の流れは、以下のようなプログラム言語処理系の典型的なワークフローで実現されます:
 
 ```mermaid
 flowchart LR
@@ -202,7 +203,58 @@ const results = await runReducer(nodes, variables, errors);
 この変数定義機能を使用すれば、あなたのアプリケーションの機能をスクリプト内で参照できるようになるため、
 スクリプトの記述機能をユーザーに公開すれば、ユーザーが好きなように機能を拡張出来ることになります。
 
-TODO:
+### funcity関数 (高度なトピック)
+
+funcity関数とは、通常のJavaScript関数オブジェクトではなく、パーサーから得られたノードを直接引数で受け取ることが出来る関数です。
+これは、 `makeFunCityFunction()` を使用して定義できます。
+
+以下の例では、第1引数に渡された値が真の場合のみ、第2引数を評価して返します。
+通常の関数では、引数はすべて評価されてから渡されるため、このような関数はfuncity関数でのみ定義できます:
+
+```typescript
+const variables = buildCandidateVariables(
+  {
+    // funcity関数
+    baz: makeFunCityFunction(
+      async function (  // function文が必要
+        this: FunCityFunctionContext, // インタープリタの機能にアクセスする
+        c: FunCityExpressionNode | undefined,    // 第1引数のノード
+        n: FunCityExpressionNode | undefined) {  // 第2引数のノード
+        // cとnが両方ともに渡されていない
+        if (!c || !n) {
+          // エラーを記録
+          this.appendError({
+            type: 'error',
+            description: 'Required arguments',
+            range: this.thisNode.range,  // 現在の関数適用ノード
+          });
+          // エラーなのでundefinedを返す
+          return undefined;
+        }
+        // cが真の場合のみ
+        if (isConditionalTrue(c)) {
+          // nを評価して返す
+          return await this.reduce(n);
+        }
+        // cが偽の場合
+        return -1;
+    }),
+  }
+);
+
+// 例: `{{baz true 5}}` ---> [5]
+// 例: `{{baz false 5}}` ---> [-1]   (`5`の式の評価は行われない)
+const results = await runReducer(nodes, variables, errors);
+```
+
+- `FunCityFunctionContext` は、インタープリタの一部の機能をfuncity関数内で使用するためのインターフェイスです。
+  これは JavaScript `this` 参照として渡されれるため、 `function` 文を使用してかつ第1引数に `this` を定義する必要があります。
+  なお、これはfuncity関数だけでなく、通常の関数でも取得して操作できます。
+- 通常の関数と同様に、引数が渡されていない（必要な個数の引数が渡されているかどうかは、実行時までわからない）可能性があるため、
+  `undefined` であることを想定する必要があります。
+- エラーを記録した場合に `undefined` を返していますが、これは必須事項ではなく、任意の値を返すことが出来ます。
+  意味のある値を返した場合は、その値を使用して引き続き計算が行われます
+  （通常、エラーが記録されても処理は継続します）。
 
 ---
 
@@ -280,8 +332,7 @@ TODO:
 ```
 
 通常の関数は、引数の式がすべて評価されます。
-
-しかしこの関数は特殊で、第2第3引数は、第1引数の結果でどちらかだけが評価されます。
+しかしこの関数は特殊(funcity関数)で、第2第3引数は、第1引数の結果でどちらかだけが評価されます。
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -308,7 +359,7 @@ TODO:
 ```
 
 `and`, `or` については、1個以上の引数が必要です。
-左から評価し、結果が確定した時点で評価を打ち切ります（`and` は最初の偽、`or` は最初の真）。
+左から評価し、結果が確定した時点で評価を打ち切ります (`and` は最初の偽、`or` は最初の真。funcity関数)
 
 ### at,first,last
 

@@ -211,7 +211,58 @@ const results = await runReducer(nodes, variables, errors);
 With this variable binding feature, your application features can be referenced inside scripts.
 If you expose the scripting capability to users, they can extend functionality however they like.
 
-TODO:
+### funcity Functions (Advanced Topics)
+
+A "funcity function" is not a normal JavaScript function object; it can receive nodes obtained from the parser directly as arguments.
+You can define one using `makeFunCityFunction()`.
+
+In the example below, the second argument is evaluated and returned only when the value passed to the first argument is truthy.
+With ordinary functions, all arguments are evaluated before they are passed, so a function like this can only be defined as a funcity function:
+
+```typescript
+const variables = buildCandidateVariables(
+  {
+    // funcity function
+    baz: makeFunCityFunction(
+      async function (  // function keyword required
+        this: FunCityFunctionContext, // Access reducer features
+        c: FunCityExpressionNode | undefined,    // First-argument node
+        n: FunCityExpressionNode | undefined) {  // Second-argument node
+        // c or n is missing
+        if (!c || !n) {
+          // Record an error
+          this.appendError({
+            type: 'error',
+            description: 'Required arguments',
+            range: this.thisNode.range,  // Current function-application node
+          });
+          // Return undefined due to the error
+          return undefined;
+        }
+        // Only when c is truthy
+        if (isConditionalTrue(c)) {
+          // Evaluate n and return it
+          return await this.reduce(n);
+        }
+        // When c is falsy
+        return -1;
+    }),
+  }
+);
+
+// ex: `{{baz true 5}}` ---> [5]
+// ex: `{{baz false 5}}` ---> [-1]   (The expression `5` is not reduced)
+const results = await runReducer(nodes, variables, errors);
+```
+
+- `FunCityFunctionContext` is an interface for using some interpreter features inside funcity functions.
+  It is passed as the JavaScript `this` reference, so you need to use a `function` statement and define `this` as the first argument.
+  Note that you can obtain and operate on this context not only in funcity functions but also in normal functions.
+- As with normal functions, arguments might not be passed (you don't know at runtime whether the required number of arguments was provided),
+  so you should assume they can be `undefined`.
+- In this example we return `undefined` when an error is recorded, but this is not required; you can return any value.
+  If you return a meaningful value, evaluation continues using that value
+  (processing usually continues even if errors are recorded).
 
 ---
 
@@ -289,8 +340,7 @@ The `cond` function returns either the value of the second argument or the value
 ```
 
 In regular functions, all arguments are evaluated.
-
-However, this function is special: only one of the second and third arguments is evaluated, depending on the result of the first argument.
+However, this function is special ("funcity function"): only one of the second and third arguments is evaluated, depending on the result of the first argument.
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -317,7 +367,7 @@ These functions can take multiple arguments:
 ```
 
 For `and` and `or`, at least one argument is required.
-They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`).
+They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`. They are "funcity function").
 
 ### at,first,last
 
