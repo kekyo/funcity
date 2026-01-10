@@ -22,11 +22,17 @@ import type {
  * String expression node.
  */
 export interface FunCityStringNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'string';
   /**
    * String value.
    */
   readonly value: string;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -34,11 +40,17 @@ export interface FunCityStringNode {
  * Number (numeric) expression node.
  */
 export interface FunCityNumberNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'number';
   /**
    * Numeric value.
    */
   readonly value: number;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -46,11 +58,17 @@ export interface FunCityNumberNode {
  * Variable (identity) expression node.
  */
 export interface FunCityVariableNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'variable';
   /**
    * Variable name.
    */
   readonly name: string;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -58,6 +76,9 @@ export interface FunCityVariableNode {
  * Application expression node.
  */
 export interface FunCityApplyNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'apply';
   /**
    * Application target node.
@@ -67,6 +88,9 @@ export interface FunCityApplyNode {
    * Application arguments.
    */
   readonly args: readonly FunCityExpressionNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -74,6 +98,9 @@ export interface FunCityApplyNode {
  * Lambda expression node.
  */
 export interface FunCityLambdaNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'lambda';
   /**
    * Parameter names.
@@ -83,6 +110,9 @@ export interface FunCityLambdaNode {
    * Lambda body expression.
    */
   readonly body: FunCityExpressionNode;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -90,11 +120,17 @@ export interface FunCityLambdaNode {
  * Expression list (array) node.
  */
 export interface FunCityListNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'list';
   /**
    * List item nodes.
    */
   readonly items: readonly FunCityExpressionNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -102,6 +138,9 @@ export interface FunCityListNode {
  * Variable setter node.
  */
 export interface FunCitySetNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'set';
   /**
    * Target variable name.
@@ -111,6 +150,9 @@ export interface FunCitySetNode {
    * Will be set the value from reduced expression.
    */
   readonly expr: FunCityExpressionNode;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -118,12 +160,18 @@ export interface FunCitySetNode {
  * Evaluate child scope node.
  */
 export interface FunCityScopeNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'scope';
   /**
    * Scoped node list.
    * @remarks Reduced each nodes, but takes last one reduced value.
    */
   readonly nodes: readonly FunCityExpressionNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -144,11 +192,17 @@ export type FunCityExpressionNode =
  * Text block node.
  */
 export interface FunCityTextNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'text';
   /**
    * Text body.
    */
   readonly text: string;
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -156,6 +210,9 @@ export interface FunCityTextNode {
  * Conditional branch (`if`) block node contains else block.
  */
 export interface FunCityIfNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'if';
   /**
    * Condition expression node.
@@ -169,6 +226,9 @@ export interface FunCityIfNode {
    * Else (false) block node.
    */
   readonly else: readonly FunCityBlockNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -176,6 +236,9 @@ export interface FunCityIfNode {
  * Conditional repeats (`while`) block node contains else block.
  */
 export interface FunCityWhileNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'while';
   /**
    * Condition expression node.
@@ -185,6 +248,9 @@ export interface FunCityWhileNode {
    * Repeat block node.
    */
   readonly repeat: readonly FunCityBlockNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -192,6 +258,9 @@ export interface FunCityWhileNode {
  * Item iteration (`for`) block node contains else block.
  */
 export interface FunCityForNode {
+  /**
+   * Node kind.
+   */
   readonly kind: 'for';
   /**
    * Bind variable node in each iteration.
@@ -205,6 +274,9 @@ export interface FunCityForNode {
    * Repeat block node.
    */
   readonly repeat: readonly FunCityBlockNode[];
+  /**
+   * Node range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -619,8 +691,8 @@ const drainEndOfLineAndPeek = (
 };
 
 /**
- * Parse expression in the signle line.
- * @param cursor Parser cursor
+ * Parse expression in the single line.
+ * @param cursor - Parser cursor
  * @param errors - Will be stored detected warnings/errors into it
  * @returns Parsed expression node when available
  */
@@ -877,9 +949,9 @@ const extractParameterArguments = (
 
 /**
  * Parse blocks.
- * @param cursor Parser cursor
+ * @param cursor - Parser cursor
  * @param errors - Will be stored detected warnings/errors into it
- * @returns Parsed expression node when available
+ * @returns Parsed block nodes
  */
 export const parseBlock = (
   cursor: ParserCursor,

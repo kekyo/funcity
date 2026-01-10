@@ -15,11 +15,17 @@ import type {
  * The string token.
  */
 export interface FunCityStringToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'string';
   /**
    * String value.
    */
   readonly value: string;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -27,11 +33,17 @@ export interface FunCityStringToken {
  * The number (numeric) token.
  */
 export interface FunCityNumberToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'number';
   /**
    * Numeric value.
    */
   readonly value: number;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -39,11 +51,17 @@ export interface FunCityNumberToken {
  * The identity (variable name) token.
  */
 export interface FunCityIdentityToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'identity';
   /**
    * Identity.
    */
   readonly name: string;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -51,11 +69,17 @@ export interface FunCityIdentityToken {
  * Open parenthesis or bracket node.
  */
 export interface FunCityOpenToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'open';
   /**
    * Open symbol.
    */
   readonly symbol: string;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -63,11 +87,17 @@ export interface FunCityOpenToken {
  * Close parenthesis or bracket token.
  */
 export interface FunCityCloseToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'close';
   /**
    * Close symbol.
    */
   readonly symbol: string;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -75,7 +105,13 @@ export interface FunCityCloseToken {
  * End of line token.
  */
 export interface FunCityEndOfLineToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'eol';
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -83,11 +119,17 @@ export interface FunCityEndOfLineToken {
  * Free form text token.
  */
 export interface FunCityTextToken {
+  /**
+   * Token kind.
+   */
   readonly kind: 'text';
   /**
    * Text value.
    */
   readonly text: string;
+  /**
+   * Token range in source text.
+   */
   readonly range: FunCityRange;
 }
 
@@ -576,7 +618,7 @@ const createTokenizerCursor = (text: string): TokenizerCursor => {
 /**
  * Run tokenizer.
  * @param script - Input script text
- * @errors - Will be stored detected warnings/errors into it
+ * @param errors - Will be stored detected warnings/errors into it
  * @returns The token list
  */
 export const runTokenizer = (

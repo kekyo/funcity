@@ -5,49 +5,106 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Location in source text.
+ */
 export interface FunCityLocation {
+  /**
+   * Line number (1-based).
+   */
   readonly line: number;
+  /**
+   * Column number (1-based).
+   */
   readonly column: number;
 }
 
+/**
+ * Range in source text.
+ */
 export interface FunCityRange {
+  /**
+   * Start location.
+   */
   readonly start: FunCityLocation;
+  /**
+   * End location.
+   */
   readonly end: FunCityLocation;
 }
 
+/**
+ * Empty location with zeroed coordinates.
+ */
 export const emptyLocation: FunCityLocation = {
   line: 0,
   column: 0,
 } as const;
 
+/**
+ * Empty range with zeroed coordinates.
+ */
 export const emptyRange: FunCityRange = {
   start: emptyLocation,
   end: emptyLocation,
 } as const;
 
+/**
+ * Error severity type.
+ */
 export type FunCityErrorType = 'warning' | 'error';
 
+/**
+ * Error information with location.
+ */
 export interface FunCityErrorInfo {
+  /**
+   * Error severity.
+   */
   readonly type: FunCityErrorType;
+  /**
+   * Error description.
+   */
   readonly description: string;
+  /**
+   * Error range in source text.
+   */
   readonly range: FunCityRange;
 }
 
+/**
+ * Variable map used by the reducer.
+ */
 export type FunCityVariables = ReadonlyMap<string, unknown>;
 
 //////////////////////////////////////////////////////////////////////////////
 
 const specialFunctionMarker: unique symbol = Symbol('$$special$$');
 
+/**
+ * Mark a function as a special function.
+ * @param f - Target function.
+ * @returns The same function with a marker.
+ */
 export const makeSpecialFunction = (f: Function) => {
   (f as any)[specialFunctionMarker] = true;
   return f;
 };
 
+/**
+ * Check whether a function is marked as special.
+ * @param f - Target function.
+ * @returns True when marked.
+ */
 export const isSpecialFunction = (f: Function): boolean => {
   return (f as any)[specialFunctionMarker] ?? false;
 };
 
+/**
+ * Evaluate value with the interpreter's conditional semantics.
+ * @param v - Target value.
+ * @returns True when the value should be treated as truthy.
+ */
 export const isConditionalTrue = (v: unknown) => {
   if (v === undefined || v === null) {
     return false;
@@ -63,6 +120,11 @@ export const isConditionalTrue = (v: unknown) => {
   }
 };
 
+/**
+ * Cast a value to iterable when it has a default iterator.
+ * @param v - Target value.
+ * @returns Iterable instance or undefined when not iterable.
+ */
 export const asIterable = (v: unknown): Iterable<unknown> | undefined => {
   if (typeof (v as any)[Symbol.iterator] === 'function') {
     return v as Iterable<unknown>;
@@ -71,6 +133,11 @@ export const asIterable = (v: unknown): Iterable<unknown> | undefined => {
   }
 };
 
+/**
+ * Combine variable maps or records into a single variable map.
+ * @param variablesList - Variable sources to merge.
+ * @returns Combined variable map.
+ */
 export const combineVariables = (
   ...variablesList: readonly (FunCityVariables | Record<string, unknown>)[]
 ): FunCityVariables => {
@@ -93,6 +160,11 @@ export const combineVariables = (
   return variables;
 };
 
+/**
+ * Convert an error object into a human-readable message.
+ * @param error - Error object.
+ * @returns Error message.
+ */
 export const fromError = (error: any): string => {
   if (error.message) {
     return error.message;
@@ -103,6 +175,11 @@ export const fromError = (error: any): string => {
   }
 };
 
+/**
+ * Build a range that covers all provided ranges.
+ * @param ranges - Ranges to cover.
+ * @returns The widest range.
+ */
 export const widerRange = (...ranges: FunCityRange[]): FunCityRange => {
   let start = emptyRange.start;
   let end = emptyRange.end;
@@ -157,6 +234,12 @@ const printErrorString = (path: string, error: FunCityErrorInfo) => {
   return false;
 };
 
+/**
+ * Output error list and return whether any error-level entry exists.
+ * @param path - Source path.
+ * @param errors - Errors to output.
+ * @returns True when an error-level entry exists.
+ */
 export const outputErrors = (
   path: string,
   errors: readonly FunCityErrorInfo[]

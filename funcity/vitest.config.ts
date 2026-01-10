@@ -5,6 +5,9 @@
 
 import { defineConfig } from 'vitest/config';
 
+/**
+ * Vitest configuration for unit tests.
+ */
 export default defineConfig({
   test: {
     environment: 'node',

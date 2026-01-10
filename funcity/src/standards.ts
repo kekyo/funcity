@@ -398,7 +398,9 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
 
 //////////////////////////////////////////////////////////////////////////////
 
-// Standard variables
+/**
+ * Built-in standard variables and functions.
+ */
 export const standardVariables = {
   undefined: undefined,
   null: null,
@@ -440,6 +442,11 @@ export const standardVariables = {
   bind: _bind,
 } as const;
 
+/**
+ * Build a variable map that includes standard variables.
+ * @param variablesList - Additional variable sources.
+ * @returns Combined variable map.
+ */
 export const buildCandidateVariables = (
   ...variablesList: readonly (FunCityVariables | Record<string, unknown>)[]
 ): FunCityVariables => {
