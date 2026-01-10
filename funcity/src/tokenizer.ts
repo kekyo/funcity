@@ -226,24 +226,71 @@ interface TokenizerContext {
  * @param context Tokenizer context
  * @returns String token
  */
+const stringEscapeMap: Readonly<Record<string, string>> = {
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  v: '\v',
+  '0': '\0',
+  "'": "'",
+  '\\': '\\',
+};
+
 const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
   const start = context.cursor.location('start');
 
   // Skip open quote
   context.cursor.skip(1);
 
-  // Find close quote
-  let value = context.cursor.getUntil("'");
-  if (value !== undefined) {
-    context.cursor.skip(1); // Skip close quote
-  } else {
+  let value = '';
+  let closed = false;
+  while (!context.cursor.eot()) {
+    const ch = context.cursor.getChar();
+    if (ch === "'") {
+      context.cursor.skip(1); // Skip close quote
+      closed = true;
+      break;
+    }
+    if (ch === '\\') {
+      const escapeStart = context.cursor.location('start');
+      context.cursor.skip(1);
+      if (context.cursor.eot()) {
+        context.errors.push({
+          type: 'error',
+          description: 'invalid escape sequence: \\\\',
+          range: { start: escapeStart, end: context.cursor.location('end') },
+        });
+        value += '\\';
+        break;
+      }
+      const escape = context.cursor.getChar();
+      const mapped = stringEscapeMap[escape];
+      if (mapped !== undefined) {
+        value += mapped;
+        context.cursor.skip(1);
+        continue;
+      }
+      context.cursor.skip(1);
+      context.errors.push({
+        type: 'error',
+        description: `invalid escape sequence: \\${escape}`,
+        range: { start: escapeStart, end: context.cursor.location('end') },
+      });
+      value += `\\${escape}`;
+      continue;
+    }
+    value += ch;
+    context.cursor.skip(1);
+  }
+
+  if (!closed) {
     const location = context.cursor.location('start');
     context.errors.push({
       type: 'error',
       description: 'string close quote is not found',
       range: { start: location, end: location },
     });
-    value = '';
   }
 
   return {
