@@ -45,7 +45,7 @@ The following code may further interest you:
 
 ```funcity
 {{
-set printWeather (fun w cond w.sunny 'nice' 'bad')
+set printWeather (fun w (cond w.sunny 'nice' 'bad'))
 }}
 Today is {{printWeather weather}} weather.
 ```
@@ -76,6 +76,8 @@ In other words, funcity is an interpreter that brings the power of functional pr
 ---
 
 ## Installation (CLI)
+
+TODO:
 
 ```bash
 npm install -D funcity-cli

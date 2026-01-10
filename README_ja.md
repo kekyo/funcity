@@ -7,7 +7,9 @@
 [![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TODO: NPM list
+|Package|npm|
+|:----|:----|
+|`funcity`|[![npm version](https://img.shields.io/npm/v/funcity.svg)](https://www.npmjs.com/package/funcity)|
 
 ---
 
@@ -47,7 +49,7 @@ Today is {{cond weather.sunny 'nice' 'bad'}} weather.
 
 ```funcity
 {{
-set printWeather (fun w cond w.sunny 'nice' 'bad')
+set printWeather (fun w (cond w.sunny 'nice' 'bad'))
 }}
 Today is {{printWeather weather}} weather.
 ```
@@ -55,7 +57,7 @@ Today is {{printWeather weather}} weather.
 - `fun` は無名ラムダ関数を定義します。
 - `set` は現在のスコープで、ミュータブルバインディングを実行します。
 
-つまり、テキストテンプレートプロセッサに関数型言語にパワーを持ち込んだ処理系が、funcityです!
+つまり、テキストテンプレートプロセッサに関数型言語のパワーを持ち込んだ処理系が、funcityです!
 
 ### 特徴
 
@@ -77,6 +79,8 @@ Today is {{printWeather weather}} weather.
 
 ## パッケージインストール (CLI)
 
+TODO:
+
 ```bash
 npm install -D funcity-cli
 ```
@@ -87,21 +91,107 @@ npm install -D funcity-cli
 npm install -g funcity-cli
 ```
 
+## 使い方 (CLI and REPL basic syntax)
+
+TODO:
+
+---
+
 ## パッケージインストール (ライブラリ)
 
 ```bash
 npm install funcity
 ```
 
----
-
-## Usage (CLI and basic syntax)
-
-TODO:
-
----
-
 ## 使い方 (ライブラリ)
+
+funcityのコアエンジンは、ソースコードとなるスクリプト文字列を受け取り、それを実行し、結果として文字列を受け取ります。この一連の流れは、以下のようなプログラム言語処理系の典型的なワークフローで実現されます:
+
+```mermaid
+flowchart LR
+  Script["Script text"] --> Tokenizer["Tokenizer"]
+  Tokenizer --> Parser["Parser"]
+  Parser --> Reducer["Reducer"]
+  Reducer --> Text["Text output"]
+```
+
+### 基本的な操作
+
+一連の操作をコードで記述すると、以下のような最小の例となります:
+
+```typescript
+const run = async (
+  script: string,
+  errors: FunCityErrorInfo[] = []
+): Promise<string> => {
+  // トークナイザーの実行
+  const blocks: FunCityToken[] = runTokenizer(script, errors);
+
+  // パーサーの実行
+  const nodes: FunCityBlockNode[] = runParser(blocks, errors);
+
+  // インタプリタ（reducer）の実行
+  const variables: FunCityVariables = buildCandidateVariables();
+  const results: unknown[] = await runReducer(nodes, variables, errors);
+
+  // すべての結果をテキストとして結合
+  const text: string = results.join('');
+
+  return text;
+};
+```
+
+(このコードは、同様の関数が `runScriptOnce()` として公開されています。)
+
+- トークナイザーは、スクリプトテキストを解析して、funcityで使われる単語に分解する処理を行います。
+- パーサーは、トークナイザーが分解したトークンから文脈を解析し、意味のあるノードデータ構造を構築します。
+- インタプリタは、ノードを解釈して計算を行います。これが連鎖的に実行されることにより、スクリプトコードが実行されることになります。
+- インタプリタの出力は、生の計算結果です。また、複数の結果が得られる可能性があります。したがって、これらを文字列として結合して、最終的な出力テキストを得ます。
+
+例えば、スクリプトは一度読み込んだら変更されず、何度もインタプリタ実行だけを行いたい場合は、
+トークナイザーとパーサーの実行までを事前に行っておき、インタプリタだけ実行するようにすれば、効率よく処理できます。
+
+### 変数バインド
+
+インタプリタは、引数に定義済みの変数群を渡すことができます。
+あらかじめ変数を定義（バインド）しておけば、スクリプト内でこれを参照することができます:
+
+```typescript
+// buildCandidateVariables()は、標準関数を含めて任意の変数群を追加できる
+const variables = buildCandidateVariables(
+  {
+    foo: 'ABCDE',  // `foo`という名前で文字列が参照できる
+  },
+);
+
+// 例: `{{foo}}` ---> ['ABCDE']
+const results = await runReducer(nodes, variables, errors);
+```
+
+### 関数オブジェクトのバインド
+
+変数は、文字列や数値などのリテラル値だけではなく、任意の関数オブジェクトもバインドできます:
+
+```typescript
+// buildCandidateVariables()は、標準関数を含めて任意の変数群を追加できる
+const variables = buildCandidateVariables(
+  {
+    bar: async (n: unknown) => Number(n) * 2,  // (非同期関数)
+  }
+);
+
+// 例: `{{bar 21}}` ---> [42]
+const results = await runReducer(nodes, variables, errors);
+```
+
+- 関数オブジェクトを指定する場合は、上記のように非同期関数を渡すことができます。
+  これにより、インタープリタが内部で適切に非同期関数の遅延継続を行うので、I/O操作を含むどのような処理でも実現できます。
+- 関数の引数の型を明示的に指定することもできますが、インタープリタはこの型を検査しません。
+  したがって、指定した型を前提にコードを記述すると、スクリプトによって異なる型の値が渡された時に実行時エラーが発生するかもしれません。
+  上記のように、常に`unkwnown`として受け取り、関数内で判定することをおすすめします。
+
+この変数定義機能を使用すれば、あなたのアプリケーションの機能をスクリプト内で参照できるようになるため、
+スクリプトの記述機能をユーザーに公開すれば、ユーザーが好きなように機能を拡張出来ることになります。
 
 TODO:
 
@@ -109,7 +199,7 @@ TODO:
 
 ## 標準関数
 
-標準関数は、`standardVariables` から公開されるオブジェクトに定義された関数群で、
+標準関数は、`standardVariables` から公開されるオブジェクトや、 `buildCandidateVariables()` が含める関数群で、
 標準的に使用可能でかつ外部ライブラリに依存しない機能のみを使用して実装されています。
 例えば、文字列や配列（`Iterable`オブジェクト）の文字列や要素数を取得する `length` 関数があります:
 

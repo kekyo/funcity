@@ -7,7 +7,9 @@ A functional language interpreter with text processing.
 [![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TODO: NPM list
+|Package|npm|
+|:----|:----|
+|`funcity`|[![npm version](https://img.shields.io/npm/v/funcity.svg)](https://www.npmjs.com/package/funcity)|
 
 ---
 
@@ -49,7 +51,7 @@ The following code may further interest you:
 
 ```funcity
 {{
-set printWeather (fun w cond w.sunny 'nice' 'bad')
+set printWeather (fun w (cond w.sunny 'nice' 'bad'))
 }}
 Today is {{printWeather weather}} weather.
 ```
@@ -81,6 +83,8 @@ In other words, funcity is an interpreter that brings the power of functional pr
 
 ## Installation (CLI)
 
+TODO:
+
 ```bash
 npm install -D funcity-cli
 ```
@@ -91,21 +95,111 @@ Or, global installation:
 npm install -g funcity-cli
 ```
 
+## Usage (CLI and REPL basic syntax)
+
+TODO:
+
+---
+
 ## Installation (Library)
 
 ```bash
 npm install funcity
 ```
 
----
-
-## Usage (CLI and basic syntax)
-
-TODO:
-
----
-
 ## Usage (Library)
+
+The core engine of funcity takes a script string as source code, executes it, and returns a string result.
+This flow follows a typical language-processing workflow like the following:
+
+```mermaid
+flowchart LR
+  Script["Script text"] --> Tokenizer["Tokenizer"]
+  Tokenizer --> Parser["Parser"]
+  Parser --> Reducer["Reducer"]
+  Reducer --> Text["Text output"]
+```
+
+### Basic operation
+
+Writing the whole operation in code gives a minimal example like this:
+
+```typescript
+const run = async (
+  script: string,
+  errors: FunCityErrorInfo[] = []
+): Promise<string> => {
+  // Run the tokenizer
+  const blocks: FunCityToken[] = runTokenizer(script, errors);
+
+  // Run the parser
+  const nodes: FunCityBlockNode[] = runParser(blocks, errors);
+
+  // Run the reducer
+  const variables: FunCityVariables = buildCandidateVariables();
+  const results: unknown[] = await runReducer(nodes, variables, errors);
+
+  // Concatenate all results as text
+  const text: string = results.join('');
+
+  return text;
+};
+```
+
+(This code is exposed as a similar function named `runScriptOnce()`.)
+
+- The tokenizer analyzes the script text and splits it into the words used by funcity.
+- The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
+- The reducer evaluates the nodes and performs computation.
+  Chaining these steps results in script execution.
+- The reducer's output is raw computational results.
+  Multiple results may also be obtained.
+  Therefore, these are concatenated as strings to produce the final output text.
+
+For example, if a script does not change once loaded and you want to run only the reducer many times,
+you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
+
+### Variable binding
+
+The reducer can accept a predefined set of variables as an argument.
+If you define (bind) variables in advance, you can reference them inside the script:
+
+```typescript
+// buildCandidateVariables() can add arbitrary variables, including standard functions
+const variables = buildCandidateVariables(
+  {
+    foo: 'ABCDE',  // The string can be referenced under the name `foo`
+  },
+);
+
+// ex: `{{foo}}` ---> ['ABCDE']
+const results = await runReducer(nodes, variables, errors);
+```
+
+### Binding function objects
+
+Variables can bind not only literal values like strings and numbers, but also arbitrary function objects:
+
+```typescript
+// buildCandidateVariables() can add arbitrary variables, including standard functions
+const variables = buildCandidateVariables(
+  {
+    bar: async (n: unknown) => Number(n) * 2,  // Async function
+  }
+);
+
+// ex: `{{bar 21}}` ---> [42]
+const results = await runReducer(nodes, variables, errors);
+```
+
+- When specifying function objects, you can pass async functions as shown above.
+  The reducer handles asynchronous continuations internally, so any processing including I/O can be implemented.
+- While you can explicitly specify the type of a function's arguments, the interpreter does not check this type.
+  Therefore, if you write code assuming the specified type, a runtime error may occur when a value of a different type is passed by the script.
+  As mentioned above, we recommend always receiving it as `unknown` and checking within the function.
+
+With this variable binding feature, your application features can be referenced inside scripts.
+If you expose the scripting capability to users, they can extend functionality however they like.
 
 TODO:
 
