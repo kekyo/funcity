@@ -460,66 +460,30 @@ export const createReducerContext = (
   return context;
 };
 
-// Unwrap nested results and will remove `undefined` results.
-const unwrap = (results: unknown[]): unknown[] => {
-  return results.flatMap<unknown>((result) => {
-    if (result === undefined) {
-      return [];
-    } else {
-      return [result];
-    }
-  });
-};
+//////////////////////////////////////////////////////////////////////////////
 
 /**
  * Run the reducer.
- * @param node - Target node
- * @param variables - Predefined variables
- * @param errors - Will be stored detected warnings/errors into it
- * @returns Reduced native value list
- */
-export function runReducer(
-  node: FunCityBlockNode,
-  variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
-): Promise<unknown[]>;
-
-/**
- * Run the reducer.
- * @param node - Target node list
- * @param variables - Predefined variables
- * @param errors - Will be stored detected warnings/errors into it
- * @returns Reduced native value list
- */
-export function runReducer(
-  nodes: readonly FunCityBlockNode[],
-  variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
-): Promise<unknown[]>;
-
-/**
- * Run the reducer.
- * @param node - Target nodes
+ * @param nodes - Target nodes
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
  * @returns Reduced native values
  */
 export async function runReducer(
-  nodes: readonly FunCityBlockNode[] | FunCityBlockNode,
+  nodes: readonly FunCityBlockNode[],
   variables: FunCityVariables,
   errors: FunCityErrorInfo[]
 ): Promise<unknown[]> {
   const context = createReducerContext(variables, errors);
-  if (Array.isArray(nodes)) {
-    // Root list "ABC{{def ghi}}JKL" is reduced each expressions in sequential.
-    const resultList: unknown[] = [];
-    for (const node of nodes) {
-      const results = await reduceNode(context, node);
-      resultList.push(...results);
+
+  const resultList: unknown[] = [];
+  for (const node of nodes) {
+    const results = await reduceNode(context, node);
+    for (const result of results) {
+      if (result !== undefined) {
+        resultList.push(result);
+      }
     }
-    return unwrap(resultList);
-  } else {
-    const results = await reduceNode(context, nodes as FunCityExpressionNode);
-    return unwrap(results);
   }
+  return resultList;
 }
