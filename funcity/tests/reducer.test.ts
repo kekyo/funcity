@@ -338,6 +338,46 @@ describe('scripting reducer test', () => {
     expect(errors).toEqual([]);
   });
 
+  it('abort signal during loop', async () => {
+    const iterations = 40;
+    const delayMs = 10;
+    const abortAfterMs = 30;
+
+    const nodes: FunCityBlockNode[] = [
+      setNode('count', numberNode(iterations)),
+      whileNode(variableNode('count'), [
+        applyNode(variableNode('delay'), [numberNode(delayMs)]),
+        setNode(
+          'count',
+          applyNode(variableNode('sub'), [variableNode('count'), numberNode(1)])
+        ),
+      ]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables({
+      delay: async (ms: unknown) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, Number(ms)));
+        return undefined;
+      },
+    });
+
+    const controller = new AbortController();
+    const start = Date.now();
+    const abortTimer = setTimeout(() => controller.abort(), abortAfterMs);
+
+    try {
+      await expect(
+        runReducer(nodes, variables, errors, controller.signal)
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    const elapsedMs = Date.now() - start;
+    expect(elapsedMs).toBeLessThan(iterations * delayMs);
+  });
+
   it('if true', async () => {
     // "{{set flag true\nif flag}}ABC{{end}}"
     const nodes: FunCityBlockNode[] = [

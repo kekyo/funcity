@@ -3,7 +3,11 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { FunCityErrorInfo, FunCityVariables, convertToString } from './scripting';
+import {
+  FunCityErrorInfo,
+  FunCityVariables,
+  convertToString,
+} from './scripting';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { runReducer } from './reducer';
@@ -21,16 +25,18 @@ export * from './standards';
  * @param script Input script text.
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
- * @returns
+ * @param signal - Abort signal
+ * @returns Result text
  */
 export const runScriptOnce = async (
   script: string,
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[] = []
+  errors: FunCityErrorInfo[] = [],
+  signal?: AbortSignal
 ): Promise<string> => {
   const blocks = runTokenizer(script, errors);
   const nodes = runParser(blocks, errors);
-  const results = await runReducer(nodes, variables, errors);
-  const text = results.map(result => convertToString(result)).join('');
+  const results = await runReducer(nodes, variables, errors, signal);
+  const text = results.map((result) => convertToString(result)).join('');
   return text;
 };

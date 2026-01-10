@@ -64,6 +64,11 @@ export interface FunCityFunctionContext {
  */
 export interface FunCityReducerContext {
   /**
+   * Get current abort signal object.
+   * @returns AbortSignal when available.
+   */
+  readonly abortSignal: AbortSignal | undefined;
+  /**
    * Get current context (scope) variable value.
    * @param name - Variable name
    * @returns Variable value information
@@ -222,6 +227,7 @@ export const reduceExpressionNode = async (
       return traverseVariable(context, node);
     }
     case 'apply': {
+      context.abortSignal?.throwIfAborted();
       const func = await reduceExpressionNode(context, node.func);
       if (typeof func !== 'function') {
         context.appendError({
@@ -242,6 +248,10 @@ export const reduceExpressionNode = async (
               const arg = await reduceExpressionNode(context, argNode);
               return arg;
             } catch (e: unknown) {
+              // Will through abort signal
+              if (e instanceof Error && e.name === 'AbortError') {
+                throw e;
+              }
               context.appendError({
                 type: 'error',
                 description: fromError(e),
@@ -367,17 +377,20 @@ export const reduceNode = async (
  * Create reducer context.
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
+ * @param signal - Abort signal
  * @returns Reducer context
  */
 export const createReducerContext = (
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
+  errors: FunCityErrorInfo[],
+  signal?: AbortSignal
 ): FunCityReducerContext => {
   let vs = variables;
   let mvs: Map<string, unknown> | undefined;
   let variablesProxy: any;
 
   const getValue = (name: string): ValueResult => {
+    signal?.throwIfAborted();
     if (vs.has(name)) {
       return { value: vs.get(name), isFound: true };
     } else {
@@ -386,6 +399,7 @@ export const createReducerContext = (
   };
 
   const setValue = (name: string, value: unknown) => {
+    signal?.throwIfAborted();
     // Clone (makes scoped) and update it.
     if (!mvs) {
       mvs = new Map(vs);
@@ -397,6 +411,7 @@ export const createReducerContext = (
     if (variablesProxy !== undefined) {
       Object.defineProperty(variablesProxy, name, {
         get() {
+          signal?.throwIfAborted();
           return vs.get(name);
         },
         configurable: true,
@@ -414,13 +429,16 @@ export const createReducerContext = (
   };
 
   const newScope = () => {
+    signal?.throwIfAborted();
     const newContext = createReducerContext(vs, errors);
     return newContext;
   };
 
   let context: FunCityReducerContext;
-  const reduceByProxy = (node: FunCityExpressionNode) =>
-    reduceExpressionNode(context, node);
+  const reduceByProxy = (node: FunCityExpressionNode) => {
+    signal?.throwIfAborted();
+    return reduceExpressionNode(context, node);
+  };
   const getVariablesFromProxy = () => {
     // Makes cached variable proxy.
     if (variablesProxy === undefined) {
@@ -441,6 +459,7 @@ export const createReducerContext = (
   ): FunCityFunctionContext => {
     return {
       get variables() {
+        signal?.throwIfAborted();
         return getVariablesFromProxy();
       },
       thisNode,
@@ -450,6 +469,7 @@ export const createReducerContext = (
   };
 
   context = {
+    abortSignal: signal,
     getValue,
     setValue,
     appendError,
@@ -467,14 +487,16 @@ export const createReducerContext = (
  * @param nodes - Target nodes
  * @param variables - Predefined variables
  * @param errors - Will be stored detected warnings/errors into it
+ * @param signal - Abort signal
  * @returns Reduced native values
  */
 export async function runReducer(
   nodes: readonly FunCityBlockNode[],
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[]
+  errors: FunCityErrorInfo[],
+  signal?: AbortSignal
 ): Promise<unknown[]> {
-  const context = createReducerContext(variables, errors);
+  const context = createReducerContext(variables, errors, signal);
 
   const resultList: unknown[] = [];
   for (const node of nodes) {

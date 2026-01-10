@@ -161,6 +161,8 @@ const run = async (
   The location where the error occurred may have been replaced with an appropriate token node,
   and executing the interpreter using that information will likely not function correctly.
   However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate errors.
+- Depending on the script's content, processing may not complete (e.g., due to infinite loops).
+  Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
 Note: This code is exposed as a similar function named `runScriptOnce()`. That it actually converts `results` to text using `convertToString()`.
 
