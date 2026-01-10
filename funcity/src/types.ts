@@ -419,6 +419,49 @@ export interface FunCityReducerContextValueResult {
 }
 
 /**
+ * Native function context.
+ */
+export interface FunCityFunctionContext {
+  /**
+   * Current function application node.
+   */
+  readonly thisNode: FunCityExpressionNode;
+  /**
+   * Get current abort signal object.
+   * @returns AbortSignal when available.
+   */
+  readonly abortSignal: AbortSignal | undefined;
+  /**
+   * Get current context (scope) variable value.
+   * @param name - Variable name
+   * @returns Variable value information
+   */
+  readonly getValue: (name: string) => FunCityReducerContextValueResult;
+  /**
+   * Set current context (scope) variable value.
+   * @param name - Variable name
+   * @param value - New value
+   */
+  readonly setValue: (name: string, value: unknown) => void;
+  /**
+   * Append context error.
+   * @param error - Error or warning information.
+   */
+  readonly appendError: (error: FunCityErrorInfo) => void;
+  /**
+   * Indicate error received.
+   * @returns The context is received any errors.
+   */
+  readonly isFailed: () => boolean;
+  /**
+   * Reduce expression node with this context.
+   * @param node - Target node
+   * @returns Reduced value.
+   */
+  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
+}
+
+/**
  * The reducer context.
  */
 export interface FunCityReducerContext {
@@ -462,24 +505,4 @@ export interface FunCityReducerContext {
   readonly createFunctionContext: (
     thisNode: FunCityExpressionNode
   ) => FunCityFunctionContext;
-}
-
-/**
- * Native function context.
- */
-export interface FunCityFunctionContext extends FunCityReducerContext {
-  /**
-   * Current scope variables.
-   */
-  readonly variables: any;
-  /**
-   * Current function application node.
-   */
-  readonly thisNode: FunCityExpressionNode;
-  /**
-   * Reduce expression node with this context.
-   * @param node - Target node
-   * @returns Reduced value.
-   */
-  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
 }

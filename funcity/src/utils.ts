@@ -31,21 +31,21 @@ export const emptyRange: FunCityRange = {
 const specialFunctionMarker: unique symbol = Symbol('$$special$$');
 
 /**
- * Mark a function as a special function.
+ * Mark a function as a funcity special function.
  * @param f - Target function.
  * @returns The same function with a marker.
  */
-export const makeSpecialFunction = (f: Function) => {
+export const makeFunCityFunction = (f: Function) => {
   (f as any)[specialFunctionMarker] = true;
   return f;
 };
 
 /**
- * Check whether a function is marked as special.
+ * Check whether a function is marked as funcity special function.
  * @param f - Target function.
  * @returns True when marked.
  */
-export const isSpecialFunction = (f: Function): boolean => {
+export const isFunCityFunction = (f: Function): boolean => {
   return (f as any)[specialFunctionMarker] ?? false;
 };
 

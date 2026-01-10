@@ -636,7 +636,7 @@ describe('scripting reducer test', () => {
     const errors: FunCityErrorInfo[] = [];
 
     async function foo(this: FunCityFunctionContext, v: unknown) {
-      return Number(v) + this.variables.bar;
+      return Number(v) + Number(this.getValue('bar').value);
     }
     const customVars = {
       foo,

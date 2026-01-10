@@ -13,13 +13,13 @@ import {
   combineVariables,
   convertToString,
   isConditionalTrue,
-  makeSpecialFunction,
+  makeFunCityFunction,
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
 // `cond` function requires delayed execution both then/else expressions.
-const _cond = makeSpecialFunction(async function (
+const _cond = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -41,7 +41,7 @@ const _cond = makeSpecialFunction(async function (
   }
 });
 
-const _set = makeSpecialFunction(async function (
+const _set = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -221,7 +221,7 @@ const _length = async (arg0: unknown) => {
   return 0;
 };
 
-const _and = makeSpecialFunction(async function (
+const _and = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
   ...args: FunCityExpressionNode[]
 ) {
@@ -242,7 +242,7 @@ const _and = makeSpecialFunction(async function (
   return true;
 });
 
-const _or = makeSpecialFunction(async function (
+const _or = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
   ...args: FunCityExpressionNode[]
 ) {
