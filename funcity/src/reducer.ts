@@ -153,32 +153,30 @@ export const reduceExpressionNode = async (
         });
         return undefined;
       }
-      const thisProxy = context.createFunctionContext(node);
-      if (isFunCityFunction(func)) {
-        const value = await func.call(thisProxy, ...node.args);
-        return value;
-      } else {
-        const args = await Promise.all(
+      const args = isFunCityFunction(func) ?
+        node.args :  // Passing directly node objects
+        await Promise.all(
           node.args.map(async (argNode) => {
-            try {
-              const arg = await reduceExpressionNode(context, argNode);
-              return arg;
-            } catch (e: unknown) {
-              // Will through abort signal
-              if (e instanceof Error && e.name === 'AbortError') {
-                throw e;
-              }
-              context.appendError({
-                type: 'error',
-                description: fromError(e),
-                range: argNode.range,
-              });
-              return undefined;
-            }
+            const arg = await reduceExpressionNode(context, argNode);
+            return arg;
           })
         );
+      const thisProxy = context.createFunctionContext(node);
+      try {
+        // Call the function
         const value = await func.call(thisProxy, ...args);
         return value;
+      } catch (e: unknown) {
+        // Will through abort signal
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw e;
+        }
+        context.appendError({
+          type: 'error',
+          description: fromError(e),
+          range: node.range,
+        });
+        return undefined;
       }
     }
     case 'lambda': {
