@@ -18,10 +18,7 @@ import type {
   FunCityBlockNode,
   ParserCursor,
 } from './types';
-import {
-  emptyRange,
-  widerRange,
-} from './utils';
+import { emptyRange, widerRange } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 

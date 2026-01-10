@@ -5,7 +5,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityErrorInfo, FunCityBlockNode, FunCityExpressionNode, FunCityFunctionContext } from '../src/types';
+import type {
+  FunCityErrorInfo,
+  FunCityBlockNode,
+  FunCityExpressionNode,
+  FunCityFunctionContext,
+} from '../src/types';
 import { buildCandidateVariables } from '../src/standards';
 import { runReducer } from '../src/reducer';
 

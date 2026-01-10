@@ -58,6 +58,15 @@ export interface FunCityErrorInfo {
 
 //////////////////////////////////////////////////////////////////////////////
 
+export interface FunCityRangedObject {
+  /**
+   * This object range.
+   */
+  readonly range: FunCityRange;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 /**
  * Variable map used by the reducer.
  */
@@ -66,7 +75,7 @@ export type FunCityVariables = ReadonlyMap<string, unknown>;
 /**
  * The string token.
  */
-export interface FunCityStringToken {
+export interface FunCityStringToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -75,16 +84,12 @@ export interface FunCityStringToken {
    * String value.
    */
   readonly value: string;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * The number (numeric) token.
  */
-export interface FunCityNumberToken {
+export interface FunCityNumberToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -93,16 +98,12 @@ export interface FunCityNumberToken {
    * Numeric value.
    */
   readonly value: number;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * The identity (variable name) token.
  */
-export interface FunCityIdentityToken {
+export interface FunCityIdentityToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -111,16 +112,12 @@ export interface FunCityIdentityToken {
    * Identity.
    */
   readonly name: string;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Open parenthesis or bracket node.
  */
-export interface FunCityOpenToken {
+export interface FunCityOpenToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -129,16 +126,12 @@ export interface FunCityOpenToken {
    * Open symbol.
    */
   readonly symbol: string;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Close parenthesis or bracket token.
  */
-export interface FunCityCloseToken {
+export interface FunCityCloseToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -147,30 +140,22 @@ export interface FunCityCloseToken {
    * Close symbol.
    */
   readonly symbol: string;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * End of line token.
  */
-export interface FunCityEndOfLineToken {
+export interface FunCityEndOfLineToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
   readonly kind: 'eol';
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Free form text token.
  */
-export interface FunCityTextToken {
+export interface FunCityTextToken extends FunCityRangedObject {
   /**
    * Token kind.
    */
@@ -179,10 +164,6 @@ export interface FunCityTextToken {
    * Text value.
    */
   readonly text: string;
-  /**
-   * Token range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
@@ -202,7 +183,7 @@ export type FunCityToken =
 /**
  * String expression node.
  */
-export interface FunCityStringNode {
+export interface FunCityStringNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -211,16 +192,12 @@ export interface FunCityStringNode {
    * String value.
    */
   readonly value: string;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Number (numeric) expression node.
  */
-export interface FunCityNumberNode {
+export interface FunCityNumberNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -229,16 +206,12 @@ export interface FunCityNumberNode {
    * Numeric value.
    */
   readonly value: number;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Variable (identity) expression node.
  */
-export interface FunCityVariableNode {
+export interface FunCityVariableNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -247,16 +220,12 @@ export interface FunCityVariableNode {
    * Variable name.
    */
   readonly name: string;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Application expression node.
  */
-export interface FunCityApplyNode {
+export interface FunCityApplyNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -269,16 +238,12 @@ export interface FunCityApplyNode {
    * Application arguments.
    */
   readonly args: readonly FunCityExpressionNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Lambda expression node.
  */
-export interface FunCityLambdaNode {
+export interface FunCityLambdaNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -291,16 +256,12 @@ export interface FunCityLambdaNode {
    * Lambda body expression.
    */
   readonly body: FunCityExpressionNode;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Expression list (array) node.
  */
-export interface FunCityListNode {
+export interface FunCityListNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -309,16 +270,12 @@ export interface FunCityListNode {
    * List item nodes.
    */
   readonly items: readonly FunCityExpressionNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Variable setter node.
  */
-export interface FunCitySetNode {
+export interface FunCitySetNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -331,16 +288,12 @@ export interface FunCitySetNode {
    * Will be set the value from reduced expression.
    */
   readonly expr: FunCityExpressionNode;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Evaluate child scope node.
  */
-export interface FunCityScopeNode {
+export interface FunCityScopeNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -350,10 +303,6 @@ export interface FunCityScopeNode {
    * @remarks Reduced each nodes, but takes last one reduced value.
    */
   readonly nodes: readonly FunCityExpressionNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
@@ -372,7 +321,7 @@ export type FunCityExpressionNode =
 /**
  * Text block node.
  */
-export interface FunCityTextNode {
+export interface FunCityTextNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -381,16 +330,12 @@ export interface FunCityTextNode {
    * Text body.
    */
   readonly text: string;
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Conditional branch (`if`) block node contains else block.
  */
-export interface FunCityIfNode {
+export interface FunCityIfNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -407,16 +352,12 @@ export interface FunCityIfNode {
    * Else (false) block node.
    */
   readonly else: readonly FunCityBlockNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Conditional repeats (`while`) block node contains else block.
  */
-export interface FunCityWhileNode {
+export interface FunCityWhileNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -429,16 +370,12 @@ export interface FunCityWhileNode {
    * Repeat block node.
    */
   readonly repeat: readonly FunCityBlockNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**
  * Item iteration (`for`) block node contains else block.
  */
-export interface FunCityForNode {
+export interface FunCityForNode extends FunCityRangedObject {
   /**
    * Node kind.
    */
@@ -455,10 +392,6 @@ export interface FunCityForNode {
    * Repeat block node.
    */
   readonly repeat: readonly FunCityBlockNode[];
-  /**
-   * Node range in source text.
-   */
-  readonly range: FunCityRange;
 }
 
 /**

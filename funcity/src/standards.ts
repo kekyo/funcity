@@ -3,7 +3,11 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { FunCityExpressionNode, FunCityVariables, FunCityFunctionContext } from './types';
+import {
+  FunCityExpressionNode,
+  FunCityVariables,
+  FunCityFunctionContext,
+} from './types';
 import {
   asIterable,
   combineVariables,
