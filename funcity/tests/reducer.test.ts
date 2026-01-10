@@ -5,10 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode, FunCityExpressionNode } from '../src/parser';
-import { runReducer, type FunCityFunctionContext } from '../src/reducer';
-import type { FunCityErrorInfo } from '../src/scripting';
+import type { FunCityErrorInfo, FunCityBlockNode, FunCityExpressionNode, FunCityFunctionContext } from '../src/types';
 import { buildCandidateVariables } from '../src/standards';
+import { runReducer } from '../src/reducer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 

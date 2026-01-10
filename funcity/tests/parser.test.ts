@@ -5,8 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type FunCityErrorInfo } from '../src/scripting';
-import type { FunCityToken } from '../src/tokenizer';
+import type { FunCityErrorInfo, FunCityToken } from '../src/types';
 import { runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////

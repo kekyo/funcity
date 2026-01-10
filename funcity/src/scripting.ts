@@ -3,11 +3,8 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import {
-  FunCityErrorInfo,
-  FunCityVariables,
-  convertToString,
-} from './utils';
+import type { FunCityErrorInfo, FunCityVariables } from './types';
+import { convertToString } from './utils';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { runReducer } from './reducer';

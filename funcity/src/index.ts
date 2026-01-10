@@ -3,6 +3,7 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+export * from './types';
 export * from './utils';
 export * from './tokenizer';
 export * from './parser';

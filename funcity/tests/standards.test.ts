@@ -4,7 +4,9 @@
 // https://github.com/kekyo/funcity/
 
 import { describe, expect, it } from 'vitest';
+
 import type {
+  FunCityErrorInfo,
   FunCityApplyNode,
   FunCityExpressionNode,
   FunCityLambdaNode,
@@ -13,9 +15,8 @@ import type {
   FunCityNumberNode,
   FunCityStringNode,
   FunCityVariableNode,
-} from '../src/parser';
+} from '../src/types';
 import { runReducer } from '../src/reducer';
-import type { FunCityErrorInfo } from '../src/utils';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -429,11 +430,15 @@ describe('standard variables test', () => {
     expect(value).toBe(false);
   });
   it('toNumber', async () => {
-    const value = await reduceSingle(applyNode('toNumber', [stringNode('123')]));
+    const value = await reduceSingle(
+      applyNode('toNumber', [stringNode('123')])
+    );
     expect(value).toBe(123);
   });
   it('toBigInt', async () => {
-    const value = await reduceSingle(applyNode('toBigInt', [stringNode('123')]));
+    const value = await reduceSingle(
+      applyNode('toBigInt', [stringNode('123')])
+    );
     expect(value).toBe(123n);
   });
   it('url', async () => {

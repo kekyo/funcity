@@ -3,107 +3,23 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import {
-  fromError,
-  asIterable,
-  type FunCityErrorInfo,
-  type FunCityVariables,
-  isConditionalTrue,
-  isSpecialFunction,
-} from './utils';
 import type {
+  FunCityErrorInfo,
+  FunCityVariables,
   FunCityExpressionNode,
   FunCityLambdaNode,
   FunCityBlockNode,
   FunCityVariableNode,
-} from './parser';
-
-//////////////////////////////////////////////////////////////////////////////
-
-/**
- * Variable value result.
- */
-export interface ValueResult {
-  /**
-   * Variable value.
-   */
-  readonly value: unknown;
-  /**
-   * Is this found?
-   */
-  readonly isFound: boolean;
-}
-
-/**
- * Native function context.
- */
-export interface FunCityFunctionContext {
-  /**
-   * Current scope variables.
-   */
-  readonly variables: any;
-  /**
-   * Current function application node.
-   */
-  readonly thisNode: FunCityExpressionNode;
-  /**
-   * Reduce expression node with this context.
-   * @param node - Target node
-   * @returns Reduced value.
-   */
-  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
-  /**
-   * Append directly error information.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-}
-
-/**
- * The reducer context.
- */
-export interface FunCityReducerContext {
-  /**
-   * Get current abort signal object.
-   * @returns AbortSignal when available.
-   */
-  readonly abortSignal: AbortSignal | undefined;
-  /**
-   * Get current context (scope) variable value.
-   * @param name - Variable name
-   * @returns Variable value information
-   */
-  readonly getValue: (name: string) => ValueResult;
-  /**
-   * Set current context (scope) variable value.
-   * @param name - Variable name
-   * @param value - New value
-   */
-  readonly setValue: (name: string, value: unknown) => void;
-  /**
-   * Append context error.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
-  /**
-   * Create new scoped context.
-   * @returns New reducer context.
-   */
-  readonly newScope: () => FunCityReducerContext;
-  /**
-   * Create native function context proxy.
-   * @param thisNode Current node (Indicating the current application is expected)
-   * @returns Native function context proxy instance.
-   */
-  readonly createFunctionContext: (
-    thisNode: FunCityExpressionNode
-  ) => FunCityFunctionContext;
-}
+  FunCityReducerContext,
+  FunCityReducerContextValueResult,
+  FunCityFunctionContext,
+} from './types';
+import {
+  fromError,
+  asIterable,
+  isConditionalTrue,
+  isSpecialFunction,
+} from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -389,7 +305,7 @@ export const createReducerContext = (
   let mvs: Map<string, unknown> | undefined;
   let variablesProxy: any;
 
-  const getValue = (name: string): ValueResult => {
+  const getValue = (name: string): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
     if (vs.has(name)) {
       return { value: vs.get(name), isFound: true };

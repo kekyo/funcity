@@ -3,35 +3,14 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+import {
+  FunCityErrorInfo,
+  FunCityLocation,
+  FunCityRange,
+  FunCityVariables,
+} from './types';
+
 //////////////////////////////////////////////////////////////////////////////
-
-/**
- * Location in source text.
- */
-export interface FunCityLocation {
-  /**
-   * Line number (1-based).
-   */
-  readonly line: number;
-  /**
-   * Column number (1-based).
-   */
-  readonly column: number;
-}
-
-/**
- * Range in source text.
- */
-export interface FunCityRange {
-  /**
-   * Start location.
-   */
-  readonly start: FunCityLocation;
-  /**
-   * End location.
-   */
-  readonly end: FunCityLocation;
-}
 
 /**
  * Empty location with zeroed coordinates.
@@ -48,36 +27,6 @@ export const emptyRange: FunCityRange = {
   start: emptyLocation,
   end: emptyLocation,
 } as const;
-
-/**
- * Error severity type.
- */
-export type FunCityErrorType = 'warning' | 'error';
-
-/**
- * Error information with location.
- */
-export interface FunCityErrorInfo {
-  /**
-   * Error severity.
-   */
-  readonly type: FunCityErrorType;
-  /**
-   * Error description.
-   */
-  readonly description: string;
-  /**
-   * Error range in source text.
-   */
-  readonly range: FunCityRange;
-}
-
-/**
- * Variable map used by the reducer.
- */
-export type FunCityVariables = ReadonlyMap<string, unknown>;
-
-//////////////////////////////////////////////////////////////////////////////
 
 const specialFunctionMarker: unique symbol = Symbol('$$special$$');
 

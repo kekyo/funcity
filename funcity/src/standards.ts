@@ -3,16 +3,14 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+import { FunCityExpressionNode, FunCityVariables, FunCityFunctionContext } from './types';
 import {
   asIterable,
   combineVariables,
   convertToString,
   isConditionalTrue,
   makeSpecialFunction,
-  type FunCityVariables,
 } from './utils';
-import { FunCityExpressionNode } from './parser';
-import { FunCityFunctionContext } from './reducer';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -404,7 +402,10 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
 };
 
 const _url = async (arg0: unknown, arg1: unknown) => {
-  const url = new URL(convertToString(arg0), arg1 !== undefined ? convertToString(arg1) : undefined);
+  const url = new URL(
+    convertToString(arg0),
+    arg1 !== undefined ? convertToString(arg1) : undefined
+  );
   return url;
 };
 
