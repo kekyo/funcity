@@ -303,6 +303,10 @@ interface ParserCursor {
    * @returns A token or undefined when reached end of token.
    */
   takeToken: () => FunCityToken | undefined;
+  /**
+   * Skip one token.
+   */
+  skipToken: () => void;
 }
 
 const parseNumber = (
@@ -446,7 +450,7 @@ const parsePartialExpression = (
       return node;
     }
     case 'open': {
-      cursor.takeToken();
+      cursor.skipToken();
       switch (token.symbol) {
         // Parenthesis surrounding expression list `( ... )` (Scope)
         case '(': {
@@ -470,7 +474,7 @@ const parsePartialExpression = (
               ),
             });
           } else {
-            cursor.takeToken();
+            cursor.skipToken();
             range = widerRange(
               token.range,
               ...innerNodes.map((node) => node.range),
@@ -512,7 +516,7 @@ const parsePartialExpression = (
               range,
             });
           } else {
-            cursor.takeToken();
+            cursor.skipToken();
             range = widerRange(
               token.range,
               ...itemNodes.map((node) => node.range),
@@ -622,7 +626,7 @@ const parseMultipleApplicationExpressions = (
     }
     switch (token.kind) {
       case 'eol': {
-        cursor.takeToken();
+        cursor.skipToken();
         const expr = finalizeApplicationException(partialNodes, errors);
         if (expr) {
           expressionList.push(expr);
@@ -681,7 +685,7 @@ const drainEndOfLineAndPeek = (
   let token = cursor.peekToken();
   while (token) {
     if (token.kind === 'eol') {
-      cursor.takeToken();
+      cursor.skipToken();
     } else {
       break;
     }
@@ -728,7 +732,7 @@ export const parseExpression = (
 
     // Reached end of line.
     if (token.kind === 'eol') {
-      cursor.takeToken();
+      cursor.skipToken();
       token = cursor.peekToken();
       break;
     }
@@ -898,7 +902,7 @@ const parseStatementArguments = (
     }
 
     if (token.kind === 'eol') {
-      cursor.takeToken();
+      cursor.skipToken();
       break;
     }
 
@@ -975,7 +979,7 @@ export const parseBlock = (
 
     switch (token.kind) {
       case 'text': {
-        cursor.takeToken();
+        cursor.skipToken();
         if (isInExpressionBlock) {
           errors.push({
             type: 'error',
@@ -994,7 +998,7 @@ export const parseBlock = (
       case 'open': {
         // Beginnig expression block.
         if (token.symbol === '{{') {
-          cursor.takeToken();
+          cursor.skipToken();
           if (isInExpressionBlock) {
             errors.push({
               type: 'error',
@@ -1013,7 +1017,7 @@ export const parseBlock = (
       }
       case 'close': {
         // Check closing.
-        cursor.takeToken();
+        cursor.skipToken();
         if (!isInExpressionBlock) {
           errors.push({
             type: 'error',
@@ -1037,7 +1041,7 @@ export const parseBlock = (
         }
         switch (token.name) {
           case 'if': {
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 1) {
               errors.push({
@@ -1062,7 +1066,7 @@ export const parseBlock = (
             break;
           }
           case 'else': {
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 0) {
               errors.push({
@@ -1104,7 +1108,7 @@ export const parseBlock = (
             break;
           }
           case 'while': {
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 1) {
               errors.push({
@@ -1127,7 +1131,7 @@ export const parseBlock = (
             break;
           }
           case 'for': {
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 2) {
               errors.push({
@@ -1161,7 +1165,7 @@ export const parseBlock = (
             break;
           }
           case 'end': {
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 0) {
               errors.push({
@@ -1235,7 +1239,7 @@ export const parseBlock = (
           }
           case 'set': {
             // `set foo 123`
-            cursor.takeToken();
+            cursor.skipToken();
             const args = parseStatementArguments(cursor, errors);
             if (args.length !== 2) {
               errors.push({
@@ -1307,13 +1311,19 @@ export const parseBlock = (
 
 //////////////////////////////////////////////////////////////////////////////
 
-const createParserCursor = (tokens: readonly FunCityToken[]): ParserCursor => {
+/**
+ * Create a parser cursor.
+ * @param tokens - Target tokens
+ * @returns Parser cursor
+ */
+export const createParserCursor = (
+  tokens: readonly FunCityToken[]
+): ParserCursor => {
   let index = 0;
 
   const peekToken = () => {
     return tokens[index];
   };
-
   const takeToken = () => {
     if (index >= tokens.length) {
       return undefined;
@@ -1322,12 +1332,21 @@ const createParserCursor = (tokens: readonly FunCityToken[]): ParserCursor => {
     index++;
     return token;
   };
+  const skipToken = () => {
+    if (index >= tokens.length) {
+      return;
+    }
+    index++;
+  };
 
   return {
     peekToken,
     takeToken,
+    skipToken,
   };
 };
+
+//////////////////////////////////////////////////////////////////////////////
 
 /**
  * Run the parser.
