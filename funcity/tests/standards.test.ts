@@ -129,11 +129,7 @@ describe('standard variables test', () => {
     const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
     const nowBefore = Date.now();
-    const reduced = await runReducer(
-      [applyNode('now', [])],
-      variables,
-      errors
-    );
+    const reduced = await runReducer([applyNode('now', [])], variables, errors);
     const nowAfter = Date.now();
     expect(errors).toEqual([]);
     expect(reduced).toHaveLength(1);
@@ -162,21 +158,15 @@ describe('standard variables test', () => {
     expect(value).toBe('12,34,56');
   });
   it('trim', async () => {
-    const value = await reduceSingle(
-      applyNode('trim', [stringNode(' ABC ')])
-    );
+    const value = await reduceSingle(applyNode('trim', [stringNode(' ABC ')]));
     expect(value).toBe('ABC');
   });
   it('toUpper', async () => {
-    const value = await reduceSingle(
-      applyNode('toUpper', [stringNode('AbC')])
-    );
+    const value = await reduceSingle(applyNode('toUpper', [stringNode('AbC')]));
     expect(value).toBe('ABC');
   });
   it('toLower', async () => {
-    const value = await reduceSingle(
-      applyNode('toLower', [stringNode('AbC')])
-    );
+    const value = await reduceSingle(applyNode('toLower', [stringNode('AbC')]));
     expect(value).toBe('abc');
   });
   it('length array', async () => {
@@ -186,9 +176,7 @@ describe('standard variables test', () => {
     expect(value).toBe(2);
   });
   it('length string', async () => {
-    const value = await reduceSingle(
-      applyNode('length', [stringNode('ABC')])
-    );
+    const value = await reduceSingle(applyNode('length', [stringNode('ABC')]));
     expect(value).toBe(3);
   });
   it('and false', async () => {
@@ -216,15 +204,11 @@ describe('standard variables test', () => {
     expect(value).toBe(true);
   });
   it('not false', async () => {
-    const value = await reduceSingle(
-      applyNode('not', [variableNode('false')])
-    );
+    const value = await reduceSingle(applyNode('not', [variableNode('false')]));
     expect(value).toBe(true);
   });
   it('not true', async () => {
-    const value = await reduceSingle(
-      applyNode('not', [variableNode('true')])
-    );
+    const value = await reduceSingle(applyNode('not', [variableNode('true')]));
     expect(value).toBe(false);
   });
   it('cond true', async () => {
@@ -374,9 +358,7 @@ describe('standard variables test', () => {
         stringNode("I think Ruth's dog is cuter than your dog!"),
       ])
     );
-    expect(value).toBe(
-      "I think Ruth's ferret is cuter than your ferret!"
-    );
+    expect(value).toBe("I think Ruth's ferret is cuter than your ferret!");
   });
   it('regex gi', async () => {
     const value = await reduceSingle(
@@ -385,9 +367,7 @@ describe('standard variables test', () => {
     expect((value as RegExp).toString()).toBe('/[A-Z]/gi');
   });
   it('regex', async () => {
-    const value = await reduceSingle(
-      applyNode('regex', [stringNode('[A-Z]')])
-    );
+    const value = await reduceSingle(applyNode('regex', [stringNode('[A-Z]')]));
     expect((value as RegExp).toString()).toBe('/[A-Z]/');
   });
   it('bind', async () => {
@@ -421,15 +401,11 @@ describe('standard variables test', () => {
     );
   });
   it('typeof number', async () => {
-    const value = await reduceSingle(
-      applyNode('typeof', [numberNode(111)])
-    );
+    const value = await reduceSingle(applyNode('typeof', [numberNode(111)]));
     expect(value).toBe('number');
   });
   it('typeof string', async () => {
-    const value = await reduceSingle(
-      applyNode('typeof', [stringNode('ABC')])
-    );
+    const value = await reduceSingle(applyNode('typeof', [stringNode('ABC')]));
     expect(value).toBe('string');
   });
   it('typeof null', async () => {
