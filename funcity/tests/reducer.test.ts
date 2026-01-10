@@ -552,4 +552,37 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual([223]);
     expect(errors).toEqual([]);
   });
+
+  it('scope should see parent updates after local write', async () => {
+    const errors: FunCityErrorInfo[] = [];
+
+    const delay = async (ms: unknown) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, Number(ms)));
+      return undefined;
+    };
+    const variables = buildCandidateVariables({ x: 1, delay });
+
+    const childExpr = applyNode(
+      lambdaNode(
+        [],
+        scopeNode([
+          setNode('local', numberNode(0)),
+          applyNode(variableNode('delay'), [numberNode(100)]),
+          variableNode('x'),
+        ])
+      ),
+      []
+    );
+    const parentUpdateExpr = scopeNode([
+      applyNode(variableNode('delay'), [numberNode(10)]),
+      setNode('x', numberNode(2)),
+    ]);
+
+    const nodes: FunCityBlockNode[] = [listNode([childExpr, parentUpdateExpr])];
+
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([[2, undefined]]);
+    expect(errors).toEqual([]);
+  });
 });
