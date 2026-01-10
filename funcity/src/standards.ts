@@ -401,7 +401,7 @@ const _bind = async (arg0: unknown, ...args: unknown[]) => {
 /**
  * Built-in standard variables and functions.
  */
-export const standardVariables = {
+export const standardVariables = Object.freeze({
   undefined: undefined,
   null: null,
   true: true,
@@ -440,7 +440,7 @@ export const standardVariables = {
   replace: _replace,
   regex: _regex,
   bind: _bind,
-} as const;
+} as const);
 
 /**
  * Build a variable map that includes standard variables.
