@@ -190,11 +190,6 @@ export const reduceExpressionNode = async (
       );
       return results;
     }
-    case 'set': {
-      const expr = await reduceExpressionNode(context, node.expr);
-      context.setValue(node.name.name, expr);
-      return undefined;
-    }
     case 'scope': {
       if (node.nodes.length === 0) {
         return [];
@@ -373,15 +368,16 @@ export const createReducerContext = (
   const createFunctionContext = (
     thisNode: FunCityExpressionNode
   ): FunCityFunctionContext => {
-    return {
+    const functionContext: FunCityFunctionContext = {
+      ...context,
       get variables() {
         signal?.throwIfAborted();
         return getVariablesFromProxy();
       },
       thisNode,
-      appendError,
       reduce: reduceByProxy,
-    } as const;
+    };
+    return functionContext;
   };
 
   context = {

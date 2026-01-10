@@ -950,39 +950,6 @@ export const parseBlock = (
             }
             break;
           }
-          case 'set': {
-            // `set foo 123`
-            cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
-            if (args.length !== 2) {
-              errors.push({
-                type: 'error',
-                description: 'Required `set` bind identity and expression',
-                range: widerRange(
-                  token.range,
-                  ...args.map((node) => node.range)
-                ),
-              });
-              break;
-            }
-            const bindNode = args[0]!;
-            if (bindNode.kind !== 'variable') {
-              errors.push({
-                type: 'error',
-                description: 'Required `set` bind identity',
-                range: bindNode.range,
-              });
-              break;
-            }
-            const exprNode = args[1]!;
-            pushNode(statementStates, {
-              kind: 'set',
-              name: bindNode,
-              expr: exprNode,
-              range: widerRange(token.range, bindNode.range, exprNode.range),
-            });
-            break;
-          }
           default: {
             const node = parseExpression(cursor, errors);
             if (node) {

@@ -67,9 +67,9 @@ const scopeNode = (nodes: FunCityExpressionNode[]) => ({
   range,
 });
 const setNode = (name: string, expr: FunCityExpressionNode) => ({
-  kind: 'set' as const,
-  name: variableNode(name),
-  expr,
+  kind: 'apply' as const,
+  func: variableNode('set'),
+  args: [variableNode(name), expr],
   range,
 });
 const ifNode = (

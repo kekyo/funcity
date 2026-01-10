@@ -21,16 +21,51 @@ import {
 // `cond` function requires delayed execution both then/else expressions.
 const _cond = makeSpecialFunction(async function (
   this: FunCityFunctionContext,
-  arg0: FunCityExpressionNode,
-  arg1: FunCityExpressionNode,
-  arg2: FunCityExpressionNode
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  arg2: FunCityExpressionNode | undefined
 ) {
+  if (!arg0 || !arg1 || !arg2) {
+    this.appendError({
+      type: 'error',
+      description: 'Required `cond` condition, true and false expressions',
+      range: this.thisNode.range,
+    });
+    return undefined;
+  }
   const cond = await this.reduce(arg0);
   if (isConditionalTrue(cond)) {
     return await this.reduce(arg1); // Delayed execution when condition is true.
   } else {
     return await this.reduce(arg2); // Delayed execution when condition is false.
   }
+});
+
+const _set = makeSpecialFunction(async function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0 || !arg1 || rest.length !== 0) {
+    this.appendError({
+      type: 'error',
+      description: 'Required `set` bind identity and expression',
+      range: this.thisNode.range,
+    });
+    return undefined;
+  }
+  if (arg0.kind !== 'variable') {
+    this.appendError({
+      type: 'error',
+      description: 'Required `set` bind identity',
+      range: arg0.range,
+    });
+    return undefined;
+  }
+  const value = await this.reduce(arg1);
+  this.setValue(arg0.name, value);
+  return undefined;
 });
 
 const _typeof = async (arg0: unknown) => {
@@ -424,6 +459,7 @@ export const standardVariables = Object.freeze({
   true: true,
   false: false,
   cond: _cond,
+  set: _set,
   toString: _toString,
   toBoolean: _toBoolean,
   toNumber: _toNumber,

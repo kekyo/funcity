@@ -273,24 +273,6 @@ export interface FunCityListNode extends FunCityRangedObject {
 }
 
 /**
- * Variable setter node.
- */
-export interface FunCitySetNode extends FunCityRangedObject {
-  /**
-   * Node kind.
-   */
-  readonly kind: 'set';
-  /**
-   * Target variable name.
-   */
-  readonly name: FunCityVariableNode;
-  /**
-   * Will be set the value from reduced expression.
-   */
-  readonly expr: FunCityExpressionNode;
-}
-
-/**
  * Evaluate child scope node.
  */
 export interface FunCityScopeNode extends FunCityRangedObject {
@@ -315,7 +297,6 @@ export type FunCityExpressionNode =
   | FunCityApplyNode
   | FunCityLambdaNode
   | FunCityListNode
-  | FunCitySetNode
   | FunCityScopeNode;
 
 /**
@@ -438,31 +419,6 @@ export interface FunCityReducerContextValueResult {
 }
 
 /**
- * Native function context.
- */
-export interface FunCityFunctionContext {
-  /**
-   * Current scope variables.
-   */
-  readonly variables: any;
-  /**
-   * Current function application node.
-   */
-  readonly thisNode: FunCityExpressionNode;
-  /**
-   * Reduce expression node with this context.
-   * @param node - Target node
-   * @returns Reduced value.
-   */
-  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
-  /**
-   * Append directly error information.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-}
-
-/**
  * The reducer context.
  */
 export interface FunCityReducerContext {
@@ -506,4 +462,24 @@ export interface FunCityReducerContext {
   readonly createFunctionContext: (
     thisNode: FunCityExpressionNode
   ) => FunCityFunctionContext;
+}
+
+/**
+ * Native function context.
+ */
+export interface FunCityFunctionContext extends FunCityReducerContext {
+  /**
+   * Current scope variables.
+   */
+  readonly variables: any;
+  /**
+   * Current function application node.
+   */
+  readonly thisNode: FunCityExpressionNode;
+  /**
+   * Reduce expression node with this context.
+   * @param node - Target node
+   * @returns Reduced value.
+   */
+  readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
 }
