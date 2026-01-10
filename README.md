@@ -246,8 +246,8 @@ The following are the standard functions:
 | `toUpper` | Uppercases the first argument. |
 | `toLower` | Lowercases the first argument. |
 | `length` | Returns the length of the string/array/`Iterable` in the first argument. |
-| `and` | ANDs arguments as booleans (error if no arguments). |
-| `or` | ORs arguments as booleans (error if no arguments). |
+| `and` | ANDs arguments as booleans. |
+| `or` | ORs arguments as booleans. |
 | `not` | Returns the negation of the first argument as a boolean. |
 | `at` | Uses the first argument as an index to fetch an element from the array/`Iterable` in the second argument. |
 | `first` | Returns the first element of the array/`Iterable` in the first argument. |
@@ -314,6 +314,7 @@ These functions can take multiple arguments:
 ```
 
 For `and` and `or`, at least one argument is required.
+They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`).
 
 ### at,first,last
 

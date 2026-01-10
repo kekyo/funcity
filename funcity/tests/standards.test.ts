@@ -74,6 +74,12 @@ describe('standard variables test', () => {
     expect(reduced).toHaveLength(1);
     return reduced[0];
   };
+  const reduceWithErrors = async (node: FunCityBlockNode) => {
+    const errors: FunCityErrorInfo[] = [];
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer([node], variables, errors);
+    return { reduced, errors };
+  };
 
   it('true', async () => {
     const value = await reduceSingle(variableNode('true'));
@@ -202,6 +208,20 @@ describe('standard variables test', () => {
       applyNode('or', [variableNode('false'), variableNode('true')])
     );
     expect(value).toBe(true);
+  });
+  it('and short-circuit', async () => {
+    const { reduced, errors } = await reduceWithErrors(
+      applyNode('and', [variableNode('false'), variableNode('missing')])
+    );
+    expect(reduced).toEqual([false]);
+    expect(errors).toEqual([]);
+  });
+  it('or short-circuit', async () => {
+    const { reduced, errors } = await reduceWithErrors(
+      applyNode('or', [variableNode('true'), variableNode('missing')])
+    );
+    expect(reduced).toEqual([true]);
+    expect(errors).toEqual([]);
   });
   it('not false', async () => {
     const value = await reduceSingle(applyNode('not', [variableNode('false')]));

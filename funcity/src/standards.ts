@@ -184,21 +184,47 @@ const _length = async (arg0: unknown) => {
   return 0;
 };
 
-const _and = async (...args: unknown[]) => {
+const _and = makeSpecialFunction(async function (
+  this: FunCityFunctionContext,
+  ...args: FunCityExpressionNode[]
+) {
   if (args.length === 0) {
-    throw new Error('empty arguments');
+    this.appendError({
+      type: 'error',
+      description: 'empty arguments',
+      range: this.thisNode.range,
+    });
+    return undefined;
   }
-  const r = args.reduce((v0: boolean, v) => v0 && isConditionalTrue(v), true);
-  return r;
-};
+  for (const arg of args) {
+    const value = await this.reduce(arg);
+    if (!isConditionalTrue(value)) {
+      return false;
+    }
+  }
+  return true;
+});
 
-const _or = async (...args: unknown[]) => {
+const _or = makeSpecialFunction(async function (
+  this: FunCityFunctionContext,
+  ...args: FunCityExpressionNode[]
+) {
   if (args.length === 0) {
-    throw new Error('empty arguments');
+    this.appendError({
+      type: 'error',
+      description: 'empty arguments',
+      range: this.thisNode.range,
+    });
+    return undefined;
   }
-  const r = args.reduce((v0: boolean, v) => v0 || isConditionalTrue(v), false);
-  return r;
-};
+  for (const arg of args) {
+    const value = await this.reduce(arg);
+    if (isConditionalTrue(value)) {
+      return true;
+    }
+  }
+  return false;
+});
 
 const _not = async (arg0: unknown) => {
   return !isConditionalTrue(arg0);
