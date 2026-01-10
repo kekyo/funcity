@@ -8,7 +8,7 @@ import {
   widerRange,
   type FunCityErrorInfo,
   type FunCityRange,
-} from './scripting';
+} from './utils';
 import type {
   FunCityNumberToken,
   FunCityStringToken,

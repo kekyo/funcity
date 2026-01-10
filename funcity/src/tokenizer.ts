@@ -7,7 +7,7 @@ import type {
   FunCityErrorInfo,
   FunCityLocation,
   FunCityRange,
-} from './scripting';
+} from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
 

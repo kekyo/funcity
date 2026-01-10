@@ -10,7 +10,7 @@ import {
   type FunCityVariables,
   isConditionalTrue,
   isSpecialFunction,
-} from './scripting';
+} from './utils';
 import type {
   FunCityExpressionNode,
   FunCityLambdaNode,

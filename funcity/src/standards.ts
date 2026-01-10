@@ -10,7 +10,7 @@ import {
   isConditionalTrue,
   makeSpecialFunction,
   type FunCityVariables,
-} from './scripting';
+} from './utils';
 import { FunCityExpressionNode } from './parser';
 import { FunCityFunctionContext } from './reducer';
 

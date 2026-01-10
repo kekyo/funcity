@@ -15,7 +15,7 @@ import type {
   FunCityVariableNode,
 } from '../src/parser';
 import { runReducer } from '../src/reducer';
-import type { FunCityErrorInfo } from '../src/scripting';
+import type { FunCityErrorInfo } from '../src/utils';
 import { buildCandidateVariables } from '../src/standards';
 
 ///////////////////////////////////////////////////////////////////////////////////
