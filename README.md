@@ -122,8 +122,8 @@ flowchart LR
 
 - The tokenizer analyzes the script text and splits it into the words used by funcity.
 - The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
-- The reducer evaluates the nodes and performs computation.
-  Chaining these steps results in script execution.
+- The interpreter (Reducer) interprets and computes each node.
+  This chain of operations recursively executes the entire script code.
 
 ### Basic operation
 
@@ -150,6 +150,8 @@ const run = async (
 };
 ```
 
+“The core” of the core engine is truly concentrated in this code:
+
 - The reducer's output is raw computational results.
   Multiple results may also be obtained.
   Therefore, these are concatenated as strings to produce the final output text.
@@ -161,12 +163,13 @@ const run = async (
   The location where the error occurred may have been replaced with an appropriate token node,
   and executing the interpreter using that information will likely not function correctly.
   However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate errors.
-- Depending on the script's content, processing may not complete (e.g., due to infinite loops).
+- Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
   Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
-Note: This code is exposed as a similar function named `runScriptOnce()`. That it actually converts `results` to text using `convertToString()`.
+Note: This code is exposed as a similar function named `runScriptOnce()`.
+That it actually converts `results` to text using `convertToString()`.
 
-### Variable binding
+### Bind the value to a variable
 
 The reducer can accept a predefined set of variables as an argument.
 If you define (bind) variables in advance, you can reference them inside the script:
@@ -183,7 +186,7 @@ const variables = buildCandidateVariables(
 const results = await runReducer(nodes, variables, errors);
 ```
 
-### Binding function objects
+### Bind function objects
 
 Variables can bind not only literal values like strings and numbers, but also arbitrary function objects:
 
@@ -410,6 +413,9 @@ Returns a function with partially applied arguments:
 ```
 
 The result is `223`.
+
+Be aware that this is different from variable binding, despite the similar-sounding name.
+This function is nearly equivalent to `bind()` for function objects in JavaScript.
 
 ### url
 
