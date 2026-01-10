@@ -120,6 +120,11 @@ flowchart LR
   Reducer --> Text["Text output"]
 ```
 
+- The tokenizer analyzes the script text and splits it into the words used by funcity.
+- The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
+- The reducer evaluates the nodes and performs computation.
+  Chaining these steps results in script execution.
+
 ### Basic operation
 
 Writing the whole operation in code gives a minimal example like this:
@@ -148,16 +153,11 @@ const run = async (
 
 (This code is exposed as a similar function named `runScriptOnce()`.)
 
-- The tokenizer analyzes the script text and splits it into the words used by funcity.
-- The parser analyzes context from the tokens produced by the tokenizer and builds meaningful node structures.
-- The reducer evaluates the nodes and performs computation.
-  Chaining these steps results in script execution.
 - The reducer's output is raw computational results.
   Multiple results may also be obtained.
   Therefore, these are concatenated as strings to produce the final output text.
-
-For example, if a script does not change once loaded and you want to run only the reducer many times,
-you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
+- If a script does not change once loaded and you want to run only the reducer many times,
+  you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
 
 ### Variable binding
 
