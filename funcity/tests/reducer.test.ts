@@ -286,6 +286,102 @@ describe('scripting reducer test', () => {
     expect(errors).toEqual([]);
   });
 
+  it('set returns undefined', async () => {
+    // "{{set foo 123}}"
+    const nodes: FunCityBlockNode[] = [setNode('foo', numberNode(123))];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  it('set inside lambda scope', async () => {
+    // "{{(fun [] (set foo 1\nfoo)) ()}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(
+        lambdaNode(
+          [],
+          scopeNode([setNode('foo', numberNode(1)), variableNode('foo')])
+        ),
+        []
+      ),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([1]);
+    expect(errors).toEqual([]);
+  });
+
+  it('set requires bind identity', async () => {
+    // "{{set 1 missing}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [numberNode(1), variableNode('missing')]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity',
+        range,
+      },
+    ]);
+  });
+
+  it('set requires two arguments (missing)', async () => {
+    // "{{set foo}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [variableNode('foo')]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity and expression',
+        range,
+      },
+    ]);
+  });
+
+  it('set requires two arguments (too many)', async () => {
+    // "{{set foo 1 2}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('set'), [
+        variableNode('foo'),
+        numberNode(1),
+        numberNode(2),
+      ]),
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, errors);
+
+    expect(reduced).toEqual([]);
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        description: 'Required `set` bind identity and expression',
+        range,
+      },
+    ]);
+  });
+
   it('for', async () => {
     // "{{for i [1 2 3 4 5]}}ABC{{end}}"
     const nodes: FunCityBlockNode[] = [
