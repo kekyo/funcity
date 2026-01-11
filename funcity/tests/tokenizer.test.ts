@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type FunCityErrorInfo } from '../src/types';
-import { runTokenizer } from '../src/tokenizer';
+import { runCodeTokenizer, runTokenizer } from '../src/tokenizer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +99,106 @@ describe('scripting tokenize test', () => {
         range: {
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('code token without block braces', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const tokens = runCodeTokenizer("foo 123 'bar'", errors);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 123,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 7 },
+        },
+      },
+      {
+        kind: 'string',
+        value: 'bar',
+        range: {
+          start: { line: 1, column: 9 },
+          end: { line: 1, column: 13 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('code token with line continuation (LF)', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const tokens = runCodeTokenizer('add 1 \\\n2', errors);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'add',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 2,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 1 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('code token with line continuation (CRLF)', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const crlf = String.fromCharCode(13, 10);
+    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, errors);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'add',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 2,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 1 },
         },
       },
     ]);

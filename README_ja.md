@@ -9,6 +9,7 @@
 
 |Package|npm|
 |:----|:----|
+|`funcity-cli`|[![npm version](https://img.shields.io/npm/v/funcity-cli.svg)](https://www.npmjs.com/package/funcity-cli)|
 |`funcity`|[![npm version](https://img.shields.io/npm/v/funcity.svg)](https://www.npmjs.com/package/funcity)|
 
 ---
@@ -57,6 +58,18 @@ Today is {{printWeather weather}} weather.
 - `fun` は無名ラムダ関数を定義します。
 - `set` は現在のスコープで、ミュータブルバインディングを実行します。
 
+みんな大好きフィボナッチ数列も、もちろん再帰関数を定義して計算できます:
+
+```funcity
+{{
+set fib (fun n \
+  (cond (or (equal n 0) (equal n 1)) \
+    n \
+    (add (fib (sub n 1)) (fib (sub n 2)))))
+}}
+Fibonacci (10) = {{fib 10}}
+```
+
 つまり、テキストテンプレートプロセッサに関数型言語のパワーを持ち込んだ処理系が、funcityです!
 
 ### 特徴
@@ -79,8 +92,6 @@ Today is {{printWeather weather}} weather.
 
 ## パッケージインストール (CLI)
 
-TODO:
-
 ```bash
 npm install -D funcity-cli
 ```
@@ -91,7 +102,84 @@ npm install -D funcity-cli
 npm install -g funcity-cli
 ```
 
-## 使い方 (CLI and REPL basic syntax)
+## 使い方 (CLI and REPL)
+
+funcityのCLIは、REPLモードとスクリプト実行モードを提供します。
+
+REPLモードは、対話的にfuncityのコードを入力して実行できます。
+スクリプト実行モードは、funcityのスクリプトソースコードを入力して結果を標準出力に表示します。
+
+```bash
+# REPLモードで起動
+$ funcity
+$ funcity repl
+
+# スクリプト実行モード（標準入力から読み取ってスクリプト実行）
+$ funcity -i -
+
+# スクリプト実行モード（指定したファイルから読み取ってスクリプト実行）
+$ funcity -i script.fc
+
+# スクリプト実行モード（明示的に指定。標準入力から読み取ってスクリプト実行）
+$ funcity run
+```
+
+- コマンド `repl` / `run` を指定しない場合、オプションがなければ `repl` として扱われます。
+- `--input` または `-i` が指定されている場合は `run` として扱われます。
+
+### REPLモード
+
+`funcity` または `funcity repl` で開始します。`funcity> ` が入力プロンプトです。
+
+REPLはコード式専用で動作し、テキストブロックは無視されます。
+したがって、funcityの関数型言語インタープリタ実行のみを抜き出したように処理されます。
+
+以下は、 `add` 関数や `set` を使用した変数への値の設定（変数束縛）を実行した例です:
+
+```bash
+$ funcity
+funcity> add 1 2
+3
+funcity> set x 10
+funcity> add x 5
+15
+```
+
+終了するには `Ctrl+D` を入力します。
+
+### スクリプト実行モード
+
+スクリプト実行モードは、ファイルまたは標準入力からスクリプトを読み込み、
+テキストブロックを含めた完全なスクリプトとして処理します。
+
+例えば、`script.fc` ファイルに、funcityスクリプトを格納しておき:
+
+```funcity
+{{
+set fib (fun n \
+  (cond (or (equal n 0) (equal n 1)) \
+    n \
+    (add (fib (sub n 1)) (fib (sub n 2)))))
+}}
+Fibonacci (10) = {{fib 10}}
+```
+
+以下のように実行します:
+
+```bash
+$ funcity run -i script.fc
+```
+
+あるいは、 `-i -` を指定すると標準入力から読み込むので:
+
+```bash
+$ echo "Hello {{add 1 2}}" | funcity run -i -
+Hello 3
+```
+
+---
+
+## funcityスクリプト構文
 
 TODO:
 

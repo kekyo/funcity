@@ -1,21 +1,28 @@
 {
-  "name": "funcity",
+  "name": "funcity-cli",
   "version": "0.0.1",
   "description": "A functional language interpreter with text processing",
   "keywords": [
     "functional",
     "language",
     "interpreter",
-    "text-processing"
+    "text-processing",
+    "cli",
+    "repl"
   ],
+  "author": "Kouji Matsui (@kekyo@mi.kekyo.net)",
+  "license": "MIT",
   "type": "module",
+  "bin": {
+    "funcity": "./dist/index.cjs"
+  },
   "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
+      "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
@@ -27,7 +34,10 @@
     "test": "npm run build && vitest run",
     "pack": "npm run build && screw-up pack --pack-destination ../artifacts/"
   },
-  "dependencies": {},
+  "dependencies": {
+    "commander": ">=11.0.0",
+    "funcity": "*"
+  },
   "devDependencies": {
     "@types/node": ">=20.0.0",
     "prettier-max": ">=1.13.0",

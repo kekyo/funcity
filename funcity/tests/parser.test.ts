@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FunCityErrorInfo, FunCityToken } from '../src/types';
-import { runParser } from '../src/parser';
+import { parseExpressions, runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -3856,6 +3856,121 @@ describe('scripting parser test', () => {
         range: {
           start: { line: 1, column: 3 },
           end: { line: 1, column: 19 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('code parser test', () => {
+  it('single expression', () => {
+    const token: FunCityToken[] = [
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 123,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 7 },
+        },
+      },
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const nodes = parseExpressions(token, errors);
+
+    expect(nodes).toEqual([
+      {
+        kind: 'apply',
+        func: {
+          kind: 'variable',
+          name: 'foo',
+          range: {
+            start: { line: 1, column: 1 },
+            end: { line: 1, column: 3 },
+          },
+        },
+        args: [
+          {
+            kind: 'number',
+            value: 123,
+            range: {
+              start: { line: 1, column: 5 },
+              end: { line: 1, column: 7 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 7 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('multiple expressions', () => {
+    const token: FunCityToken[] = [
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 1 },
+        },
+      },
+      {
+        kind: 'eol',
+        range: {
+          start: { line: 1, column: 2 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 2,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 1 },
+        },
+      },
+    ];
+    const errors: FunCityErrorInfo[] = [];
+
+    const nodes = parseExpressions(token, errors);
+
+    expect(nodes).toEqual([
+      {
+        kind: 'scope',
+        nodes: [
+          {
+            kind: 'number',
+            value: 1,
+            range: {
+              start: { line: 1, column: 1 },
+              end: { line: 1, column: 1 },
+            },
+          },
+          {
+            kind: 'number',
+            value: 2,
+            range: {
+              start: { line: 2, column: 1 },
+              end: { line: 2, column: 1 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 2, column: 1 },
         },
       },
     ]);
