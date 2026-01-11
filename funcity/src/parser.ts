@@ -144,7 +144,10 @@ const parsePartialExpression = (
   cursor: ParserCursor,
   errors: FunCityErrorInfo[]
 ): PartialParsedExpressionNode | undefined => {
-  const token = cursor.peekToken()!;
+  const token = cursor.peekToken();
+  if (!token) {
+    return undefined;
+  }
   switch (token.kind) {
     case 'number': {
       const node = parseNumber(cursor, errors);
