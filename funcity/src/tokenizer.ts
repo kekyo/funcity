@@ -264,25 +264,17 @@ const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
   };
 };
 
-/**
- * Tokenize code block.
- * @param context Tokenizer context
- * @returns The token list
- */
-const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
-  const openStart = context.cursor.location('start');
+interface TokenizeCodeResult {
+  readonly tokens: FunCityToken[];
+  readonly closed: boolean;
+}
 
-  // Skip open brackets '{{'
-  context.cursor.skip(2);
-
-  const tokens: FunCityToken[] = [
-    {
-      kind: 'open',
-      symbol: '{{',
-      range: { start: openStart, end: context.cursor.location('end') },
-    },
-  ];
-
+const tokenizeCodeTokens = (
+  context: TokenizerContext,
+  stopOnClose: boolean,
+  finalizeUnknownOnEot: boolean
+): TokenizeCodeResult => {
+  const tokens: FunCityToken[] = [];
   let unknownStartLocation: FunCityLocation | undefined;
   const finalizeUnknown = () => {
     if (unknownStartLocation) {
@@ -299,17 +291,9 @@ const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   };
 
   while (!context.cursor.eot()) {
-    // Assert close brackets
-    if (context.cursor.assert('}}')) {
+    if (stopOnClose && context.cursor.assert('}}')) {
       finalizeUnknown();
-      const location = context.cursor.location('start');
-      context.cursor.skip(2);
-      tokens.push({
-        kind: 'close',
-        symbol: '}}',
-        range: { start: location, end: context.cursor.location('end') },
-      });
-      return tokens;
+      return { tokens, closed: true };
     }
 
     const ch = context.cursor.getChar();
@@ -401,13 +385,55 @@ const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
       context.cursor.skip(1);
     }
     // Unknown
-    else if (!unknownStartLocation) {
-      unknownStartLocation = context.cursor.location('start');
+    else {
+      if (!unknownStartLocation) {
+        unknownStartLocation = context.cursor.location('start');
+      }
       context.cursor.skip(1);
     }
 
     // Skip spaces
     context.cursor.skipChars(' ');
+  }
+
+  if (finalizeUnknownOnEot) {
+    finalizeUnknown();
+  }
+
+  return { tokens, closed: false };
+};
+
+/**
+ * Tokenize code block.
+ * @param context Tokenizer context
+ * @returns The token list
+ */
+const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
+  const openStart = context.cursor.location('start');
+
+  // Skip open brackets '{{'
+  context.cursor.skip(2);
+
+  const tokens: FunCityToken[] = [
+    {
+      kind: 'open',
+      symbol: '{{',
+      range: { start: openStart, end: context.cursor.location('end') },
+    },
+  ];
+
+  const result = tokenizeCodeTokens(context, true, false);
+  tokens.push(...result.tokens);
+
+  if (result.closed) {
+    const location = context.cursor.location('start');
+    context.cursor.skip(2);
+    tokens.push({
+      kind: 'close',
+      symbol: '}}',
+      range: { start: location, end: context.cursor.location('end') },
+    });
+    return tokens;
   }
 
   const causeLocation = context.cursor.location('start');
@@ -536,6 +562,25 @@ const createTokenizerCursor = (script: string): TokenizerCursor => {
 };
 
 //////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Run the tokenizer for code expressions only.
+ * @param script - Input script text
+ * @param errors - Will be stored detected warnings/errors into it
+ * @returns The token list
+ */
+export const runCodeTokenizer = (
+  script: string,
+  errors: FunCityErrorInfo[]
+): FunCityToken[] => {
+  const context: TokenizerContext = {
+    cursor: createTokenizerCursor(script),
+    errors,
+  };
+
+  const result = tokenizeCodeTokens(context, false, true);
+  return result.tokens;
+};
 
 /**
  * Run the tokenizer.

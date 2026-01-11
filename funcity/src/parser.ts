@@ -664,15 +664,12 @@ const extractParameterArguments = (
   }
 };
 
-/**
- * Parse blocks.
- * @param cursor - Parser cursor
- * @param errors - Will be stored detected warnings/errors into it
- * @returns Parsed block nodes
- */
-export const parseBlock = (
+type ParseMode = 'script' | 'code';
+
+const parseBlockCore = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  errors: FunCityErrorInfo[],
+  mode: ParseMode
 ): FunCityBlockNode[] => {
   // Logical statement state is started at 'root' state.
   // All block node will be aggregated into it.
@@ -682,7 +679,8 @@ export const parseBlock = (
     branch: createBranchState(),
   };
   const statementStates: LogicalStatementState[] = [rootState];
-  let isInExpressionBlock = false;
+  const isCodeMode = mode === 'code';
+  let isInExpressionBlock = isCodeMode;
 
   while (true) {
     const token = drainEndOfLineAndPeek(cursor);
@@ -712,14 +710,16 @@ export const parseBlock = (
         // Beginnig expression block.
         if (token.symbol === '{{') {
           cursor.skipToken();
-          if (isInExpressionBlock) {
-            errors.push({
-              type: 'error',
-              description: `Already opened expression block`,
-              range: token.range,
-            });
+          if (!isCodeMode) {
+            if (isInExpressionBlock) {
+              errors.push({
+                type: 'error',
+                description: `Already opened expression block`,
+                range: token.range,
+              });
+            }
+            isInExpressionBlock = true;
           }
-          isInExpressionBlock = true;
         } else {
           const node = parseExpression(cursor, errors);
           if (node) {
@@ -731,7 +731,19 @@ export const parseBlock = (
       case 'close': {
         // Check closing.
         cursor.skipToken();
+        if (token.symbol === '}}' && isCodeMode) {
+          flushCurrentBranch(statementStates);
+          break;
+        }
         if (!isInExpressionBlock) {
+          errors.push({
+            type: 'error',
+            description: `Mismatched close bracket`,
+            range: token.range,
+          });
+          break;
+        }
+        if (isCodeMode) {
           errors.push({
             type: 'error',
             description: `Mismatched close bracket`,
@@ -989,6 +1001,19 @@ export const parseBlock = (
   return rootState.branch.blocks;
 };
 
+/**
+ * Parse blocks.
+ * @param cursor - Parser cursor
+ * @param errors - Will be stored detected warnings/errors into it
+ * @returns Parsed block nodes
+ */
+export const parseBlock = (
+  cursor: ParserCursor,
+  errors: FunCityErrorInfo[]
+): FunCityBlockNode[] => {
+  return parseBlockCore(cursor, errors, 'script');
+};
+
 //////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -1024,6 +1049,22 @@ export const createParserCursor = (
     takeToken,
     skipToken,
   };
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Parse expressions in code block.
+ * @param tokens - Token list
+ * @param errors - Will be stored detected warnings/errors into it
+ * @returns Parsed node list
+ */
+export const parseExpressions = (
+  tokens: readonly FunCityToken[],
+  errors: FunCityErrorInfo[]
+): FunCityBlockNode[] => {
+  const cursor = createParserCursor(tokens);
+  return parseBlockCore(cursor, errors, 'code');
 };
 
 //////////////////////////////////////////////////////////////////////////////
