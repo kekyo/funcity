@@ -17,12 +17,12 @@
     "funcity": "./dist/index.cjs"
   },
   "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
+      "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
@@ -44,6 +44,7 @@
     "screw-up": ">=1.19.0",
     "typescript": ">=5.0.0",
     "vite": ">=5.0.0",
-    "vite-plugin-dts": ">=3.0.0"
+    "vite-plugin-dts": ">=3.0.0",
+    "vitest": ">=1.0.0"
   }
 }

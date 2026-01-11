@@ -138,6 +138,73 @@ describe('scripting tokenize test', () => {
     expect(errors).toEqual([]);
   });
 
+  it('code token with line continuation (LF)', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const tokens = runCodeTokenizer('add 1 \\\n2', errors);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'add',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 2,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 1 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it('code token with line continuation (CRLF)', () => {
+    const errors: FunCityErrorInfo[] = [];
+    const crlf = String.fromCharCode(13, 10);
+    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, errors);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'add',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 2,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 1 },
+        },
+      },
+    ]);
+    expect(errors).toEqual([]);
+  });
+
   it('member access variable token', () => {
     const errors: FunCityErrorInfo[] = [];
     const tokens = runTokenizer('{{foo.bar}}', errors);

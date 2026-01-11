@@ -16,6 +16,8 @@ const entry = resolve(
   'src/index.ts'
 );
 
+const builtins = [...builtinModules, ...builtinModules.map((m) => `node:${m}`)];
+
 /**
  * Vite configuration for building the CLI bundle.
  */
@@ -29,6 +31,9 @@ export default defineConfig({
       outputMetadataFile: true,
     }),
   ],
+  resolve: {
+    conditions: ['node'],
+  },
   build: {
     lib: {
       entry,
@@ -37,13 +42,15 @@ export default defineConfig({
         `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,
       formats: ['es', 'cjs'],
     },
+    ssr: true,
     rollupOptions: {
-      external: ['fs/promises', 'readline', 'commander', 'funcity'],
+      input: entry,
+      external: ['commander', 'funcity', ...builtins],
       output: {
         banner: '#!/usr/bin/env node',
       },
     },
-    target: 'es2020',
+    target: 'node20',
     sourcemap: true,
     minify: false,
   },

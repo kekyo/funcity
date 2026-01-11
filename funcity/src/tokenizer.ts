@@ -299,6 +299,14 @@ const tokenizeCodeTokens = (
     const ch = context.cursor.getChar();
     if (ch === '\\') {
       const next = context.cursor.getChar(1);
+      if (next === '\n') {
+        context.cursor.skip(2);
+        continue;
+      }
+      if (next === '\r' && context.cursor.getChar(2) === '\n') {
+        context.cursor.skip(3);
+        continue;
+      }
       if (next === '{' || next === '}') {
         context.cursor.skip(2);
         continue;
@@ -471,9 +479,12 @@ const createTokenizerCursor = (script: string): TokenizerCursor => {
       const ch = script[currentIndex]!;
       if (ch === '\r') {
         rawColumn = 0;
-      } else if (ch === '\n' && lastch !== '\r') {
-        rawColumn = 0;
         rawLine++;
+      } else if (ch === '\n') {
+        rawColumn = 0;
+        if (lastch !== '\r') {
+          rawLine++;
+        }
       } else {
         rawColumn++;
       }
