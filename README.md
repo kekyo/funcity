@@ -9,6 +9,7 @@ A functional language interpreter with text processing.
 
 |Package|npm|
 |:----|:----|
+|`funcity-cli`|[![npm version](https://img.shields.io/npm/v/funcity-cli.svg)](https://www.npmjs.com/package/funcity-cli)|
 |`funcity`|[![npm version](https://img.shields.io/npm/v/funcity.svg)](https://www.npmjs.com/package/funcity)|
 
 ---
@@ -59,6 +60,18 @@ Today is {{printWeather weather}} weather.
 - `fun` defines an anonymous lambda function.
 - `set` performs a mutable binding in the current scope.
 
+Of course, the beloved Fibonacci sequence can also be computed by defining a recursive function:
+
+```funcity
+{{
+set fib (fun n \
+  (cond (or (equal n 0) (equal n 1)) \
+    n \
+    (add (fib (sub n 1)) (fib (sub n 2)))))
+}}
+Fibonacci (10) = {{fib 10}}
+```
+
 In other words, funcity is an interpreter that brings the power of functional programming to text template processors, making them easier to handle!
 
 ### Features
@@ -83,8 +96,6 @@ In other words, funcity is an interpreter that brings the power of functional pr
 
 ## Installation (CLI)
 
-TODO:
-
 ```bash
 npm install -D funcity-cli
 ```
@@ -95,7 +106,83 @@ Or, global installation:
 npm install -g funcity-cli
 ```
 
-## Usage (CLI and REPL basic syntax)
+## Usage (CLI and REPL)
+
+funcity CLI provides both REPL mode and script execution mode.
+
+REPL mode lets you enter funcity code interactively and execute it.
+Script execution mode reads a funcity script source and prints the result to stdout.
+
+```bash
+# Start in REPL mode
+$ funcity
+$ funcity repl
+
+# Script execution mode (read from stdin)
+$ funcity -i -
+
+# Script execution mode (read from a file)
+$ funcity -i script.fc
+
+# Script execution mode (explicit, read from stdin)
+$ funcity run
+```
+
+- If you omit `repl` / `run`, it defaults to `repl` when no options are provided.
+- If `--input` or `-i` is specified, it is treated as `run`.
+
+### REPL mode
+
+Start with `funcity` or `funcity repl`. The prompt is `funcity> `.
+
+The REPL runs code expressions only and ignores text blocks.
+This means it behaves like a pure funcity functional language interpreter.
+
+Example using the `add` function and `set` for variable binding:
+
+```bash
+$ funcity
+funcity> add 1 2
+3
+funcity> set x 10
+funcity> add x 5
+15
+```
+
+Press `Ctrl+D` to exit.
+
+### Script execution mode
+
+Script execution mode reads scripts from a file or standard input and processes them as complete scripts, including text blocks.
+
+For example, store the funcity script in a `script.fc` file:
+
+```funcity
+{{
+set fib (fun n \
+  (cond (or (equal n 0) (equal n 1)) \
+    n \
+    (add (fib (sub n 1)) (fib (sub n 2)))))
+}}
+Fibonacci (10) = {{fib 10}}
+```
+
+Execute it as follows:
+
+```bash
+$ funcity run -i script.fc
+```
+
+Alternatively, specifying `-i -` reads from standard input:
+
+```bash
+$ echo “Hello {{add 1 2}}” | funcity run -i -
+Hello 3
+```
+
+---
+
+## funcity Script Syntax
 
 TODO:
 
