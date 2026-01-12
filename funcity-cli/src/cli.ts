@@ -3,9 +3,9 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+import { readFile } from 'fs/promises';
+import readline from 'readline';
 import { Command, Option } from 'commander';
-import readline from 'node:readline';
-import { readFile } from 'node:fs/promises';
 import * as packageMetadata from './generated/packageMetadata';
 import {
   buildCandidateVariables,

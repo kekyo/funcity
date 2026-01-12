@@ -6,17 +6,9 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { builtinModules } from 'module';
 import dts from 'vite-plugin-dts';
 import prettierMax from 'prettier-max';
 import screwUp from 'screw-up';
-
-const entry = resolve(
-  fileURLToPath(new URL('.', import.meta.url)),
-  'src/index.ts'
-);
-
-const builtins = [...builtinModules, ...builtinModules.map((m) => `node:${m}`)];
 
 /**
  * Vite configuration for building the CLI bundle.
@@ -31,27 +23,30 @@ export default defineConfig({
       outputMetadataFile: true,
     }),
   ],
-  resolve: {
-    conditions: ['node'],
-  },
   build: {
     lib: {
-      entry,
+      entry: {
+        index: resolve(
+          fileURLToPath(new URL('.', import.meta.url)),
+          'src/index.ts'
+        ),
+      },
       name: 'funcity-cli',
       fileName: (format, entryName) =>
         `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,
-      formats: ['es', 'cjs'],
+      formats: ['cjs'],
     },
-    ssr: true,
     rollupOptions: {
-      input: entry,
-      external: ['commander', 'funcity', ...builtins],
+      external: ['fs/promises', 'readline', 'commander', 'funcity'],
       output: {
         banner: '#!/usr/bin/env node',
       },
     },
-    target: 'node20',
+    target: 'node18',
     sourcemap: true,
     minify: false,
+  },
+  esbuild: {
+    platform: 'node',
   },
 });
