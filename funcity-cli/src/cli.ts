@@ -13,6 +13,7 @@ import {
   createReducerContext,
   emptyRange,
   nodeJsVariables,
+  fetchVariables,
   outputErrors,
   parseExpressions,
   reduceExpressionNode,
@@ -189,7 +190,7 @@ const runRepl = async (): Promise<void> => {
 };
 
 export const runScriptToText = async (script: string) => {
-  const variables = buildCandidateVariables(nodeJsVariables);
+  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables);
   const errors: FunCityErrorInfo[] = [];
   const output = await runScriptOnceToText(script, { variables, errors });
   return { output, errors };

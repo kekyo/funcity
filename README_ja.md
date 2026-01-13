@@ -440,10 +440,6 @@ const results = await runReducer(nodes, variables, errors);
 | `regex` | 第1引数の正規表現と第2引数のオプションで、正規表現オブジェクトを生成します。 |
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
-| `fetch` | `fetch` API でウェブサーバーにアクセスします。 |
-| `fetchText` | `response.text()` の結果を返します。 |
-| `fetchJson` | `response.json()` の結果を返します。 |
-| `fetchBlob` | `response.blob()` の結果を返します。 |
 | `delay` | 指定ミリ秒後に解決します。 |
 | `math` | `Math` オブジェクト |
 
@@ -604,15 +600,6 @@ const results = await runReducer(nodes, variables, errors);
 
 結果は、`https://example.com/base/path` を表す `URL` オブジェクトです。
 
-### fetch,fetchText,fetchJson,fetchBlob
-
-`fetch` はグローバル `fetch` でレスポンスオブジェクトを返します。`fetchText`, `fetchJson`, `fetchBlob` は簡易ラッパーです:
-
-```funcity
-{{fetchText 'https://example.com/'}}
-{{fetchJson 'https://oembed.com/providers.json'}}
-```
-
 ### delay
 
 指定ミリ秒後に解決します（第2引数を指定するとその値を返します）:
@@ -628,6 +615,35 @@ JavaScriptのMathオブジェクトです:
 ```funcity
 {{math.sqrt 2}}
 ```
+
+### fetch,fetchText,fetchJson,fetchBlob
+
+`fetchVariables` は、JavaScript `fetch` APIをバインド用に公開します:
+
+| 関数 | 説明 |
+| :--- | :--- |
+| `fetch` | `fetch` API でウェブサーバーにアクセスします。 |
+| `fetchText` | `response.text()` の結果を返します。 |
+| `fetchJson` | `response.json()` の結果を返します。 |
+| `fetchBlob` | `response.blob()` の結果を返します。 |
+
+```typescript
+import { buildCandidateVariables, fetchVariables } from 'funcity';
+
+// fetch APIを使用可能にする
+const variables = buildCandidateVariables(fetchVariables);
+
+// ...
+```
+
+`fetch` はグローバル `fetch` でレスポンスオブジェクトを返します。`fetchText`, `fetchJson`, `fetchBlob` は簡易ラッパーです:
+
+```funcity
+{{fetchText 'https://example.com/'}}
+{{fetchJson 'https://oembed.com/providers.json'}}
+```
+
+CLIは `fetchVariables` を既定で含みます。
 
 ### Node.js 変数
 

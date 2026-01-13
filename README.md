@@ -612,15 +612,6 @@ Creates a URL object using the first argument and an optional base URL in the se
 
 The result is a `URL` object that represents `https://example.com/base/path`.
 
-### fetch,fetchText,fetchJson
-
-`fetch` returns a response object using the global `fetch`. `fetchText`, `fetchJson` and `fetchBlob` are convenience wrappers:
-
-```funcity
-{{fetchText 'data:text/plain,hello'}}
-{{fetchJson 'data:application/json,%7B%22ok%22%3Atrue%7D'}}
-```
-
 ### delay
 
 Resolves after the specified milliseconds (optional second argument is returned):
@@ -636,6 +627,35 @@ JavaScript's Math object:
 ```funcity
 {{math.sqrt 2}}
 ```
+
+### fetch,fetchText,fetchJson
+
+`fetchVariables` exposes the JavaScript `fetch` API for binding:
+
+| Function | Description |
+| :--- | :--- |
+| `fetch` | Accesses a web server using the `fetch` API. |
+| `fetchText` | Returns the result of `response.text()`. |
+| `fetchJson` | Returns the result of `response.json()`. |
+| `fetchBlob` | Returns the result of `response.blob()`. |
+
+```typescript
+import { buildCandidateVariables, fetchVariables } from ‘funcity’;
+
+// Enable the fetch API
+const variables = buildCandidateVariables(fetchVariables);
+
+// ...
+```
+
+`fetch` returns a response object using the global `fetch`. `fetchText`, `fetchJson` and `fetchBlob` are convenience wrappers:
+
+```funcity
+{{fetchText 'data:text/plain,hello'}}
+{{fetchJson 'data:application/json,%7B%22ok%22%3Atrue%7D'}}
+```
+
+CLI includes `fetchVariables` by default.
 
 ### Node.js Variables
 

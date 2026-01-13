@@ -565,39 +565,6 @@ const _delay = (ms: unknown, value?: unknown) =>
     setTimeout(resolve, Number(ms), value);
   });
 
-type FetchFunction = (
-  input: string | URL | Request,
-  init?: RequestInit
-) => Promise<Response>;
-
-const getFetch = (): FetchFunction => {
-  const fetchFn = (globalThis as { fetch?: FetchFunction }).fetch;
-  if (!fetchFn) {
-    throw new Error('fetch is not available in this environment');
-  }
-  return fetchFn;
-};
-
-const _fetch = async (input: unknown, init?: unknown) => {
-  const fetchFn = getFetch();
-  return await fetchFn(input as any, init as any);
-};
-
-const _fetchText = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
-  return await res.text();
-};
-
-const _fetchJson = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
-  return await res.json();
-};
-
-const _fetchBlob = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
-  return await res.blob();
-};
-
 //////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -653,10 +620,6 @@ export const standardVariables = Object.freeze({
   regex: _regex,
   bind: _bind,
   url: _url,
-  fetch: _fetch,
-  fetchText: _fetchText,
-  fetchJson: _fetchJson,
-  fetchBlob: _fetchBlob,
   delay: _delay,
   math: Math,
 } as const);

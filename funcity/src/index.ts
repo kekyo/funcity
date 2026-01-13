@@ -9,6 +9,7 @@ export * from './parser';
 export * from './reducer';
 export * from './scripting';
 export * from './standard-variables';
+export * from './fetch-variables';
 export * from './nodejs-variables';
 
 export {

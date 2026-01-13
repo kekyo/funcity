@@ -5,73 +5,20 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type {
-  FunCityApplyNode,
-  FunCityExpressionNode,
-  FunCityListNode,
-  FunCityBlockNode,
-  FunCityNumberNode,
-  FunCityStringNode,
-  FunCityVariableNode,
-} from '../src/types';
+import type { FunCityBlockNode } from '../src/types';
 import { runReducer } from '../src/reducer';
 import { buildCandidateVariables } from '../src/standard-variables';
+import {
+  applyNode,
+  dummyRange,
+  funNode,
+  listNode,
+  numberNode,
+  stringNode,
+  variableNode,
+} from './test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
-
-// ATTENTION: All `range` fields are nonsense value.
-
-const range = {
-  start: { line: 1, column: 1 },
-  end: { line: 1, column: 1 },
-};
-const numberNode = (value: number): FunCityNumberNode => ({
-  kind: 'number' as const,
-  value,
-  range,
-});
-const stringNode = (value: string): FunCityStringNode => ({
-  kind: 'string' as const,
-  value,
-  range,
-});
-const variableNode = (name: string): FunCityVariableNode => ({
-  kind: 'variable' as const,
-  name,
-  range,
-});
-const setNode = (name: string, expr: FunCityExpressionNode) => ({
-  kind: 'apply' as const,
-  func: variableNode('set'),
-  args: [variableNode(name), expr],
-  range,
-});
-const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
-  kind: 'list' as const,
-  items,
-  range,
-});
-const applyNode = (
-  name: string,
-  args: FunCityExpressionNode[]
-): FunCityApplyNode => ({
-  kind: 'apply' as const,
-  func: variableNode(name),
-  args,
-  range,
-});
-const funNode = (
-  names: string[],
-  body: FunCityExpressionNode
-): FunCityApplyNode => {
-  const nameNode =
-    names.length === 0
-      ? listNode([])
-      : names.length === 1
-        ? variableNode(names[0]!)
-        : listNode(names.map((name) => variableNode(name)));
-  return applyNode('fun', [nameNode, body]);
-};
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
@@ -451,7 +398,7 @@ describe('standard variables test', () => {
       kind: 'apply',
       func: applyNode('bind', [variableNode('add'), numberNode(123)]),
       args: [numberNode(100)],
-      range,
+      range: dummyRange,
     });
     expect(value).toBe(223);
   });
@@ -525,37 +472,6 @@ describe('standard variables test', () => {
       applyNode('typeof', [variableNode('null')])
     );
     expect(value).toBe('null');
-  });
-
-  it('fetch', async () => {
-    const variables = buildCandidateVariables();
-    const reduced = await runReducer(
-      [
-        setNode(
-          'res',
-          applyNode('fetch', [stringNode('data:text/plain,hello')])
-        ),
-        applyNode('res.text', []),
-      ],
-      variables
-    );
-    expect(reduced).toEqual(['hello']);
-  });
-
-  it('fetchText', async () => {
-    const value = await reduceSingle(
-      applyNode('fetchText', [stringNode('data:text/plain,hello')])
-    );
-    expect(value).toBe('hello');
-  });
-
-  it('fetchJson', async () => {
-    const value = await reduceSingle(
-      applyNode('fetchJson', [
-        stringNode('data:application/json,%7B%22ok%22%3Atrue%7D'),
-      ])
-    );
-    expect(value).toEqual({ ok: true });
   });
 
   it('delay', async () => {

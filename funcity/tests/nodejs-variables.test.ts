@@ -8,35 +8,13 @@ import * as fs from 'fs/promises';
 import * as nodePath from 'path';
 import * as nodeOs from 'os';
 
-import type { FunCityBlockNode, FunCityExpressionNode } from '../src/types';
+import type { FunCityBlockNode } from '../src/types';
 import { runReducer } from '../src/reducer';
 import { nodeJsVariables } from '../src/nodejs-variables';
 import { buildCandidateVariables } from '../src/standard-variables';
+import { applyNode, stringNode } from './test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
-
-// ATTENTION: All `range` fields are nonsense value.
-
-const range = {
-  start: { line: 1, column: 1 },
-  end: { line: 1, column: 1 },
-};
-const stringNode = (value: string) => ({
-  kind: 'string' as const,
-  value,
-  range,
-});
-const variableNode = (name: string) => ({
-  kind: 'variable' as const,
-  name,
-  range,
-});
-const applyNode = (name: string, args: FunCityExpressionNode[]) => ({
-  kind: 'apply' as const,
-  func: variableNode(name),
-  args,
-  range,
-});
 
 describe('nodejs variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
