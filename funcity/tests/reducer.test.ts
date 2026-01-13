@@ -11,7 +11,7 @@ import type {
   FunCityExpressionNode,
   FunCityFunctionContext,
 } from '../src/types';
-import { buildCandidateVariables } from '../src/standards';
+import { buildCandidateVariables } from '../src/standard-variables';
 import { runReducer } from '../src/reducer';
 
 ///////////////////////////////////////////////////////////////////////////////////

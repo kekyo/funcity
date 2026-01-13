@@ -403,7 +403,7 @@ For example, there is a `length` standard function that returns the length of a 
 
 The following are the standard functions:
 
-| Function | Description |
+| Function/Object | Description |
 | :--- | :--- |
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third. |
@@ -448,6 +448,12 @@ The following are the standard functions:
 | `regex` | Creates a regex object from the pattern in the first argument and the options in the second argument. |
 | `bind` | Partially applies the arguments after the first to the function in the first argument. |
 | `url` | Creates a URL object from the first argument and optional base in the second argument. |
+| `fetch` | Performs a fetch using the `fetch` API. |
+| `fetchText` | Fetches and returns `response.text()`. |
+| `fetchJson` | Fetches and returns `response.json()`. |
+| `fetchBlob` | Fetches and returns `response.blob()`. |
+| `delay` | Resolves after the specified milliseconds. |
+| `math` | `Math` object. |
 
 ### typeof
 
@@ -605,6 +611,60 @@ Creates a URL object using the first argument and an optional base URL in the se
 ```
 
 The result is a `URL` object that represents `https://example.com/base/path`.
+
+### fetch,fetchText,fetchJson
+
+`fetch` returns a response object using the global `fetch`. `fetchText`, `fetchJson` and `fetchBlob` are convenience wrappers:
+
+```funcity
+{{fetchText 'data:text/plain,hello'}}
+{{fetchJson 'data:application/json,%7B%22ok%22%3Atrue%7D'}}
+```
+
+### delay
+
+Resolves after the specified milliseconds (optional second argument is returned):
+
+```funcity
+{{delay 200}}
+```
+
+### math
+
+JavaScript's Math object:
+
+```funcity
+{{math.sqrt 2}}
+```
+
+### Node.js Variables
+
+`nodeJsVariables` exposes Node.js built-ins for script bindings:
+
+| Object | Description |
+| :--- | :--- |
+| `fs` | `fs/promises` object. |
+| `path` | `path` object. |
+| `os` | `os` object. |
+| `crypto` | `crypto` object. |
+| `process` | `process` object. |
+
+```typescript
+import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+
+// Enable Node.js built-in feature symbols
+const variables = buildCandidateVariables(nodeJsVariables);
+
+// ...
+```
+
+For example:
+
+```funcity
+{{fs.readFile '/foo/bar/text' 'utf-8'}}
+```
+
+CLI includes `nodeJsVariables` by default.
 
 ---
 

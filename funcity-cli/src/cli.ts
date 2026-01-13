@@ -12,6 +12,7 @@ import {
   convertToString,
   createReducerContext,
   emptyRange,
+  nodeJsVariables,
   outputErrors,
   parseExpressions,
   reduceExpressionNode,
@@ -73,7 +74,7 @@ export interface ReplSession {
 }
 
 export const createReplSession = (): ReplSession => {
-  const variables = buildCandidateVariables({
+  const variables = buildCandidateVariables(nodeJsVariables, {
     prompt: 'funcity> ',
   });
 
@@ -188,7 +189,7 @@ const runRepl = async (): Promise<void> => {
 };
 
 export const runScriptToText = async (script: string) => {
-  const variables = buildCandidateVariables();
+  const variables = buildCandidateVariables(nodeJsVariables);
   const errors: FunCityErrorInfo[] = [];
   const output = await runScriptOnceToText(script, { variables, errors });
   return { output, errors };

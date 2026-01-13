@@ -7,7 +7,7 @@ import { FunCityOnceRunnerProps, FunCityReducerError } from './types';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { createReducerContext, reduceNode } from './reducer';
-import { buildCandidateVariables } from './standards';
+import { buildCandidateVariables } from './standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
 

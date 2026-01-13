@@ -15,7 +15,7 @@ import type {
   FunCityVariableNode,
 } from '../src/types';
 import { runReducer } from '../src/reducer';
-import { buildCandidateVariables } from '../src/standards';
+import { buildCandidateVariables } from '../src/standard-variables';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +38,12 @@ const stringNode = (value: string): FunCityStringNode => ({
 const variableNode = (name: string): FunCityVariableNode => ({
   kind: 'variable' as const,
   name,
+  range,
+});
+const setNode = (name: string, expr: FunCityExpressionNode) => ({
+  kind: 'apply' as const,
+  func: variableNode('set'),
+  args: [variableNode(name), expr],
   range,
 });
 const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
@@ -519,5 +525,48 @@ describe('standard variables test', () => {
       applyNode('typeof', [variableNode('null')])
     );
     expect(value).toBe('null');
+  });
+
+  it('fetch', async () => {
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(
+      [
+        setNode(
+          'res',
+          applyNode('fetch', [stringNode('data:text/plain,hello')])
+        ),
+        applyNode('res.text', []),
+      ],
+      variables
+    );
+    expect(reduced).toEqual(['hello']);
+  });
+
+  it('fetchText', async () => {
+    const value = await reduceSingle(
+      applyNode('fetchText', [stringNode('data:text/plain,hello')])
+    );
+    expect(value).toBe('hello');
+  });
+
+  it('fetchJson', async () => {
+    const value = await reduceSingle(
+      applyNode('fetchJson', [
+        stringNode('data:application/json,%7B%22ok%22%3Atrue%7D'),
+      ])
+    );
+    expect(value).toEqual({ ok: true });
+  });
+
+  it('delay', async () => {
+    const variables = buildCandidateVariables();
+    const start = Date.now();
+    const reduced = await runReducer(
+      [applyNode('delay', [numberNode(10)]), numberNode(1)],
+      variables
+    );
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(5);
+    expect(reduced).toEqual([1]);
   });
 });
