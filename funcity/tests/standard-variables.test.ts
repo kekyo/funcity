@@ -5,81 +5,27 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type {
-  FunCityErrorInfo,
-  FunCityApplyNode,
-  FunCityExpressionNode,
-  FunCityLambdaNode,
-  FunCityListNode,
-  FunCityBlockNode,
-  FunCityNumberNode,
-  FunCityStringNode,
-  FunCityVariableNode,
-} from '../src/types';
+import type { FunCityBlockNode } from '../src/types';
 import { runReducer } from '../src/reducer';
-import { buildCandidateVariables } from '../src/standards';
+import { buildCandidateVariables } from '../src/standard-variables';
+import {
+  applyNode,
+  dummyRange,
+  funNode,
+  listNode,
+  numberNode,
+  stringNode,
+  variableNode,
+} from './test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
-// ATTENTION: All `range` fields are nonsense value.
-
-const range = {
-  start: { line: 1, column: 1 },
-  end: { line: 1, column: 1 },
-};
-const numberNode = (value: number): FunCityNumberNode => ({
-  kind: 'number' as const,
-  value,
-  range,
-});
-const stringNode = (value: string): FunCityStringNode => ({
-  kind: 'string' as const,
-  value,
-  range,
-});
-const variableNode = (name: string): FunCityVariableNode => ({
-  kind: 'variable' as const,
-  name,
-  range,
-});
-const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
-  kind: 'list' as const,
-  items,
-  range,
-});
-const applyNode = (
-  name: string,
-  args: FunCityExpressionNode[]
-): FunCityApplyNode => ({
-  kind: 'apply' as const,
-  func: variableNode(name),
-  args,
-  range,
-});
-const lambdaNode = (
-  names: string[],
-  body: FunCityExpressionNode
-): FunCityLambdaNode => ({
-  kind: 'lambda' as const,
-  names: names.map((name) => variableNode(name)),
-  body,
-  range,
-});
-
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
-    const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables, errors);
-    expect(errors).toEqual([]);
+    const reduced = await runReducer([node], variables);
     expect(reduced).toHaveLength(1);
     return reduced[0];
-  };
-  const reduceWithErrors = async (node: FunCityBlockNode) => {
-    const errors: FunCityErrorInfo[] = [];
-    const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables, errors);
-    return { reduced, errors };
   };
 
   it('true', async () => {
@@ -120,25 +66,83 @@ describe('standard variables test', () => {
     );
     expect(value).toBe(1);
   });
-  it('equal true', async () => {
+  it('eq true', async () => {
     const value = await reduceSingle(
-      applyNode('equal', [numberNode(1), numberNode(1)])
+      applyNode('eq', [numberNode(1), numberNode(1)])
     );
     expect(value).toBe(true);
   });
-  it('equal false', async () => {
+  it('eq false', async () => {
     const value = await reduceSingle(
-      applyNode('equal', [numberNode(1), numberNode(2)])
+      applyNode('eq', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('ne true', async () => {
+    const value = await reduceSingle(
+      applyNode('ne', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('ne false', async () => {
+    const value = await reduceSingle(
+      applyNode('ne', [numberNode(1), numberNode(1)])
+    );
+    expect(value).toBe(false);
+  });
+  it('lt true', async () => {
+    const value = await reduceSingle(
+      applyNode('lt', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('lt false', async () => {
+    const value = await reduceSingle(
+      applyNode('lt', [numberNode(2), numberNode(1)])
+    );
+    expect(value).toBe(false);
+  });
+  it('gt true', async () => {
+    const value = await reduceSingle(
+      applyNode('gt', [numberNode(2), numberNode(1)])
+    );
+    expect(value).toBe(true);
+  });
+  it('gt false', async () => {
+    const value = await reduceSingle(
+      applyNode('gt', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('le true', async () => {
+    const value = await reduceSingle(
+      applyNode('le', [numberNode(2), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('le false', async () => {
+    const value = await reduceSingle(
+      applyNode('le', [numberNode(3), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('ge true', async () => {
+    const value = await reduceSingle(
+      applyNode('ge', [numberNode(2), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('ge false', async () => {
+    const value = await reduceSingle(
+      applyNode('ge', [numberNode(1), numberNode(2)])
     );
     expect(value).toBe(false);
   });
   it('now', async () => {
-    const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
     const nowBefore = Date.now();
-    const reduced = await runReducer([applyNode('now', [])], variables, errors);
+    const reduced = await runReducer([applyNode('now', [])], variables);
     const nowAfter = Date.now();
-    expect(errors).toEqual([]);
     expect(reduced).toHaveLength(1);
     const nowValue = reduced[0] as number;
     expect(typeof nowValue).toBe('number');
@@ -211,18 +215,16 @@ describe('standard variables test', () => {
     expect(value).toBe(true);
   });
   it('and short-circuit', async () => {
-    const { reduced, errors } = await reduceWithErrors(
+    const value = await reduceSingle(
       applyNode('and', [variableNode('false'), variableNode('missing')])
     );
-    expect(reduced).toEqual([false]);
-    expect(errors).toEqual([]);
+    expect(value).toBe(false);
   });
   it('or short-circuit', async () => {
-    const { reduced, errors } = await reduceWithErrors(
+    const value = await reduceSingle(
       applyNode('or', [variableNode('true'), variableNode('missing')])
     );
-    expect(reduced).toEqual([true]);
-    expect(errors).toEqual([]);
+    expect(value).toBe(true);
   });
   it('not false', async () => {
     const value = await reduceSingle(applyNode('not', [variableNode('false')]));
@@ -308,7 +310,7 @@ describe('standard variables test', () => {
   it('map', async () => {
     const value = await reduceSingle(
       applyNode('map', [
-        lambdaNode(
+        funNode(
           ['foo'],
           applyNode('mul', [variableNode('foo'), numberNode(10)])
         ),
@@ -320,7 +322,7 @@ describe('standard variables test', () => {
   it('flatMap', async () => {
     const value = await reduceSingle(
       applyNode('flatMap', [
-        lambdaNode(
+        funNode(
           ['foo'],
           listNode([applyNode('mul', [variableNode('foo'), numberNode(10)])])
         ),
@@ -332,7 +334,7 @@ describe('standard variables test', () => {
   it('filter', async () => {
     const value = await reduceSingle(
       applyNode('filter', [
-        lambdaNode(
+        funNode(
           ['foo'],
           applyNode('mod', [variableNode('foo'), numberNode(2)])
         ),
@@ -353,7 +355,7 @@ describe('standard variables test', () => {
     const value = await reduceSingle(
       applyNode('reduce', [
         stringNode('A'),
-        lambdaNode(
+        funNode(
           ['acc', 'v'],
           applyNode('concat', [variableNode('acc'), variableNode('v')])
         ),
@@ -396,7 +398,7 @@ describe('standard variables test', () => {
       kind: 'apply',
       func: applyNode('bind', [variableNode('add'), numberNode(123)]),
       args: [numberNode(100)],
-      range,
+      range: dummyRange,
     });
     expect(value).toBe(223);
   });
@@ -414,7 +416,7 @@ describe('standard variables test', () => {
         variableNode('undefined'),
         variableNode('null'),
         listNode([numberNode(111), numberNode(222)]),
-        lambdaNode(['a'], variableNode('a')),
+        funNode(['a'], variableNode('a')),
       ])
     );
     expect(value).toBe(
@@ -470,5 +472,17 @@ describe('standard variables test', () => {
       applyNode('typeof', [variableNode('null')])
     );
     expect(value).toBe('null');
+  });
+
+  it('delay', async () => {
+    const variables = buildCandidateVariables();
+    const start = Date.now();
+    const reduced = await runReducer(
+      [applyNode('delay', [numberNode(10)]), numberNode(1)],
+      variables
+    );
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(5);
+    expect(reduced).toEqual([1]);
   });
 });

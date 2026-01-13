@@ -63,7 +63,7 @@ Today is {{printWeather weather}} weather.
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -163,6 +163,14 @@ funcity> add x 5
 
 終了するには `Ctrl+D` を入力します。
 
+REPLには特殊な変数、 `prompt` が存在します。この値は初期状態で `'funcity> '` と定義されていて、これがREPLのプロンプトとして出力されます。
+聡明なユーザーはお気づきと思われますが、 `set` を使ってプロンプトを変更できます:
+
+```funcity
+funcity> set prompt 'number42> '
+number42> 
+```
+
 ### スクリプト実行モード
 
 スクリプト実行モードは、ファイルまたは標準入力からスクリプトを読み込み、
@@ -173,7 +181,7 @@ funcity> add x 5
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -262,7 +270,7 @@ const run = async (
 - スクリプトの内容によっては、インタープリタの処理が完了しない可能性があります（例えば、無限ループなど）。
   `runReducer()` の引数に、`AbortSignal`を渡すことで、外部から実行を中断させることができます。
 
-注意: このコードは、同様の関数が `runScriptOnce()` として公開されています。
+注意: このコードは、同様の関数が `runScriptOnce()`, `runScriptOnceToText()` として公開されています。
 実際には `results` を、`convertToString()` を使用してテキスト化していることに注意してください。　
 
 ### 関数型言語構文のみを実行する
@@ -387,7 +395,7 @@ const results = await runReducer(nodes, variables, errors);
 
 以下に標準関数群を示します:
 
-| 関数 | 説明 |
+| 関数/オブジェクト | 説明 |
 | :--- | :--- |
 | `typeof` | 第1引数に指定されたインスタンスの型名を返します。 |
 | `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します。 |
@@ -400,7 +408,12 @@ const results = await runReducer(nodes, variables, errors);
 | `mul` | 引数群を数値として乗算します。 |
 | `div` | 第1引数を数値として第2引数で除算します。 |
 | `mod` | 第1引数を数値として第2引数で除算した剰余を求めます。 |
-| `equal` | 厳密比較（`===`）します。 |
+| `eq` | 厳密比較（`===`）します。 |
+| `ne` | 厳密比較で不一致（`!==`）を返します。 |
+| `lt` | 第1引数が第2引数より小さい場合に真を返します。 |
+| `gt` | 第1引数が第2引数より大きい場合に真を返します。 |
+| `le` | 第1引数が第2引数以下の場合に真を返します。 |
+| `ge` | 第1引数が第2引数以上の場合に真を返します。 |
 | `now` | 現在時刻のUNIXミリ秒を返します。 |
 | `concat` | 引数群の文字列や`Iterable`を順に連結します。 |
 | `join` | 第1引数を区切り文字として、第2引数以降の文字列を結合します。 |
@@ -427,6 +440,8 @@ const results = await runReducer(nodes, variables, errors);
 | `regex` | 第1引数の正規表現と第2引数のオプションで、正規表現オブジェクトを生成します。 |
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
+| `delay` | 指定ミリ秒後に解決します。 |
+| `math` | `Math` オブジェクト |
 
 ### typeof
 
@@ -584,6 +599,80 @@ const results = await runReducer(nodes, variables, errors);
 ```
 
 結果は、`https://example.com/base/path` を表す `URL` オブジェクトです。
+
+### delay
+
+指定ミリ秒後に解決します（第2引数を指定するとその値を返します）:
+
+```funcity
+{{delay 200}}
+```
+
+### math
+
+JavaScriptのMathオブジェクトです:
+
+```funcity
+{{math.sqrt 2}}
+```
+
+### fetch,fetchText,fetchJson,fetchBlob
+
+`fetchVariables` は、JavaScript `fetch` APIをバインド用に公開します:
+
+| 関数 | 説明 |
+| :--- | :--- |
+| `fetch` | `fetch` API でウェブサーバーにアクセスします。 |
+| `fetchText` | `response.text()` の結果を返します。 |
+| `fetchJson` | `response.json()` の結果を返します。 |
+| `fetchBlob` | `response.blob()` の結果を返します。 |
+
+```typescript
+import { buildCandidateVariables, fetchVariables } from 'funcity';
+
+// fetch APIを使用可能にする
+const variables = buildCandidateVariables(fetchVariables);
+
+// ...
+```
+
+`fetch` はグローバル `fetch` でレスポンスオブジェクトを返します。`fetchText`, `fetchJson`, `fetchBlob` は簡易ラッパーです:
+
+```funcity
+{{fetchText 'https://example.com/'}}
+{{fetchJson 'https://oembed.com/providers.json'}}
+```
+
+CLIは `fetchVariables` を既定で含みます。
+
+### Node.js 変数
+
+`nodeJsVariables` は、Node.js の組み込み機能をバインド用に公開します:
+
+| オブジェクト | 説明 |
+| :--- | :--- |
+| `fs` | `fs/promises` オブジェクト |
+| `path` | `path` オブジェクト |
+| `os` | `os` オブジェクト |
+| `crypto` | `crypto`オブジェクト |
+| `process` | `process` オブジェクト |
+
+```typescript
+import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+
+// Node.jsの組み込み機能シンボルを使用可能にする
+const variables = buildCandidateVariables(nodeJsVariables);
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{fs.readFile '/foo/bar/text' 'utf-8'}}
+```
+
+CLIは `nodeJsVariables` を既定で含みます。
 
 ---
 

@@ -65,7 +65,7 @@ Of course, the beloved Fibonacci sequence can also be computed by defining a rec
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -166,6 +166,14 @@ funcity> add x 5
 
 Press `Ctrl+D` to exit.
 
+The REPL has a special variable, `prompt`. Its initial value is defined as `'funcity> '`, which is output as the REPL prompt.
+As astute users may have noticed, you can change the prompt using `set`:
+
+```funcity
+funcity> set prompt 'number42> '
+number42> 
+```
+
 ### Script execution mode
 
 Script execution mode reads scripts from a file or standard input and processes them as complete scripts, including text blocks.
@@ -175,7 +183,7 @@ For example, store the funcity script in a `script.fc` file:
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -268,7 +276,7 @@ const run = async (
 - Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
   Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
-Note: This code is exposed as a similar function named `runScriptOnce()`.
+Note: This code is exposed as a similar function named `runScriptOnce()` and  `runScriptOnceToText()`.
 That it actually converts `results` to text using `convertToString()`.
 
 ### Executing Only Functional Language Syntax
@@ -395,7 +403,7 @@ For example, there is a `length` standard function that returns the length of a 
 
 The following are the standard functions:
 
-| Function | Description |
+| Function/Object | Description |
 | :--- | :--- |
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third. |
@@ -408,7 +416,12 @@ The following are the standard functions:
 | `mul` | Multiplies all arguments as numbers. |
 | `div` | Divides the first argument (as a number) by the second argument. |
 | `mod` | Returns the remainder of dividing the first argument (as a number) by the second argument. |
-| `equal` | Performs strict equality (`===`). |
+| `eq` | Performs strict equality (`===`). |
+| `ne` | Performs strict inequality (`!==`). |
+| `lt` | Returns true if the first argument is less than the second. |
+| `gt` | Returns true if the first argument is greater than the second. |
+| `le` | Returns true if the first argument is less than or equal to the second. |
+| `ge` | Returns true if the first argument is greater than or equal to the second. |
 | `now` | Returns current UNIX time in milliseconds. |
 | `concat` | Concatenates strings and `Iterable` arguments in order. |
 | `join` | Uses the first argument as a separator and joins strings from the second argument onward. |
@@ -435,6 +448,12 @@ The following are the standard functions:
 | `regex` | Creates a regex object from the pattern in the first argument and the options in the second argument. |
 | `bind` | Partially applies the arguments after the first to the function in the first argument. |
 | `url` | Creates a URL object from the first argument and optional base in the second argument. |
+| `fetch` | Performs a fetch using the `fetch` API. |
+| `fetchText` | Fetches and returns `response.text()`. |
+| `fetchJson` | Fetches and returns `response.json()`. |
+| `fetchBlob` | Fetches and returns `response.blob()`. |
+| `delay` | Resolves after the specified milliseconds. |
+| `math` | `Math` object. |
 
 ### typeof
 
@@ -592,6 +611,80 @@ Creates a URL object using the first argument and an optional base URL in the se
 ```
 
 The result is a `URL` object that represents `https://example.com/base/path`.
+
+### delay
+
+Resolves after the specified milliseconds (optional second argument is returned):
+
+```funcity
+{{delay 200}}
+```
+
+### math
+
+JavaScript's Math object:
+
+```funcity
+{{math.sqrt 2}}
+```
+
+### fetch,fetchText,fetchJson
+
+`fetchVariables` exposes the JavaScript `fetch` API for binding:
+
+| Function | Description |
+| :--- | :--- |
+| `fetch` | Accesses a web server using the `fetch` API. |
+| `fetchText` | Returns the result of `response.text()`. |
+| `fetchJson` | Returns the result of `response.json()`. |
+| `fetchBlob` | Returns the result of `response.blob()`. |
+
+```typescript
+import { buildCandidateVariables, fetchVariables } from ‘funcity’;
+
+// Enable the fetch API
+const variables = buildCandidateVariables(fetchVariables);
+
+// ...
+```
+
+`fetch` returns a response object using the global `fetch`. `fetchText`, `fetchJson` and `fetchBlob` are convenience wrappers:
+
+```funcity
+{{fetchText 'data:text/plain,hello'}}
+{{fetchJson 'data:application/json,%7B%22ok%22%3Atrue%7D'}}
+```
+
+CLI includes `fetchVariables` by default.
+
+### Node.js Variables
+
+`nodeJsVariables` exposes Node.js built-ins for script bindings:
+
+| Object | Description |
+| :--- | :--- |
+| `fs` | `fs/promises` object. |
+| `path` | `path` object. |
+| `os` | `os` object. |
+| `crypto` | `crypto` object. |
+| `process` | `process` object. |
+
+```typescript
+import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+
+// Enable Node.js built-in feature symbols
+const variables = buildCandidateVariables(nodeJsVariables);
+
+// ...
+```
+
+For example:
+
+```funcity
+{{fs.readFile '/foo/bar/text' 'utf-8'}}
+```
+
+CLI includes `nodeJsVariables` by default.
 
 ---
 

@@ -3,29 +3,31 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+import { readFile } from 'fs/promises';
+import readline from 'readline';
 import { Command, Option } from 'commander';
-import readline from 'node:readline';
-import { readFile } from 'node:fs/promises';
 import * as packageMetadata from './generated/packageMetadata';
 import {
   buildCandidateVariables,
   convertToString,
   createReducerContext,
+  emptyRange,
+  nodeJsVariables,
+  fetchVariables,
   outputErrors,
   parseExpressions,
+  reduceExpressionNode,
   reduceNode,
-  runParser,
-  runReducer,
-  runTokenizer,
   runCodeTokenizer,
+  runScriptOnceToText,
 } from 'funcity';
-import type {
+import {
   FunCityBlockNode,
   FunCityErrorInfo,
+  FunCityReducerError,
   FunCityReducerContext,
 } from 'funcity';
 
-const promptText = 'funcity> ';
 const continuationPromptText = '? ';
 
 const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
@@ -46,7 +48,7 @@ const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
   });
 };
 
-const collectResults = async (
+const reduceAndCollectResults = async (
   context: FunCityReducerContext,
   nodes: readonly FunCityBlockNode[]
 ): Promise<unknown[]> => {
@@ -63,52 +65,64 @@ const collectResults = async (
 };
 
 export interface ReplEvaluationResult {
-  readonly output: string;
+  readonly output: string | undefined;
   readonly errors: FunCityErrorInfo[];
 }
 
 export interface ReplSession {
+  getPrompt: () => Promise<string>;
   evaluateLine: (line: string) => Promise<ReplEvaluationResult>;
 }
 
 export const createReplSession = (): ReplSession => {
-  const variables = buildCandidateVariables();
+  const variables = buildCandidateVariables(nodeJsVariables, {
+    prompt: 'funcity> ',
+  });
+
   const errors: FunCityErrorInfo[] = [];
-  const context = createReducerContext(variables, errors);
+  const reducerContext = createReducerContext(variables);
 
   const evaluateLine = async (line: string): Promise<ReplEvaluationResult> => {
     errors.length = 0;
     const tokens = runCodeTokenizer(line, errors);
     const nodes = parseExpressions(tokens, errors);
-    const results = await collectResults(context, nodes);
-    const output =
-      results.length > 0
-        ? results.map((result) => convertToString(result)).join('\n')
-        : '';
-    return {
-      output,
-      errors: [...errors],
-    };
+    if (errors.length >= 1) {
+      return {
+        output: undefined,
+        errors: [...errors],
+      };
+    }
+    try {
+      const results = await reduceAndCollectResults(reducerContext, nodes);
+      const output =
+        results.length > 0
+          ? results.map((result) => convertToString(result)).join('\n')
+          : '';
+      return {
+        output,
+        errors: [...errors],
+      };
+    } catch (error: unknown) {
+      if (error instanceof FunCityReducerError) {
+        errors.push(error.info);
+        return {
+          output: undefined,
+          errors: [...errors],
+        };
+      }
+      throw error;
+    }
+  };
+  const getPrompt = async () => {
+    const prompt = await reduceExpressionNode(reducerContext, {
+      kind: 'variable',
+      name: 'prompt',
+      range: emptyRange,
+    });
+    return reducerContext.convertToString(prompt);
   };
 
-  return { evaluateLine };
-};
-
-export interface ScriptRunResult {
-  readonly output: string;
-  readonly errors: FunCityErrorInfo[];
-}
-
-export const runScriptText = async (
-  script: string
-): Promise<ScriptRunResult> => {
-  const errors: FunCityErrorInfo[] = [];
-  const variables = buildCandidateVariables();
-  const tokens = runTokenizer(script, errors);
-  const nodes = runParser(tokens, errors);
-  const results = await runReducer(nodes, variables, errors);
-  const output = results.map((result) => convertToString(result)).join('');
-  return { output, errors };
+  return { evaluateLine, getPrompt };
 };
 
 const runRepl = async (): Promise<void> => {
@@ -117,13 +131,15 @@ const runRepl = async (): Promise<void> => {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: promptText,
+    prompt: await session.getPrompt(),
   });
 
   let bufferedLine = '';
 
-  const setPrompt = (isContinuation: boolean) => {
-    rl.setPrompt(isContinuation ? continuationPromptText : promptText);
+  const setPrompt = async (isContinuation: boolean) => {
+    rl.setPrompt(
+      isContinuation ? continuationPromptText : await session.getPrompt()
+    );
   };
 
   const hasLineContinuation = (line: string): boolean => line.endsWith('\\');
@@ -132,7 +148,7 @@ const runRepl = async (): Promise<void> => {
     try {
       const { output, errors } = await session.evaluateLine(line);
       if (errors.length > 0) {
-        outputErrors('<repl>', errors);
+        outputErrors('<repl>', errors, console);
       }
       if (output) {
         console.log(output);
@@ -143,7 +159,7 @@ const runRepl = async (): Promise<void> => {
     }
   };
 
-  setPrompt(false);
+  await setPrompt(false);
   rl.prompt();
 
   for await (const line of rl) {
@@ -154,7 +170,7 @@ const runRepl = async (): Promise<void> => {
     }
 
     if (hasLineContinuation(line)) {
-      setPrompt(true);
+      await setPrompt(true);
       rl.prompt();
       continue;
     }
@@ -162,7 +178,7 @@ const runRepl = async (): Promise<void> => {
     const logicalLine = bufferedLine;
     bufferedLine = '';
     await evaluateAndPrint(logicalLine);
-    setPrompt(false);
+    await setPrompt(false);
     rl.prompt();
   }
 
@@ -173,6 +189,13 @@ const runRepl = async (): Promise<void> => {
   rl.close();
 };
 
+export const runScriptToText = async (script: string) => {
+  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables);
+  const errors: FunCityErrorInfo[] = [];
+  const output = await runScriptOnceToText(script, { variables, errors });
+  return { output, errors };
+};
+
 const runScript = async (input: string): Promise<void> => {
   const isStdin = input === '-';
   const source = isStdin ? '<stdin>' : input;
@@ -180,14 +203,15 @@ const runScript = async (input: string): Promise<void> => {
     ? await readStream(process.stdin)
     : await readFile(input, 'utf8');
 
-  const { output, errors } = await runScriptText(script);
-  const hasError = outputErrors(source, errors);
+  const { output, errors } = await runScriptToText(script);
+
+  const hasError = outputErrors(source, errors, console);
+  if (hasError) {
+    process.exitCode = 1;
+  }
 
   if (output) {
     process.stdout.write(output);
-  }
-  if (hasError) {
-    process.exitCode = 1;
   }
 };
 

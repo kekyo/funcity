@@ -6,6 +6,24 @@
 //////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Error/Warning information writers.
+ */
+export interface FunCityErrorInfoWriter {
+  /**
+   * Warning message writer.
+   * @param message - Message string
+   */
+  readonly warn: (message: string) => void;
+  /**
+   * Error message writer.
+   * @param message - Message string
+   */
+  readonly error: (message: string) => void;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+/**
  * Location in source text.
  */
 export interface FunCityLocation {
@@ -241,24 +259,6 @@ export interface FunCityApplyNode extends FunCityRangedObject {
 }
 
 /**
- * Lambda expression node.
- */
-export interface FunCityLambdaNode extends FunCityRangedObject {
-  /**
-   * Node kind.
-   */
-  readonly kind: 'lambda';
-  /**
-   * Parameter names.
-   */
-  readonly names: readonly FunCityVariableNode[];
-  /**
-   * Lambda body expression.
-   */
-  readonly body: FunCityExpressionNode;
-}
-
-/**
  * Expression list (array) node.
  */
 export interface FunCityListNode extends FunCityRangedObject {
@@ -295,7 +295,6 @@ export type FunCityExpressionNode =
   | FunCityStringNode
   | FunCityVariableNode
   | FunCityApplyNode
-  | FunCityLambdaNode
   | FunCityListNode
   | FunCityScopeNode;
 
@@ -405,6 +404,23 @@ export interface ParserCursor {
 //////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Reducer running error.
+ */
+export class FunCityReducerError extends Error {
+  /**
+   * Error information.
+   */
+  readonly info: FunCityErrorInfo;
+
+  constructor(info: FunCityErrorInfo) {
+    super(info.description);
+    this.name = 'FunCityReducerError';
+    this.info = info;
+    Object.setPrototypeOf(this, FunCityReducerError.prototype);
+  }
+}
+
+/**
  * Variable value result.
  */
 export interface FunCityReducerContextValueResult {
@@ -454,6 +470,17 @@ export interface FunCityFunctionContext {
    */
   readonly isFailed: () => boolean;
   /**
+   * Create new scoped context.
+   * @returns New reducer context.
+   */
+  readonly newScope: () => FunCityReducerContext;
+  /**
+   * Convert a value to string.
+   * @param v - A value
+   * @returns String
+   */
+  readonly convertToString: (v: unknown) => string;
+  /**
    * Reduce expression node with this context.
    * @param node - Target node
    * @returns Reduced value.
@@ -477,6 +504,13 @@ export interface FunCityReducerContext {
    */
   readonly getValue: (name: string) => FunCityReducerContextValueResult;
   /**
+   * Get a bound function with caching for object receivers.
+   * @param owner - Method owner object
+   * @param fn - Original function
+   * @returns Bound function
+   */
+  readonly getBoundFunction: (owner: object, fn: Function) => Function;
+  /**
    * Set current context (scope) variable value.
    * @param name - Variable name
    * @param value - New value
@@ -498,6 +532,12 @@ export interface FunCityReducerContext {
    */
   readonly newScope: () => FunCityReducerContext;
   /**
+   * Convert a value to string.
+   * @param v - A value
+   * @returns String
+   */
+  readonly convertToString: (v: unknown) => string;
+  /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
    * @returns Native function context proxy instance.
@@ -505,4 +545,24 @@ export interface FunCityReducerContext {
   readonly createFunctionContext: (
     thisNode: FunCityExpressionNode
   ) => FunCityFunctionContext;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Basic runner properties.
+ */
+export interface FunCityOnceRunnerProps {
+  /**
+   * Predefined variables.
+   */
+  variables?: FunCityVariables;
+  /**
+   * Will be stored detected warnings/errors into it.
+   */
+  errors?: FunCityErrorInfo[];
+  /**
+   * Abort signal.
+   */
+  signal?: AbortSignal;
 }

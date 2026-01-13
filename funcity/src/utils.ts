@@ -5,6 +5,7 @@
 
 import {
   FunCityErrorInfo,
+  FunCityErrorInfoWriter,
   FunCityLocation,
   FunCityRange,
   FunCityVariables,
@@ -167,15 +168,19 @@ const getLocationString = (range: FunCityRange) =>
     ? `${range.start.line}:${range.start.column}`
     : `${range.start.line}:${range.start.column}:${range.end.line}:${range.end.column}`;
 
-const printErrorString = (path: string, error: FunCityErrorInfo) => {
+const printErrorString = (
+  path: string,
+  error: FunCityErrorInfo,
+  writer: FunCityErrorInfoWriter
+) => {
   switch (error.type) {
     case 'warning':
-      console.warn(
+      writer.warn(
         `${path}:${getLocationString(error.range)}: warning: ${error.description}`
       );
       break;
     case 'error':
-      console.error(
+      writer.error(
         `${path}:${getLocationString(error.range)}: error: ${error.description}`
       );
       return true;
@@ -187,39 +192,27 @@ const printErrorString = (path: string, error: FunCityErrorInfo) => {
  * Output error list and return whether any error-level entry exists.
  * @param path - Source path.
  * @param errors - Errors to output.
+ * @param writer - Writer interface.
  * @returns True when an error-level entry exists.
  */
 export const outputErrors = (
   path: string,
-  errors: readonly FunCityErrorInfo[]
+  errors: readonly FunCityErrorInfo[],
+  writer?: FunCityErrorInfoWriter
 ) => {
+  const _writer = writer ?? console;
   let isError = false;
   for (const error of errors) {
-    const result = printErrorString(path, error);
+    const result = printErrorString(path, error, _writer);
     isError ||= result;
   }
   return isError;
 };
 
-const funcIds = new WeakMap<Function, number>();
-let nextId = 1;
-
-const getFuncId = (fn: Function) => {
-  const cached = funcIds.get(fn);
-  if (cached) {
-    return cached;
-  }
-  const id = nextId++;
-  funcIds.set(fn, id);
-  return id;
-};
-
-/**
- * Convert to string.
- * @param v Target instance
- * @returns String
- */
-export const convertToString = (v: unknown): string => {
+export const internalConvertToString = (
+  v: unknown,
+  getFuncId: (fn: Function) => number
+): string => {
   switch (v) {
     case undefined:
       return '(undefined)';
@@ -261,3 +254,29 @@ export const convertToString = (v: unknown): string => {
       }
   }
 };
+
+export const internalCreateFunctionIdGenerator = () => {
+  const funcIds = new WeakMap<Function, number>();
+  let nextId = 1;
+
+  const getFuncId = (fn: Function) => {
+    const cached = funcIds.get(fn);
+    if (cached) {
+      return cached;
+    }
+    const id = nextId++;
+    funcIds.set(fn, id);
+    return id;
+  };
+  return getFuncId;
+};
+
+const getFuncId = internalCreateFunctionIdGenerator();
+
+/**
+ * Convert to string.
+ * @param v Target instance
+ * @returns String
+ */
+export const convertToString = (v: unknown): string =>
+  internalConvertToString(v, getFuncId);

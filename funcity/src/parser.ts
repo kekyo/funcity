@@ -14,7 +14,6 @@ import type {
   FunCityStringNode,
   FunCityVariableNode,
   FunCityExpressionNode,
-  FunCityLambdaNode,
   FunCityBlockNode,
   ParserCursor,
 } from './types';
@@ -92,54 +91,6 @@ const combineIntoScopeMultipleExpressions = (
   }
 };
 
-const parseLambdaExpression = (
-  cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
-): FunCityLambdaNode | undefined => {
-  const funToken = cursor.takeToken() as FunCityIdentityToken;
-  const namesPartial = parsePartialExpression(cursor, errors);
-  const bodyPartial = namesPartial
-    ? parsePartialExpression(cursor, errors)
-    : undefined;
-  if (!namesPartial || !bodyPartial) {
-    const ranges = [funToken.range];
-    if (namesPartial) {
-      ranges.push(namesPartial.range);
-    }
-    if (bodyPartial) {
-      ranges.push(bodyPartial.range);
-    }
-    errors.push({
-      type: 'error',
-      description: 'Required `fun` parameter identity and expression',
-      range: widerRange(...ranges),
-    });
-    return undefined;
-  }
-
-  const namesNode = normalizePartialUnitNode(namesPartial, errors);
-  if (namesNode.kind !== 'variable' && namesNode.kind !== 'list') {
-    errors.push({
-      type: 'error',
-      description: 'Required `fun` parameter identity',
-      range: namesNode.range,
-    });
-    return undefined;
-  }
-  const nameNodes = extractParameterArguments(namesNode, errors);
-  if (!nameNodes) {
-    return undefined;
-  }
-
-  const bodyNode = normalizePartialUnitNode(bodyPartial, errors);
-  return {
-    kind: 'lambda',
-    names: nameNodes,
-    body: bodyNode,
-    range: widerRange(funToken.range, namesNode.range, bodyNode.range),
-  };
-};
-
 const parsePartialExpression = (
   cursor: ParserCursor,
   errors: FunCityErrorInfo[]
@@ -158,10 +109,6 @@ const parsePartialExpression = (
       return node;
     }
     case 'identity': {
-      if (token.name === 'fun') {
-        const node = parseLambdaExpression(cursor, errors);
-        return node;
-      }
       const node = parseIdentity(cursor, errors);
       return node;
     }
@@ -300,10 +247,10 @@ const finalizeApplicationException = (
   }
   // Application
   const func = partialNodes[0]!;
-  if (func.kind !== 'variable' && func.kind !== 'lambda') {
+  if (func.kind === unitKind) {
     errors.push({
       type: 'error',
-      description: `Invalid ${func.kind} at this location`,
+      description: `Invalid ${unitKind} at this location`,
       range: func.range,
     });
     return undefined;
@@ -312,7 +259,7 @@ const finalizeApplicationException = (
   if (arg0.kind === unitKind) {
     return {
       kind: 'apply',
-      func,
+      func: func as FunCityExpressionNode,
       args: [], // Unit application: `foobar ()`
       range: widerRange(func.range, arg0.range),
     };
@@ -322,7 +269,7 @@ const finalizeApplicationException = (
     .map((node) => normalizePartialUnitNode(node, errors));
   return {
     kind: 'apply',
-    func: func,
+    func: func as FunCityExpressionNode,
     args,
     range: widerRange(func.range, ...args.map((node) => node.range)),
   };
@@ -631,40 +578,6 @@ const parseStatementArguments = (
   }
 
   return args;
-};
-
-const extractParameterArguments = (
-  namesNode: FunCityExpressionNode,
-  errors: FunCityErrorInfo[]
-): FunCityVariableNode[] | undefined => {
-  switch (namesNode.kind) {
-    case 'variable': {
-      return [namesNode];
-    }
-    case 'list': {
-      const nameNodes: FunCityVariableNode[] = [];
-      for (const nameNode of namesNode.items) {
-        if (nameNode.kind !== 'variable') {
-          errors.push({
-            type: 'error',
-            description: 'Required lambda parameter identity',
-            range: nameNode.range,
-          });
-        } else {
-          nameNodes.push(nameNode);
-        }
-      }
-      return nameNodes;
-    }
-    default: {
-      errors.push({
-        type: 'error',
-        description: 'Required lambda parameter identity',
-        range: namesNode.range,
-      });
-      return undefined;
-    }
-  }
 };
 
 type ParseMode = 'script' | 'code';
