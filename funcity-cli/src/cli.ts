@@ -75,9 +75,10 @@ export interface ReplSession {
 }
 
 export const createReplSession = (): ReplSession => {
-  const variables = buildCandidateVariables(nodeJsVariables, {
-    prompt: 'funcity> ',
-  });
+  const variables = buildCandidateVariables(
+    fetchVariables, nodeJsVariables, {
+      prompt: 'funcity> ',
+    });
 
   const errors: FunCityErrorInfo[] = [];
   const reducerContext = createReducerContext(variables);
