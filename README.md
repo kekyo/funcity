@@ -166,6 +166,14 @@ funcity> add x 5
 
 Press `Ctrl+D` to exit.
 
+The REPL has a special variable, `prompt`. Its initial value is defined as `'funcity> '`, which is output as the REPL prompt.
+As astute users may have noticed, you can change the prompt using `set`:
+
+```funcity
+funcity> set prompt 'number42> '
+number42> 
+```
+
 ### Script execution mode
 
 Script execution mode reads scripts from a file or standard input and processes them as complete scripts, including text blocks.

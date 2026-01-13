@@ -11,8 +11,10 @@ import {
   buildCandidateVariables,
   convertToString,
   createReducerContext,
+  emptyRange,
   outputErrors,
   parseExpressions,
+  reduceExpressionNode,
   reduceNode,
   runCodeTokenizer,
   runScriptOnceToText,
@@ -23,7 +25,6 @@ import type {
   FunCityReducerContext,
 } from 'funcity';
 
-const promptText = 'funcity> ';
 const continuationPromptText = '? ';
 
 const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
@@ -66,11 +67,15 @@ export interface ReplEvaluationResult {
 }
 
 export interface ReplSession {
+  getPrompt: () => Promise<string>;
   evaluateLine: (line: string) => Promise<ReplEvaluationResult>;
 }
 
 export const createReplSession = (): ReplSession => {
-  const variables = buildCandidateVariables();
+  const variables = buildCandidateVariables({
+    prompt: 'funcity> ',
+  });
+
   const errors: FunCityErrorInfo[] = [];
   const context = createReducerContext(variables, errors);
 
@@ -88,8 +93,16 @@ export const createReplSession = (): ReplSession => {
       errors: [...errors],
     };
   };
+  const getPrompt = async () => {
+    const prompt = await reduceExpressionNode(context, {
+      kind: 'variable',
+      name: 'prompt',
+      range: emptyRange,
+    });
+    return context.convertToString(prompt);
+  };
 
-  return { evaluateLine };
+  return { evaluateLine, getPrompt };
 };
 
 const runRepl = async (): Promise<void> => {
@@ -98,13 +111,15 @@ const runRepl = async (): Promise<void> => {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: promptText,
+    prompt: await session.getPrompt(),
   });
 
   let bufferedLine = '';
 
-  const setPrompt = (isContinuation: boolean) => {
-    rl.setPrompt(isContinuation ? continuationPromptText : promptText);
+  const setPrompt = async (isContinuation: boolean) => {
+    rl.setPrompt(
+      isContinuation ? continuationPromptText : await session.getPrompt()
+    );
   };
 
   const hasLineContinuation = (line: string): boolean => line.endsWith('\\');
@@ -113,7 +128,7 @@ const runRepl = async (): Promise<void> => {
     try {
       const { output, errors } = await session.evaluateLine(line);
       if (errors.length > 0) {
-        outputErrors('<repl>', errors);
+        outputErrors('<repl>', errors, console);
       }
       if (output) {
         console.log(output);
@@ -124,7 +139,7 @@ const runRepl = async (): Promise<void> => {
     }
   };
 
-  setPrompt(false);
+  await setPrompt(false);
   rl.prompt();
 
   for await (const line of rl) {
@@ -135,7 +150,7 @@ const runRepl = async (): Promise<void> => {
     }
 
     if (hasLineContinuation(line)) {
-      setPrompt(true);
+      await setPrompt(true);
       rl.prompt();
       continue;
     }
@@ -143,7 +158,7 @@ const runRepl = async (): Promise<void> => {
     const logicalLine = bufferedLine;
     bufferedLine = '';
     await evaluateAndPrint(logicalLine);
-    setPrompt(false);
+    await setPrompt(false);
     rl.prompt();
   }
 

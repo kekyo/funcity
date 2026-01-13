@@ -13,6 +13,7 @@ import type {
   FunCityReducerContext,
   FunCityReducerContextValueResult,
   FunCityFunctionContext,
+  FunCityApplyNode,
 } from './types';
 import {
   fromError,
@@ -126,6 +127,47 @@ const fromLambda = (
 
 //////////////////////////////////////////////////////////////////////////////
 
+const applyFunction = async (
+  context: FunCityReducerContext,
+  node: FunCityApplyNode
+) => {
+  context.abortSignal?.throwIfAborted();
+  const func = await reduceExpressionNode(context, node.func);
+  if (typeof func !== 'function') {
+    context.appendError({
+      type: 'error',
+      description: 'could not apply it for function',
+      range: node.range,
+    });
+    return undefined;
+  }
+  const args = isFunCityFunction(func)
+    ? node.args // Passing directly node objects
+    : await Promise.all(
+        node.args.map(async (argNode) => {
+          const arg = await reduceExpressionNode(context, argNode);
+          return arg;
+        })
+      );
+  const thisProxy = context.createFunctionContext(node);
+  try {
+    // Call the function
+    const value = await func.call(thisProxy, ...args);
+    return value;
+  } catch (e: unknown) {
+    // Will through abort signal
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw e;
+    }
+    context.appendError({
+      type: 'error',
+      description: fromError(e),
+      range: node.range,
+    });
+    return undefined;
+  }
+};
+
 /**
  * Reduce expression node.
  * @param context - Reducer context
@@ -145,41 +187,7 @@ export const reduceExpressionNode = async (
       return traverseVariable(context, node);
     }
     case 'apply': {
-      context.abortSignal?.throwIfAborted();
-      const func = await reduceExpressionNode(context, node.func);
-      if (typeof func !== 'function') {
-        context.appendError({
-          type: 'error',
-          description: 'could not apply it for function',
-          range: node.range,
-        });
-        return undefined;
-      }
-      const args = isFunCityFunction(func)
-        ? node.args // Passing directly node objects
-        : await Promise.all(
-            node.args.map(async (argNode) => {
-              const arg = await reduceExpressionNode(context, argNode);
-              return arg;
-            })
-          );
-      const thisProxy = context.createFunctionContext(node);
-      try {
-        // Call the function
-        const value = await func.call(thisProxy, ...args);
-        return value;
-      } catch (e: unknown) {
-        // Will through abort signal
-        if (e instanceof Error && e.name === 'AbortError') {
-          throw e;
-        }
-        context.appendError({
-          type: 'error',
-          description: fromError(e),
-          range: node.range,
-        });
-        return undefined;
-      }
+      return await applyFunction(context, node);
     }
     case 'lambda': {
       return fromLambda(context, node);
