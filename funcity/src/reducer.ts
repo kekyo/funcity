@@ -7,7 +7,6 @@ import {
   type FunCityErrorInfo,
   type FunCityVariables,
   type FunCityExpressionNode,
-  type FunCityLambdaNode,
   type FunCityBlockNode,
   type FunCityVariableNode,
   type FunCityReducerContext,
@@ -97,37 +96,6 @@ const traverseVariable = (
   return value;
 };
 
-// Create native function object from lambda node.
-const fromLambda = (
-  context: FunCityReducerContext,
-  lambda: FunCityLambdaNode
-): Function => {
-  return async (...args: readonly unknown[]) => {
-    if (args.length < lambda.names.length) {
-      context.appendError({
-        type: 'error',
-        description: `Arguments are not filled: ${args.length} < ${lambda.names.length}`,
-        range: lambda.range,
-      });
-      return undefined;
-    } else if (args.length > lambda.names.length) {
-      context.appendError({
-        type: 'warning',
-        description: `Too many arguments: ${args.length} > ${lambda.names.length}`,
-        range: lambda.range,
-      });
-    }
-    const newContext = context.newScope();
-    for (let index = 0; index < lambda.names.length; index++) {
-      newContext.setValue(lambda.names[index]!.name, args[index]);
-    }
-    const result = await reduceExpressionNode(newContext, lambda.body);
-    return result;
-  };
-};
-
-//////////////////////////////////////////////////////////////////////////////
-
 const applyFunction = async (
   context: FunCityReducerContext,
   node: FunCityApplyNode
@@ -191,9 +159,6 @@ export const reduceExpressionNode = async (
     }
     case 'apply': {
       return await applyFunction(context, node);
-    }
-    case 'lambda': {
-      return fromLambda(context, node);
     }
     case 'list': {
       const results = await Promise.all(
@@ -328,6 +293,7 @@ const createScopedReducerContext = (
       setValue,
       isFailed: parent.isFailed,
       appendError: parent.appendError,
+      newScope: () => createScopedReducerContext(thisContext),
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) => {
         parent.abortSignal?.throwIfAborted();
@@ -410,6 +376,7 @@ export const createReducerContext = (
       setValue,
       isFailed,
       appendError,
+      newScope: () => createScopedReducerContext(thisContext),
       convertToString,
       reduce: (node: FunCityExpressionNode) => {
         signal?.throwIfAborted();

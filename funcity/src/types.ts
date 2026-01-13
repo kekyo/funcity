@@ -259,24 +259,6 @@ export interface FunCityApplyNode extends FunCityRangedObject {
 }
 
 /**
- * Lambda expression node.
- */
-export interface FunCityLambdaNode extends FunCityRangedObject {
-  /**
-   * Node kind.
-   */
-  readonly kind: 'lambda';
-  /**
-   * Parameter names.
-   */
-  readonly names: readonly FunCityVariableNode[];
-  /**
-   * Lambda body expression.
-   */
-  readonly body: FunCityExpressionNode;
-}
-
-/**
  * Expression list (array) node.
  */
 export interface FunCityListNode extends FunCityRangedObject {
@@ -313,7 +295,6 @@ export type FunCityExpressionNode =
   | FunCityStringNode
   | FunCityVariableNode
   | FunCityApplyNode
-  | FunCityLambdaNode
   | FunCityListNode
   | FunCityScopeNode;
 
@@ -488,6 +469,11 @@ export interface FunCityFunctionContext {
    * @returns The context is received any errors.
    */
   readonly isFailed: () => boolean;
+  /**
+   * Create new scoped context.
+   * @returns New reducer context.
+   */
+  readonly newScope: () => FunCityReducerContext;
   /**
    * Convert a value to string.
    * @param v - A value

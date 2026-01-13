@@ -3321,7 +3321,7 @@ describe('scripting parser test', () => {
     expect(errors).toEqual([]);
   });
 
-  it('lambda token (fun)', () => {
+  it('fun token (single parameter)', () => {
     // "{{fun foo 123}}"
     const token: FunCityToken[] = [
       {
@@ -3372,8 +3372,16 @@ describe('scripting parser test', () => {
     // "{{fun foo 123}}"
     expect(nodes).toEqual([
       {
-        kind: 'lambda',
-        names: [
+        kind: 'apply',
+        func: {
+          kind: 'variable',
+          name: 'fun',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        args: [
           {
             kind: 'variable',
             name: 'foo',
@@ -3382,15 +3390,15 @@ describe('scripting parser test', () => {
               end: { line: 1, column: 9 },
             },
           },
-        ],
-        body: {
-          kind: 'number',
-          value: 123,
-          range: {
-            start: { line: 1, column: 11 },
-            end: { line: 1, column: 13 },
+          {
+            kind: 'number',
+            value: 123,
+            range: {
+              start: { line: 1, column: 11 },
+              end: { line: 1, column: 13 },
+            },
           },
-        },
+        ],
         range: {
           start: { line: 1, column: 3 },
           end: { line: 1, column: 13 },
@@ -3400,7 +3408,7 @@ describe('scripting parser test', () => {
     expect(errors).toEqual([]);
   });
 
-  it('lambda token (fun, 1 args)', () => {
+  it('fun token (list parameter)', () => {
     // "{{fun [foo] 123}}"
     const token: FunCityToken[] = [
       {
@@ -3467,25 +3475,42 @@ describe('scripting parser test', () => {
     // "{{fun [foo] 123}}"
     expect(nodes).toEqual([
       {
-        kind: 'lambda',
-        names: [
+        kind: 'apply',
+        func: {
+          kind: 'variable',
+          name: 'fun',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        args: [
           {
-            kind: 'variable',
-            name: 'foo',
+            kind: 'list',
+            items: [
+              {
+                kind: 'variable',
+                name: 'foo',
+                range: {
+                  start: { line: 1, column: 8 },
+                  end: { line: 1, column: 10 },
+                },
+              },
+            ],
             range: {
-              start: { line: 1, column: 8 },
-              end: { line: 1, column: 10 },
+              start: { line: 1, column: 7 },
+              end: { line: 1, column: 11 },
+            },
+          },
+          {
+            kind: 'number',
+            value: 123,
+            range: {
+              start: { line: 1, column: 13 },
+              end: { line: 1, column: 15 },
             },
           },
         ],
-        body: {
-          kind: 'number',
-          value: 123,
-          range: {
-            start: { line: 1, column: 13 },
-            end: { line: 1, column: 15 },
-          },
-        },
         range: {
           start: { line: 1, column: 3 },
           end: { line: 1, column: 15 },
@@ -3495,7 +3520,7 @@ describe('scripting parser test', () => {
     expect(errors).toEqual([]);
   });
 
-  it('lambda token (fun, 2 args)', () => {
+  it('fun token (list parameter, 2 args)', () => {
     // "{{fun [foo bar] 123}}"
     const token: FunCityToken[] = [
       {
@@ -3570,33 +3595,50 @@ describe('scripting parser test', () => {
     // "{{fun [foo bar] 123}}"
     expect(nodes).toEqual([
       {
-        kind: 'lambda',
-        names: [
+        kind: 'apply',
+        func: {
+          kind: 'variable',
+          name: 'fun',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        args: [
           {
-            kind: 'variable',
-            name: 'foo',
+            kind: 'list',
+            items: [
+              {
+                kind: 'variable',
+                name: 'foo',
+                range: {
+                  start: { line: 1, column: 8 },
+                  end: { line: 1, column: 10 },
+                },
+              },
+              {
+                kind: 'variable',
+                name: 'bar',
+                range: {
+                  start: { line: 1, column: 12 },
+                  end: { line: 1, column: 14 },
+                },
+              },
+            ],
             range: {
-              start: { line: 1, column: 8 },
-              end: { line: 1, column: 10 },
+              start: { line: 1, column: 7 },
+              end: { line: 1, column: 15 },
             },
           },
           {
-            kind: 'variable',
-            name: 'bar',
+            kind: 'number',
+            value: 123,
             range: {
-              start: { line: 1, column: 12 },
-              end: { line: 1, column: 14 },
+              start: { line: 1, column: 17 },
+              end: { line: 1, column: 19 },
             },
           },
         ],
-        body: {
-          kind: 'number',
-          value: 123,
-          range: {
-            start: { line: 1, column: 17 },
-            end: { line: 1, column: 19 },
-          },
-        },
         range: {
           start: { line: 1, column: 3 },
           end: { line: 1, column: 19 },
@@ -3606,7 +3648,7 @@ describe('scripting parser test', () => {
     expect(errors).toEqual([]);
   });
 
-  it('lambda expression in func position', () => {
+  it('fun expression in func position', () => {
     // "{{(fun [foo] foo) 123}}"
     const token: FunCityToken[] = [
       {
@@ -3699,25 +3741,42 @@ describe('scripting parser test', () => {
       {
         kind: 'apply',
         func: {
-          kind: 'lambda',
-          names: [
+          kind: 'apply',
+          func: {
+            kind: 'variable',
+            name: 'fun',
+            range: {
+              start: { line: 1, column: 4 },
+              end: { line: 1, column: 6 },
+            },
+          },
+          args: [
+            {
+              kind: 'list',
+              items: [
+                {
+                  kind: 'variable',
+                  name: 'foo',
+                  range: {
+                    start: { line: 1, column: 9 },
+                    end: { line: 1, column: 11 },
+                  },
+                },
+              ],
+              range: {
+                start: { line: 1, column: 8 },
+                end: { line: 1, column: 12 },
+              },
+            },
             {
               kind: 'variable',
               name: 'foo',
               range: {
-                start: { line: 1, column: 9 },
-                end: { line: 1, column: 11 },
+                start: { line: 1, column: 14 },
+                end: { line: 1, column: 16 },
               },
             },
           ],
-          body: {
-            kind: 'variable',
-            name: 'foo',
-            range: {
-              start: { line: 1, column: 14 },
-              end: { line: 1, column: 16 },
-            },
-          },
           range: {
             start: { line: 1, column: 4 },
             end: { line: 1, column: 16 },
@@ -3742,7 +3801,7 @@ describe('scripting parser test', () => {
     expect(errors).toEqual([]);
   });
 
-  it('lambda expression immediate application', () => {
+  it('fun expression with extra argument', () => {
     // "{{fun [foo] foo 123}}"
     const token: FunCityToken[] = [
       {
@@ -3819,18 +3878,32 @@ describe('scripting parser test', () => {
       {
         kind: 'apply',
         func: {
-          kind: 'lambda',
-          names: [
-            {
-              kind: 'variable',
-              name: 'foo',
-              range: {
-                start: { line: 1, column: 8 },
-                end: { line: 1, column: 10 },
+          kind: 'variable',
+          name: 'fun',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        args: [
+          {
+            kind: 'list',
+            items: [
+              {
+                kind: 'variable',
+                name: 'foo',
+                range: {
+                  start: { line: 1, column: 8 },
+                  end: { line: 1, column: 10 },
+                },
               },
+            ],
+            range: {
+              start: { line: 1, column: 7 },
+              end: { line: 1, column: 11 },
             },
-          ],
-          body: {
+          },
+          {
             kind: 'variable',
             name: 'foo',
             range: {
@@ -3838,12 +3911,6 @@ describe('scripting parser test', () => {
               end: { line: 1, column: 15 },
             },
           },
-          range: {
-            start: { line: 1, column: 3 },
-            end: { line: 1, column: 15 },
-          },
-        },
-        args: [
           {
             kind: 'number',
             value: 123,

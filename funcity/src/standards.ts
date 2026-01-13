@@ -7,7 +7,9 @@ import {
   FunCityExpressionNode,
   FunCityVariables,
   FunCityFunctionContext,
+  FunCityVariableNode,
 } from './types';
+import { reduceExpressionNode } from './reducer';
 import {
   asIterable,
   combineVariables,
@@ -66,6 +68,91 @@ const _set = makeFunCityFunction(async function (
   const value = await this.reduce(arg1);
   this.setValue(arg0.name, value);
   return undefined;
+});
+
+const extractParameterArguments = (
+  namesNode: FunCityExpressionNode,
+  context: FunCityFunctionContext
+): FunCityVariableNode[] | undefined => {
+  switch (namesNode.kind) {
+    case 'variable': {
+      return [namesNode];
+    }
+    case 'list': {
+      const nameNodes: FunCityVariableNode[] = [];
+      let hasError = false;
+      for (const nameNode of namesNode.items) {
+        if (nameNode.kind !== 'variable') {
+          context.appendError({
+            type: 'error',
+            description: 'Required `fun` parameter identity',
+            range: nameNode.range,
+          });
+          hasError = true;
+        } else {
+          nameNodes.push(nameNode);
+        }
+      }
+      return hasError ? undefined : nameNodes;
+    }
+    default: {
+      context.appendError({
+        type: 'error',
+        description: 'Required `fun` parameter identity',
+        range: namesNode.range,
+      });
+      return undefined;
+    }
+  }
+};
+
+const _fun = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0 || !arg1 || rest.length !== 0) {
+    this.appendError({
+      type: 'error',
+      description: 'Required `fun` parameter identity and expression',
+      range: this.thisNode.range,
+    });
+    return undefined;
+  }
+
+  const nameNodes = extractParameterArguments(arg0, this);
+  if (!nameNodes) {
+    return undefined;
+  }
+
+  const bodyNode = arg1;
+  const lambdaRange = this.thisNode.range;
+  const createScope = this.newScope;
+
+  return async (...args: readonly unknown[]) => {
+    if (args.length < nameNodes.length) {
+      this.appendError({
+        type: 'error',
+        description: `Arguments are not filled: ${args.length} < ${nameNodes.length}`,
+        range: lambdaRange,
+      });
+      return undefined;
+    } else if (args.length > nameNodes.length) {
+      this.appendError({
+        type: 'warning',
+        description: `Too many arguments: ${args.length} > ${nameNodes.length}`,
+        range: lambdaRange,
+      });
+    }
+
+    const newContext = createScope();
+    for (let index = 0; index < nameNodes.length; index++) {
+      newContext.setValue(nameNodes[index]!.name, args[index]);
+    }
+    const result = await reduceExpressionNode(newContext, bodyNode);
+    return result;
+  };
 });
 
 const _typeof = async (arg0: unknown) => {
@@ -485,6 +572,7 @@ export const standardVariables = Object.freeze({
   false: false,
   cond: _cond,
   set: _set,
+  fun: _fun,
   toString: _toString,
   toBoolean: _toBoolean,
   toNumber: _toNumber,

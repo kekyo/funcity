@@ -55,12 +55,15 @@ const applyNode = (
   args,
   range,
 });
-const lambdaNode = (names: readonly string[], body: FunCityExpressionNode) => ({
-  kind: 'lambda' as const,
-  names: names.map(variableNode),
-  body,
-  range,
-});
+const funNode = (names: readonly string[], body: FunCityExpressionNode) => {
+  const nameNode =
+    names.length === 0
+      ? listNode([])
+      : names.length === 1
+        ? variableNode(names[0]!)
+        : listNode(names.map(variableNode));
+  return applyNode(variableNode('fun'), [nameNode, body]);
+};
 const scopeNode = (nodes: FunCityExpressionNode[]) => ({
   kind: 'scope' as const,
   nodes,
@@ -273,11 +276,11 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual([]);
   });
 
-  it('set inside lambda scope', async () => {
+  it('set inside function scope', async () => {
     // "{{(fun [] (set foo 1\nfoo)) ()}}"
     const nodes: FunCityBlockNode[] = [
       applyNode(
-        lambdaNode(
+        funNode(
           [],
           scopeNode([setNode('foo', numberNode(1)), variableNode('foo')])
         ),
@@ -454,10 +457,10 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual(['DEF']);
   });
 
-  it('apply lambda function', async () => {
+  it('apply function', async () => {
     // "{{(fun foo foo) 123}}"
     const nodes: FunCityBlockNode[] = [
-      applyNode(lambdaNode(['foo'], variableNode('foo')), [numberNode(123)]),
+      applyNode(funNode(['foo'], variableNode('foo')), [numberNode(123)]),
     ];
 
     const variables = buildCandidateVariables();
@@ -466,10 +469,10 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual([123]);
   });
 
-  it('apply lambda function (empty parameter)', async () => {
+  it('apply function (empty parameter)', async () => {
     // "{{(fun [] 123) ()}}"
     const nodes: FunCityBlockNode[] = [
-      applyNode(lambdaNode([], numberNode(123)), []),
+      applyNode(funNode([], numberNode(123)), []),
     ];
 
     const variables = buildCandidateVariables();
@@ -478,11 +481,11 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual([123]);
   });
 
-  it('apply lambda function (multiple parameter)', async () => {
+  it('apply function (multiple parameter)', async () => {
     // "{{(fun [a b] (add a b)) 1 2}}"
     const nodes: FunCityBlockNode[] = [
       applyNode(
-        lambdaNode(
+        funNode(
           ['a', 'b'],
           applyNode(variableNode('add'), [variableNode('a'), variableNode('b')])
         ),
@@ -494,6 +497,34 @@ describe('scripting reducer test', () => {
     const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([3]);
+  });
+
+  it('fun requires two arguments', async () => {
+    // "{{fun foo}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('fun'), [variableNode('foo')]),
+    ];
+
+    const variables = buildCandidateVariables();
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'Required `fun` parameter identity and expression',
+      range,
+    });
+  });
+
+  it('fun requires parameter identity', async () => {
+    // "{{fun 1 2}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('fun'), [numberNode(1), numberNode(2)]),
+    ];
+
+    const variables = buildCandidateVariables();
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'Required `fun` parameter identity',
+      range,
+    });
   });
 
   it('native function calling', async () => {
@@ -517,7 +548,7 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       setNode(
         'foo',
-        lambdaNode(
+        funNode(
           ['abc'],
           applyNode(variableNode('add'), [variableNode('abc'), numberNode(100)])
         )
@@ -531,7 +562,7 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual([223]);
   });
 
-  it('lambda recursion with set binding', async () => {
+  it('function recursion with set binding', async () => {
     // "{{set foo (fun [n] (cond (eq n 0) 1 (mul n (foo (sub n 1)))))\nfoo 5}}"
     const trueNode = numberNode(1);
     const falseNode = applyNode(variableNode('mul'), [
@@ -551,7 +582,7 @@ describe('scripting reducer test', () => {
     ]);
 
     const nodes: FunCityBlockNode[] = [
-      setNode('foo', lambdaNode(['n'], condApplyNode)),
+      setNode('foo', funNode(['n'], condApplyNode)),
       applyNode(variableNode('foo'), [numberNode(5)]),
     ];
 
@@ -589,7 +620,7 @@ describe('scripting reducer test', () => {
     const variables = buildCandidateVariables({ x: 1, delay });
 
     const childExpr = applyNode(
-      lambdaNode(
+      funNode(
         [],
         scopeNode([
           setNode('local', numberNode(0)),

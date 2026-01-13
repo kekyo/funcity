@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import type {
   FunCityApplyNode,
   FunCityExpressionNode,
-  FunCityLambdaNode,
   FunCityListNode,
   FunCityBlockNode,
   FunCityNumberNode,
@@ -55,15 +54,18 @@ const applyNode = (
   args,
   range,
 });
-const lambdaNode = (
+const funNode = (
   names: string[],
   body: FunCityExpressionNode
-): FunCityLambdaNode => ({
-  kind: 'lambda' as const,
-  names: names.map((name) => variableNode(name)),
-  body,
-  range,
-});
+): FunCityApplyNode => {
+  const nameNode =
+    names.length === 0
+      ? listNode([])
+      : names.length === 1
+        ? variableNode(names[0]!)
+        : listNode(names.map((name) => variableNode(name)));
+  return applyNode('fun', [nameNode, body]);
+};
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
@@ -355,7 +357,7 @@ describe('standard variables test', () => {
   it('map', async () => {
     const value = await reduceSingle(
       applyNode('map', [
-        lambdaNode(
+        funNode(
           ['foo'],
           applyNode('mul', [variableNode('foo'), numberNode(10)])
         ),
@@ -367,7 +369,7 @@ describe('standard variables test', () => {
   it('flatMap', async () => {
     const value = await reduceSingle(
       applyNode('flatMap', [
-        lambdaNode(
+        funNode(
           ['foo'],
           listNode([applyNode('mul', [variableNode('foo'), numberNode(10)])])
         ),
@@ -379,7 +381,7 @@ describe('standard variables test', () => {
   it('filter', async () => {
     const value = await reduceSingle(
       applyNode('filter', [
-        lambdaNode(
+        funNode(
           ['foo'],
           applyNode('mod', [variableNode('foo'), numberNode(2)])
         ),
@@ -400,7 +402,7 @@ describe('standard variables test', () => {
     const value = await reduceSingle(
       applyNode('reduce', [
         stringNode('A'),
-        lambdaNode(
+        funNode(
           ['acc', 'v'],
           applyNode('concat', [variableNode('acc'), variableNode('v')])
         ),
@@ -461,7 +463,7 @@ describe('standard variables test', () => {
         variableNode('undefined'),
         variableNode('null'),
         listNode([numberNode(111), numberNode(222)]),
-        lambdaNode(['a'], variableNode('a')),
+        funNode(['a'], variableNode('a')),
       ])
     );
     expect(value).toBe(
