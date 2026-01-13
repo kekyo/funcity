@@ -63,7 +63,7 @@ Today is {{printWeather weather}} weather.
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -173,7 +173,7 @@ funcity> add x 5
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -400,7 +400,12 @@ const results = await runReducer(nodes, variables, errors);
 | `mul` | 引数群を数値として乗算します。 |
 | `div` | 第1引数を数値として第2引数で除算します。 |
 | `mod` | 第1引数を数値として第2引数で除算した剰余を求めます。 |
-| `equal` | 厳密比較（`===`）します。 |
+| `eq` | 厳密比較（`===`）します。 |
+| `ne` | 厳密比較で不一致（`!==`）を返します。 |
+| `lt` | 第1引数が第2引数より小さい場合に真を返します。 |
+| `gt` | 第1引数が第2引数より大きい場合に真を返します。 |
+| `le` | 第1引数が第2引数以下の場合に真を返します。 |
+| `ge` | 第1引数が第2引数以上の場合に真を返します。 |
 | `now` | 現在時刻のUNIXミリ秒を返します。 |
 | `concat` | 引数群の文字列や`Iterable`を順に連結します。 |
 | `join` | 第1引数を区切り文字として、第2引数以降の文字列を結合します。 |

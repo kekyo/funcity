@@ -596,7 +596,7 @@ describe('scripting reducer test', () => {
   });
 
   it('lambda recursion with set binding', async () => {
-    // "{{set foo (fun [n] (cond (equal n 0) 1 (mul n (foo (sub n 1)))))\nfoo 5}}"
+    // "{{set foo (fun [n] (cond (eq n 0) 1 (mul n (foo (sub n 1)))))\nfoo 5}}"
     const trueNode = numberNode(1);
     const falseNode = applyNode(variableNode('mul'), [
       variableNode('n'),
@@ -604,7 +604,7 @@ describe('scripting reducer test', () => {
         applyNode(variableNode('sub'), [variableNode('n'), numberNode(1)]),
       ]),
     ]);
-    const condNode = applyNode(variableNode('equal'), [
+    const condNode = applyNode(variableNode('eq'), [
       variableNode('n'),
       numberNode(0),
     ]);

@@ -65,7 +65,7 @@ Of course, the beloved Fibonacci sequence can also be computed by defining a rec
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -175,7 +175,7 @@ For example, store the funcity script in a `script.fc` file:
 ```funcity
 {{
 set fib (fun n \
-  (cond (or (equal n 0) (equal n 1)) \
+  (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
 }}
@@ -408,7 +408,12 @@ The following are the standard functions:
 | `mul` | Multiplies all arguments as numbers. |
 | `div` | Divides the first argument (as a number) by the second argument. |
 | `mod` | Returns the remainder of dividing the first argument (as a number) by the second argument. |
-| `equal` | Performs strict equality (`===`). |
+| `eq` | Performs strict equality (`===`). |
+| `ne` | Performs strict inequality (`!==`). |
+| `lt` | Returns true if the first argument is less than the second. |
+| `gt` | Returns true if the first argument is greater than the second. |
+| `le` | Returns true if the first argument is less than or equal to the second. |
+| `ge` | Returns true if the first argument is greater than or equal to the second. |
 | `now` | Returns current UNIX time in milliseconds. |
 | `concat` | Concatenates strings and `Iterable` arguments in order. |
 | `join` | Uses the first argument as a separator and joins strings from the second argument onward. |

@@ -138,8 +138,33 @@ const _mod = async (arg0: unknown, ...args: unknown[]) => {
   return r;
 };
 
-const _equal = async (arg0: unknown, arg1: unknown) => {
+const _eq = async (arg0: unknown, arg1: unknown) => {
   const r = arg0 === arg1;
+  return r;
+};
+
+const _ne = async (arg0: unknown, arg1: unknown) => {
+  const r = arg0 !== arg1;
+  return r;
+};
+
+const _lt = async (arg0: unknown, arg1: unknown) => {
+  const r = (arg0 as any) < (arg1 as any);
+  return r;
+};
+
+const _gt = async (arg0: unknown, arg1: unknown) => {
+  const r = (arg0 as any) > (arg1 as any);
+  return r;
+};
+
+const _le = async (arg0: unknown, arg1: unknown) => {
+  const r = (arg0 as any) <= (arg1 as any);
+  return r;
+};
+
+const _ge = async (arg0: unknown, arg1: unknown) => {
+  const r = (arg0 as any) >= (arg1 as any);
   return r;
 };
 
@@ -470,7 +495,12 @@ export const standardVariables = Object.freeze({
   mul: _mul,
   div: _div,
   mod: _mod,
-  equal: _equal,
+  eq: _eq,
+  ne: _ne,
+  lt: _lt,
+  gt: _gt,
+  le: _le,
+  ge: _ge,
   now: _now,
   concat: _concat,
   join: _join,

@@ -120,15 +120,75 @@ describe('standard variables test', () => {
     );
     expect(value).toBe(1);
   });
-  it('equal true', async () => {
+  it('eq true', async () => {
     const value = await reduceSingle(
-      applyNode('equal', [numberNode(1), numberNode(1)])
+      applyNode('eq', [numberNode(1), numberNode(1)])
     );
     expect(value).toBe(true);
   });
-  it('equal false', async () => {
+  it('eq false', async () => {
     const value = await reduceSingle(
-      applyNode('equal', [numberNode(1), numberNode(2)])
+      applyNode('eq', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('ne true', async () => {
+    const value = await reduceSingle(
+      applyNode('ne', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('ne false', async () => {
+    const value = await reduceSingle(
+      applyNode('ne', [numberNode(1), numberNode(1)])
+    );
+    expect(value).toBe(false);
+  });
+  it('lt true', async () => {
+    const value = await reduceSingle(
+      applyNode('lt', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('lt false', async () => {
+    const value = await reduceSingle(
+      applyNode('lt', [numberNode(2), numberNode(1)])
+    );
+    expect(value).toBe(false);
+  });
+  it('gt true', async () => {
+    const value = await reduceSingle(
+      applyNode('gt', [numberNode(2), numberNode(1)])
+    );
+    expect(value).toBe(true);
+  });
+  it('gt false', async () => {
+    const value = await reduceSingle(
+      applyNode('gt', [numberNode(1), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('le true', async () => {
+    const value = await reduceSingle(
+      applyNode('le', [numberNode(2), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('le false', async () => {
+    const value = await reduceSingle(
+      applyNode('le', [numberNode(3), numberNode(2)])
+    );
+    expect(value).toBe(false);
+  });
+  it('ge true', async () => {
+    const value = await reduceSingle(
+      applyNode('ge', [numberNode(2), numberNode(2)])
+    );
+    expect(value).toBe(true);
+  });
+  it('ge false', async () => {
+    const value = await reduceSingle(
+      applyNode('ge', [numberNode(1), numberNode(2)])
     );
     expect(value).toBe(false);
   });

@@ -35,7 +35,7 @@ describe('funcity-cli run', () => {
   });
 
   it('executes Fibonacci example from README', async () => {
-    const script = `{{\nset fib (fun n \\\n  (cond (or (equal n 0) (equal n 1)) \\\n    n \\\n    (add (fib (sub n 1)) (fib (sub n 2)))))\n}}\nFibonacci (10) = {{fib 10}}\n`;
+    const script = `{{\nset fib (fun n \\\n  (cond (le n 1) \\\n    n \\\n    (add (fib (sub n 1)) (fib (sub n 2)))))\n}}\nFibonacci (10) = {{fib 10}}\n`;
     const result = await runScriptText(script);
 
     expect(result.errors).toEqual([]);
