@@ -6,7 +6,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type {
-  FunCityErrorInfo,
   FunCityApplyNode,
   FunCityExpressionNode,
   FunCityLambdaNode,
@@ -68,18 +67,10 @@ const lambdaNode = (
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
-    const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables, errors);
-    expect(errors).toEqual([]);
+    const reduced = await runReducer([node], variables);
     expect(reduced).toHaveLength(1);
     return reduced[0];
-  };
-  const reduceWithErrors = async (node: FunCityBlockNode) => {
-    const errors: FunCityErrorInfo[] = [];
-    const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables, errors);
-    return { reduced, errors };
   };
 
   it('true', async () => {
@@ -193,12 +184,10 @@ describe('standard variables test', () => {
     expect(value).toBe(false);
   });
   it('now', async () => {
-    const errors: FunCityErrorInfo[] = [];
     const variables = buildCandidateVariables();
     const nowBefore = Date.now();
-    const reduced = await runReducer([applyNode('now', [])], variables, errors);
+    const reduced = await runReducer([applyNode('now', [])], variables);
     const nowAfter = Date.now();
-    expect(errors).toEqual([]);
     expect(reduced).toHaveLength(1);
     const nowValue = reduced[0] as number;
     expect(typeof nowValue).toBe('number');
@@ -271,18 +260,16 @@ describe('standard variables test', () => {
     expect(value).toBe(true);
   });
   it('and short-circuit', async () => {
-    const { reduced, errors } = await reduceWithErrors(
+    const value = await reduceSingle(
       applyNode('and', [variableNode('false'), variableNode('missing')])
     );
-    expect(reduced).toEqual([false]);
-    expect(errors).toEqual([]);
+    expect(value).toBe(false);
   });
   it('or short-circuit', async () => {
-    const { reduced, errors } = await reduceWithErrors(
+    const value = await reduceSingle(
       applyNode('or', [variableNode('true'), variableNode('missing')])
     );
-    expect(reduced).toEqual([true]);
-    expect(errors).toEqual([]);
+    expect(value).toBe(true);
   });
   it('not false', async () => {
     const value = await reduceSingle(applyNode('not', [variableNode('false')]));

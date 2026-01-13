@@ -423,6 +423,23 @@ export interface ParserCursor {
 //////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Reducer running error.
+ */
+export class FunCityReducerError extends Error {
+  /**
+   * Error information.
+   */
+  readonly info: FunCityErrorInfo;
+
+  constructor(info: FunCityErrorInfo) {
+    super(info.description);
+    this.name = 'FunCityReducerError';
+    this.info = info;
+    Object.setPrototypeOf(this, FunCityReducerError.prototype);
+  }
+}
+
+/**
  * Variable value result.
  */
 export interface FunCityReducerContextValueResult {

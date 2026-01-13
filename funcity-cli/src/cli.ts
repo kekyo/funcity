@@ -19,9 +19,10 @@ import {
   runCodeTokenizer,
   runScriptOnceToText,
 } from 'funcity';
-import type {
+import {
   FunCityBlockNode,
   FunCityErrorInfo,
+  FunCityReducerError,
   FunCityReducerContext,
 } from 'funcity';
 
@@ -45,7 +46,7 @@ const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
   });
 };
 
-const collectResults = async (
+const reduceAndCollectResults = async (
   context: FunCityReducerContext,
   nodes: readonly FunCityBlockNode[]
 ): Promise<unknown[]> => {
@@ -62,7 +63,7 @@ const collectResults = async (
 };
 
 export interface ReplEvaluationResult {
-  readonly output: string;
+  readonly output: string | undefined;
   readonly errors: FunCityErrorInfo[];
 }
 
@@ -77,29 +78,46 @@ export const createReplSession = (): ReplSession => {
   });
 
   const errors: FunCityErrorInfo[] = [];
-  const context = createReducerContext(variables, errors);
+  const reducerContext = createReducerContext(variables);
 
   const evaluateLine = async (line: string): Promise<ReplEvaluationResult> => {
     errors.length = 0;
     const tokens = runCodeTokenizer(line, errors);
     const nodes = parseExpressions(tokens, errors);
-    const results = await collectResults(context, nodes);
-    const output =
-      results.length > 0
-        ? results.map((result) => convertToString(result)).join('\n')
-        : '';
-    return {
-      output,
-      errors: [...errors],
-    };
+    if (errors.length >= 1) {
+      return {
+        output: undefined,
+        errors: [...errors],
+      };
+    }
+    try {
+      const results = await reduceAndCollectResults(reducerContext, nodes);
+      const output =
+        results.length > 0
+          ? results.map((result) => convertToString(result)).join('\n')
+          : '';
+      return {
+        output,
+        errors: [...errors],
+      };
+    } catch (error: unknown) {
+      if (error instanceof FunCityReducerError) {
+        errors.push(error.info);
+        return {
+          output: undefined,
+          errors: [...errors],
+        };
+      }
+      throw error;
+    }
   };
   const getPrompt = async () => {
-    const prompt = await reduceExpressionNode(context, {
+    const prompt = await reduceExpressionNode(reducerContext, {
       kind: 'variable',
       name: 'prompt',
       range: emptyRange,
     });
-    return context.convertToString(prompt);
+    return reducerContext.convertToString(prompt);
   };
 
   return { evaluateLine, getPrompt };

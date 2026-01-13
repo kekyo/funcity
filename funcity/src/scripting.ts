@@ -3,7 +3,7 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import type { FunCityOnceRunnerProps } from './types';
+import { FunCityOnceRunnerProps, FunCityReducerError } from './types';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { createReducerContext, reduceNode } from './reducer';
@@ -29,15 +29,23 @@ export const runScriptOnce = async (
     return [];
   }
 
-  const reducerContext = createReducerContext(variables, errors, signal);
+  const reducerContext = createReducerContext(variables, signal);
   const resultList: unknown[] = [];
-  for (const node of nodes) {
-    const results = await reduceNode(reducerContext, node);
-    for (const result of results) {
-      if (result !== undefined) {
-        resultList.push(result);
+  try {
+    for (const node of nodes) {
+      const results = await reduceNode(reducerContext, node);
+      for (const result of results) {
+        if (result !== undefined) {
+          resultList.push(result);
+        }
       }
     }
+  } catch (error: unknown) {
+    if (error instanceof FunCityReducerError) {
+      errors.push(error.info);
+      return [];
+    }
+    throw error;
   }
 
   return resultList;
@@ -61,15 +69,23 @@ export const runScriptOnceToText = async (
     return undefined;
   }
 
-  const reducerContext = createReducerContext(variables, errors, signal);
+  const reducerContext = createReducerContext(variables, signal);
   const resultList: unknown[] = [];
-  for (const node of nodes) {
-    const results = await reduceNode(reducerContext, node);
-    for (const result of results) {
-      if (result !== undefined) {
-        resultList.push(result);
+  try {
+    for (const node of nodes) {
+      const results = await reduceNode(reducerContext, node);
+      for (const result of results) {
+        if (result !== undefined) {
+          resultList.push(result);
+        }
       }
     }
+  } catch (error: unknown) {
+    if (error instanceof FunCityReducerError) {
+      errors.push(error.info);
+      return undefined;
+    }
+    throw error;
   }
 
   const text = resultList

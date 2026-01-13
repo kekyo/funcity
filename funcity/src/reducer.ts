@@ -3,17 +3,18 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import type {
-  FunCityErrorInfo,
-  FunCityVariables,
-  FunCityExpressionNode,
-  FunCityLambdaNode,
-  FunCityBlockNode,
-  FunCityVariableNode,
-  FunCityReducerContext,
-  FunCityReducerContextValueResult,
-  FunCityFunctionContext,
-  FunCityApplyNode,
+import {
+  type FunCityErrorInfo,
+  type FunCityVariables,
+  type FunCityExpressionNode,
+  type FunCityLambdaNode,
+  type FunCityBlockNode,
+  type FunCityVariableNode,
+  type FunCityReducerContext,
+  type FunCityReducerContextValueResult,
+  type FunCityFunctionContext,
+  type FunCityApplyNode,
+  FunCityReducerError,
 } from './types';
 import {
   fromError,
@@ -155,16 +156,18 @@ const applyFunction = async (
     const value = await func.call(thisProxy, ...args);
     return value;
   } catch (e: unknown) {
+    if (e instanceof FunCityReducerError) {
+      throw e;
+    }
     // Will through abort signal
     if (e instanceof Error && e.name === 'AbortError') {
       throw e;
     }
-    context.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: fromError(e),
       range: node.range,
     });
-    return undefined;
   }
 };
 
@@ -352,13 +355,11 @@ const createScopedReducerContext = (
 /**
  * Create reducer context.
  * @param variables - Predefined variables
- * @param errors - Will be stored detected warnings/errors into it
  * @param signal - Abort signal
  * @returns Reducer context
  */
 export const createReducerContext = (
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[],
   signal?: AbortSignal
 ): FunCityReducerContext => {
   let thisVars: Map<string, unknown> | undefined;
@@ -384,11 +385,14 @@ export const createReducerContext = (
   };
 
   const appendError = (error: FunCityErrorInfo): void => {
-    errors.push(error);
+    if (error.type === 'warning') {
+      return;
+    }
+    throw new FunCityReducerError(error);
   };
 
   const isFailed = (): boolean => {
-    return errors.some((error) => error.type === 'error');
+    return false;
   };
 
   const getFuncId = internalCreateFunctionIdGenerator();
@@ -436,17 +440,15 @@ export const createReducerContext = (
  * Run the reducer.
  * @param nodes - Target nodes
  * @param variables - Predefined variables
- * @param errors - Will be stored detected warnings/errors into it
  * @param signal - Abort signal
  * @returns Reduced native values
  */
 export async function runReducer(
   nodes: readonly FunCityBlockNode[],
   variables: FunCityVariables,
-  errors: FunCityErrorInfo[],
   signal?: AbortSignal
 ): Promise<unknown[]> {
-  const context = createReducerContext(variables, errors, signal);
+  const context = createReducerContext(variables, signal);
 
   const resultList: unknown[] = [];
   for (const node of nodes) {

@@ -104,113 +104,100 @@ const forNode = (
   range,
 });
 
+const expectReducerError = async (
+  promise: Promise<unknown>,
+  info: FunCityErrorInfo
+) => {
+  await expect(promise).rejects.toMatchObject({ info });
+};
+
 describe('scripting reducer test', () => {
   it('empty', async () => {
     // "{{}}"
     const nodes: FunCityBlockNode[] = [];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([]);
-    expect(errors).toEqual([]);
   });
 
   it('number node', async () => {
     // "{{12345}}"
     const nodes: FunCityBlockNode[] = [numberNode(12345)];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([12345]);
-    expect(errors).toEqual([]);
   });
 
   it('string node', async () => {
     // "{{'hello'}}"
     const nodes: FunCityBlockNode[] = [stringNode('hello')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['hello']);
-    expect(errors).toEqual([]);
   });
 
   it('variable node', async () => {
     // "{{true}}"
     const nodes: FunCityBlockNode[] = [variableNode('true')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([true]);
-    expect(errors).toEqual([]);
   });
 
   it('text node', async () => {
     // "Hello"
     const nodes: FunCityBlockNode[] = [textNode('Hello')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['Hello']);
-    expect(errors).toEqual([]);
   });
 
   it('variable node (not bind)', async () => {
     // "{{foobar}}"
     const nodes: FunCityBlockNode[] = [variableNode('foobar')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
-
-    expect(reduced).toEqual([]);
-    expect(errors).toEqual([
-      {
-        type: 'error',
-        description: 'variable is not bound: foobar',
-        range,
-      },
-    ]);
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'variable is not bound: foobar',
+      range,
+    });
   });
 
   it('variable node (traverse)', async () => {
     // "{{foo.bar}}"
     const nodes: FunCityBlockNode[] = [variableNode('foo.bar')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables({
       foo: {
         bar: 'ABC',
       },
     });
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['ABC']);
-    expect(errors).toEqual([]);
   });
 
   it('variable node (conditional combine)', async () => {
     // "{{siteName?}}"
     const nodes: FunCityBlockNode[] = [variableNode('siteName?')];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables({
       siteName: 'My Site',
     });
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['My Site']);
-    expect(errors).toEqual([]);
   });
 
   it('root list', async () => {
@@ -220,13 +207,11 @@ describe('scripting reducer test', () => {
       applyNode(variableNode('add'), [numberNode(123), numberNode(456)]),
       textNode('World'),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `add`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['Hello', 579, 'World']);
-    expect(errors).toEqual([]);
   });
 
   it('application node', async () => {
@@ -234,13 +219,11 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('add'), [numberNode(123), numberNode(456)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `add`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([579]);
-    expect(errors).toEqual([]);
   });
 
   it('multiple sentence', async () => {
@@ -248,13 +231,11 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       scopeNode([numberNode(12345), stringNode('hello'), variableNode('true')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([true]); // Takes last one.
-    expect(errors).toEqual([]);
   });
 
   it('multiple expressions in the list', async () => {
@@ -262,13 +243,11 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       listNode([numberNode(12345), stringNode('hello'), variableNode('true')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([[12345, 'hello', true]]);
-    expect(errors).toEqual([]);
   });
 
   it('set variable', async () => {
@@ -277,25 +256,21 @@ describe('scripting reducer test', () => {
       setNode('foo', numberNode(123)),
       variableNode('foo'),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([123]);
-    expect(errors).toEqual([]);
   });
 
   it('set returns undefined', async () => {
     // "{{set foo 123}}"
     const nodes: FunCityBlockNode[] = [setNode('foo', numberNode(123))];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([]);
-    expect(errors).toEqual([]);
   });
 
   it('set inside lambda scope', async () => {
@@ -309,13 +284,11 @@ describe('scripting reducer test', () => {
         []
       ),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([1]);
-    expect(errors).toEqual([]);
   });
 
   it('set requires bind identity', async () => {
@@ -323,19 +296,13 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('set'), [numberNode(1), variableNode('missing')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
-
-    expect(reduced).toEqual([]);
-    expect(errors).toEqual([
-      {
-        type: 'error',
-        description: 'Required `set` bind identity',
-        range,
-      },
-    ]);
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'Required `set` bind identity',
+      range,
+    });
   });
 
   it('set requires two arguments (missing)', async () => {
@@ -343,19 +310,13 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('set'), [variableNode('foo')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
-
-    expect(reduced).toEqual([]);
-    expect(errors).toEqual([
-      {
-        type: 'error',
-        description: 'Required `set` bind identity and expression',
-        range,
-      },
-    ]);
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'Required `set` bind identity and expression',
+      range,
+    });
   });
 
   it('set requires two arguments (too many)', async () => {
@@ -367,19 +328,13 @@ describe('scripting reducer test', () => {
         numberNode(2),
       ]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
-
-    expect(reduced).toEqual([]);
-    expect(errors).toEqual([
-      {
-        type: 'error',
-        description: 'Required `set` bind identity and expression',
-        range,
-      },
-    ]);
+    await expectReducerError(runReducer(nodes, variables), {
+      type: 'error',
+      description: 'Required `set` bind identity and expression',
+      range,
+    });
   });
 
   it('for', async () => {
@@ -397,13 +352,11 @@ describe('scripting reducer test', () => {
         [stringNode('ABC')]
       ),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['ABC', 'ABC', 'ABC', 'ABC', 'ABC']);
-    expect(errors).toEqual([]);
   });
 
   it('while', async () => {
@@ -418,10 +371,9 @@ describe('scripting reducer test', () => {
         ),
       ]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([
       'ABC',
@@ -435,7 +387,6 @@ describe('scripting reducer test', () => {
       'ABC',
       'ABC',
     ]);
-    expect(errors).toEqual([]);
   });
 
   it('abort signal during loop', async () => {
@@ -453,7 +404,6 @@ describe('scripting reducer test', () => {
         ),
       ]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables({
       delay: async (ms: unknown) => {
@@ -468,7 +418,7 @@ describe('scripting reducer test', () => {
 
     try {
       await expect(
-        runReducer(nodes, variables, errors, controller.signal)
+        runReducer(nodes, variables, controller.signal)
       ).rejects.toMatchObject({ name: 'AbortError' });
     } finally {
       clearTimeout(abortTimer);
@@ -484,13 +434,11 @@ describe('scripting reducer test', () => {
       setNode('flag', variableNode('true')),
       ifNode(variableNode('flag'), [stringNode('ABC')], [stringNode('DEF')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `true`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['ABC']);
-    expect(errors).toEqual([]);
   });
 
   it('if false', async () => {
@@ -499,13 +447,11 @@ describe('scripting reducer test', () => {
       setNode('flag', variableNode('false')),
       ifNode(variableNode('flag'), [stringNode('ABC')], [stringNode('DEF')]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables(); // Included `false`
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual(['DEF']);
-    expect(errors).toEqual([]);
   });
 
   it('apply lambda function', async () => {
@@ -513,13 +459,11 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(lambdaNode(['foo'], variableNode('foo')), [numberNode(123)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([123]);
-    expect(errors).toEqual([]);
   });
 
   it('apply lambda function (empty parameter)', async () => {
@@ -527,13 +471,11 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(lambdaNode([], numberNode(123)), []),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([123]);
-    expect(errors).toEqual([]);
   });
 
   it('apply lambda function (multiple parameter)', async () => {
@@ -547,13 +489,11 @@ describe('scripting reducer test', () => {
         [numberNode(1), numberNode(2)]
       ),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([3]);
-    expect(errors).toEqual([]);
   });
 
   it('native function calling', async () => {
@@ -561,17 +501,15 @@ describe('scripting reducer test', () => {
     const nodes: FunCityBlockNode[] = [
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const customVars = {
       foo: (v: unknown) => Number(v) + 100,
     };
 
     const variables = buildCandidateVariables(customVars);
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([223]);
-    expect(errors).toEqual([]);
   });
 
   it('bind function and apply', async () => {
@@ -586,13 +524,11 @@ describe('scripting reducer test', () => {
       ),
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([223]);
-    expect(errors).toEqual([]);
   });
 
   it('lambda recursion with set binding', async () => {
@@ -618,13 +554,11 @@ describe('scripting reducer test', () => {
       setNode('foo', lambdaNode(['n'], condApplyNode)),
       applyNode(variableNode('foo'), [numberNode(5)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     const variables = buildCandidateVariables();
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([120]);
-    expect(errors).toEqual([]);
   });
 
   it('native function calling and use context', async () => {
@@ -633,7 +567,6 @@ describe('scripting reducer test', () => {
       setNode('bar', numberNode(100)),
       applyNode(variableNode('foo'), [numberNode(123)]),
     ];
-    const errors: FunCityErrorInfo[] = [];
 
     async function foo(this: FunCityFunctionContext, v: unknown) {
       return Number(v) + Number(this.getValue('bar').value);
@@ -643,15 +576,12 @@ describe('scripting reducer test', () => {
     };
 
     const variables = buildCandidateVariables(customVars);
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([223]);
-    expect(errors).toEqual([]);
   });
 
   it('scope should see parent updates after local write', async () => {
-    const errors: FunCityErrorInfo[] = [];
-
     const delay = async (ms: unknown) => {
       await new Promise<void>((resolve) => setTimeout(resolve, Number(ms)));
       return undefined;
@@ -676,9 +606,8 @@ describe('scripting reducer test', () => {
 
     const nodes: FunCityBlockNode[] = [listNode([childExpr, parentUpdateExpr])];
 
-    const reduced = await runReducer(nodes, variables, errors);
+    const reduced = await runReducer(nodes, variables);
 
     expect(reduced).toEqual([[2, undefined]]);
-    expect(errors).toEqual([]);
   });
 });
