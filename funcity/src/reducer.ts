@@ -76,12 +76,13 @@ const traverseVariable = (
     return undefined;
   }
   let value = result0.value;
+  let parent: object | undefined;
   for (const n of names.slice(1)) {
     const nr = deconstructConditionalCombine(n);
-    if (typeof value === 'object') {
+    if (value !== null && typeof value === 'object') {
       const r = value as Record<string, unknown>;
-      const v = r[nr.name];
-      value = v;
+      parent = value as object;
+      value = r[nr.name];
     } else {
       if (!nr.canIgnore) {
         context.appendError({
@@ -92,6 +93,9 @@ const traverseVariable = (
       }
       return undefined;
     }
+  }
+  if (parent && typeof value === 'function' && !isFunCityFunction(value)) {
+    return context.getBoundFunction(parent, value);
   }
   return value;
 };
@@ -283,6 +287,8 @@ const createScopedReducerContext = (
     thisVars.set(name, value);
   };
 
+  const getBoundFunction = parent.getBoundFunction;
+
   const createFunctionContext = (
     thisNode: FunCityExpressionNode
   ): FunCityFunctionContext => {
@@ -306,6 +312,7 @@ const createScopedReducerContext = (
     abortSignal: parent.abortSignal,
     getValue,
     setValue,
+    getBoundFunction,
     isFailed: parent.isFailed,
     appendError: parent.appendError,
     newScope: () => {
@@ -330,6 +337,25 @@ export const createReducerContext = (
 ): FunCityReducerContext => {
   let thisVars: Map<string, unknown> | undefined;
   let thisContext: FunCityReducerContext;
+
+  const createBoundFunctionResolver = () => {
+    const cache = new WeakMap<object, WeakMap<Function, Function>>();
+    return (owner: object, fn: Function): Function => {
+      let ownerCache = cache.get(owner);
+      if (!ownerCache) {
+        ownerCache = new WeakMap();
+        cache.set(owner, ownerCache);
+      }
+      const cached = ownerCache.get(fn);
+      if (cached) {
+        return cached;
+      }
+      const bound = fn.bind(owner);
+      ownerCache.set(fn, bound);
+      return bound;
+    };
+  };
+  const getBoundFunction = createBoundFunctionResolver();
 
   const getValue = (name: string): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
@@ -389,6 +415,7 @@ export const createReducerContext = (
     abortSignal: signal,
     getValue,
     setValue,
+    getBoundFunction,
     appendError,
     isFailed,
     newScope: () => {

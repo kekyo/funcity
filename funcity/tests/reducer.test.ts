@@ -191,6 +191,27 @@ describe('scripting reducer test', () => {
     expect(reduced).toEqual(['ABC']);
   });
 
+  it('variable node (bound method)', async () => {
+    // "{{foo.bar.get ()}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('foo.bar.get'), []),
+    ];
+
+    const variables = buildCandidateVariables({
+      foo: {
+        bar: {
+          value: 123,
+          get() {
+            return this.value;
+          },
+        },
+      },
+    });
+    const reduced = await runReducer(nodes, variables);
+
+    expect(reduced).toEqual([123]);
+  });
+
   it('variable node (conditional combine)', async () => {
     // "{{siteName?}}"
     const nodes: FunCityBlockNode[] = [variableNode('siteName?')];

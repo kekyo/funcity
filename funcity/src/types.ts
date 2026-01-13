@@ -504,6 +504,13 @@ export interface FunCityReducerContext {
    */
   readonly getValue: (name: string) => FunCityReducerContextValueResult;
   /**
+   * Get a bound function with caching for object receivers.
+   * @param owner - Method owner object
+   * @param fn - Original function
+   * @returns Bound function
+   */
+  readonly getBoundFunction: (owner: object, fn: Function) => Function;
+  /**
    * Set current context (scope) variable value.
    * @param name - Variable name
    * @param value - New value
