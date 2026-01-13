@@ -1,6 +1,6 @@
 # funcity
 
-A functional language interpreter with text processing.
+A functional language interpreter with text processing, easy embeddable!
 
 ![funcity](./images/funcity.120.png)
 
@@ -72,7 +72,22 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-In other words, funcity is an interpreter that brings the power of functional programming to text template processors, making them easier to handle!
+Furthermore, you can easily integrate this interpreter into your application:
+
+```typescript
+// Input script
+const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
+
+// Run the interpreter
+const variables = buildCandidateVariables();
+const errors: FunCityErrorInfo[] = [];
+const text = await runScriptOnce(script, variables, errors);
+
+// Display the result text
+console.log(text);
+```
+
+In other words, Funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
 
 ### Features
 
@@ -256,6 +271,16 @@ const run = async (
 Note: This code is exposed as a similar function named `runScriptOnce()`.
 That it actually converts `results` to text using `convertToString()`.
 
+### Executing Only Functional Language Syntax
+
+The previous section demonstrated how to execute Funcity scripts directly. However, you can also parse and execute only the functional language syntax within Funcity.
+This allows you to use Funcity purely as a functional language processor when text processing is not required.
+This corresponds to the CLI's REPL mode:
+
+```typescript
+TODO: Example using runCodeTokenizer, parseExpressions, reduceNode
+```
+
 ### Bind the value to a variable
 
 The reducer can accept a predefined set of variables as an argument.
@@ -295,16 +320,16 @@ const results = await runReducer(nodes, variables, errors);
   Therefore, if you write code assuming the specified type, a runtime error may occur when a value of a different type is passed by the script.
   As mentioned above, we recommend always receiving it as `unknown` and checking within the function.
 
-With this variable binding feature, your application features can be referenced inside scripts.
-If you expose the scripting capability to users, they can extend functionality however they like.
+Using this variable definition feature allows application functionality to be referenced within scripts,
+enabling users to extend the application and publish a plugin system.
 
 ### funcity Functions (Advanced Topics)
 
 A "funcity function" is not a normal JavaScript function object; it can receive nodes obtained from the parser directly as arguments.
 You can define one using `makeFunCityFunction()`.
 
-In the example below, the second argument is evaluated and returned only when the value passed to the first argument is truthy.
-With ordinary functions, all arguments are evaluated before they are passed, so a function like this can only be defined as a funcity function:
+In the example below, the second argument is reduced (evaluated) and returned only when the value passed to the first argument is truthy.
+With ordinary functions, all arguments are reduced before they are passed, so a function like this can only be defined as a funcity function:
 
 ```typescript
 const variables = buildCandidateVariables(
@@ -315,7 +340,7 @@ const variables = buildCandidateVariables(
         this: FunCityFunctionContext, // Access reducer features
         c: FunCityExpressionNode | undefined,    // First-argument node
         n: FunCityExpressionNode | undefined) {  // Second-argument node
-        // c or n is missing
+        // `c` or `n` is missing
         if (!c || !n) {
           // Record an error
           this.appendError({
@@ -326,12 +351,13 @@ const variables = buildCandidateVariables(
           // Return undefined due to the error
           return undefined;
         }
-        // Only when c is truthy
-        if (isConditionalTrue(c)) {
-          // Evaluate n and return it
+        // Only when reduced `c` is truthy
+        const cr = await this.reduce(c);
+        if (isConditionalTrue(cr)) {
+          // Reduce `n` and return it
           return await this.reduce(n);
         }
-        // When c is falsy
+        // When `c` is falsy
         return -1;
     }),
   }
@@ -345,6 +371,9 @@ const results = await runReducer(nodes, variables, errors);
 - `FunCityFunctionContext` is an interface for using some interpreter features inside funcity functions.
   It is passed as the JavaScript `this` reference, so you need to use a `function` statement and define `this` as the first argument.
   Note that you can obtain and operate on this context not only in funcity functions but also in normal functions.
+- `this.reduce()` evaluates (reduces) the specified argument node.
+  For example, if the node references a variable, the value of that variable is returned.
+  If the node indicates function application, that computation is executed and the result is returned.
 - As with normal functions, arguments might not be passed (you don't know at runtime whether the required number of arguments was provided),
   so you should assume they can be `undefined`.
 - In this example we return `undefined` when an error is recorded, but this is not required; you can return any value.

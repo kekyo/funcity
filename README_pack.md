@@ -1,6 +1,6 @@
 # funcity
 
-A functional language interpreter with text processing.
+A functional language interpreter with text processing, easy embeddable!
 
 ![funcity](./images/funcity.120.png)
 
@@ -18,7 +18,7 @@ funcity can be considered a type of [text template processor](https://en.wikiped
 For example, entering code like this:
 
 ```funcity
-Today is {{if weather.sunny}}nice{{else}}bad{{end}}weather.
+Today is {{if weather.sunny}}nice{{else}}bad{{end}} weather.
 ```
 
 Evaluates the value of the `weather` variable manually bound to the core engine beforehand and generates different text outputs:
@@ -53,7 +53,22 @@ Today is {{printWeather weather}} weather.
 - `fun` defines an anonymous lambda function.
 - `set` performs a mutable binding in the current scope.
 
-In other words, funcity is an interpreter that brings the power of functional programming to text template processors, making them easier to handle!
+Furthermore, you can easily integrate this interpreter into your application:
+
+```typescript
+// Input script
+const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
+
+// Run the interpreter
+const variables = buildCandidateVariables();
+const errors: FunCityErrorInfo[] = [];
+const text = await runScriptOnce(script, variables, errors);
+
+// Display the result text
+console.log(text);
+```
+
+In other words, Funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
 
 ### Features
 

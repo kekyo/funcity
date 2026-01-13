@@ -1,6 +1,6 @@
 # funcity
 
-テキスト処理機能を備えた関数型言語インタープリタ
+テキスト処理機能を備え容易に組み込むことができる、関数型言語インタープリタ
 
 ![funcity](./images/funcity.120.png)
 
@@ -25,7 +25,7 @@ funcityは、[テキストテンプレートプロセッサ](https://en.wikipedi
 例えば、次のようなコードを入力すると:
 
 ```funcity
-Today is {{if weather.sunny}}nice{{else}}bad{{end}}weather.
+Today is {{if weather.sunny}}nice{{else}}bad{{end}} weather.
 ```
 
 事前にコアエンジンに手動でバインドされた`weather`変数の値を評価し、異なるテキスト出力を生成します:
@@ -70,7 +70,23 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-つまり、テキストテンプレートプロセッサに関数型言語のパワーを持ち込んだ処理系が、funcityです!
+更に、このインタープリタを、あなたのアプリケーションに簡単に組み込むことが出来ます:
+
+```typescript
+// 入力スクリプト
+const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
+
+// インタープリタを実行
+const variables = buildCandidateVariables();
+const errors: FunCityErrorInfo[] = [];
+const text = await runScriptOnce(script, variables, errors);
+
+// 結果の表示
+console.log(text);
+```
+
+つまり、テキストテンプレートプロセッサに関数型言語のパワーを持ち込み、
+簡単にアプリケーションへの組み込む事ができる処理系が、funcityです!
 
 ### 特徴
 
@@ -249,6 +265,14 @@ const run = async (
 注意: このコードは、同様の関数が `runScriptOnce()` として公開されています。
 実際には `results` を、`convertToString()` を使用してテキスト化していることに注意してください。　
 
+### 関数型言語構文のみを実行する
+
+前節では、funcityスクリプトをそのまま実行する方法を示しましたが、funcityの関数型言語構文のみを解析して実行させることも出来ます。
+テキストプロセッシングを必要としない場合に、funcityを純粋に関数型言語処理系として使用します。
+CLIのREPLモードに相当します:
+
+TODO: runCodeTokenizer, parseExpressions, reduceNodeを使って実行する例
+
 ### 値を変数にバインド
 
 インタープリタは、引数に定義済みの変数群を渡すことができます。
@@ -286,10 +310,10 @@ const results = await runReducer(nodes, variables, errors);
   これにより、インタープリタが内部で適切に非同期関数の遅延継続を行うので、I/O操作を含むどのような処理でも実現できます。
 - 関数の引数の型を明示的に指定することもできますが、インタープリタはこの型を検査しません。
   したがって、指定した型を前提にコードを記述すると、スクリプトによって異なる型の値が渡された時に実行時エラーが発生するかもしれません。
-  上記のように、常に`unkwnown`として受け取り、関数内で判定することをおすすめします。
+  上記のように、常に`unknown`として受け取り、関数内で判定することをおすすめします。
 
-この変数定義機能を使用すれば、あなたのアプリケーションの機能をスクリプト内で参照できるようになるため、
-スクリプトの記述機能をユーザーに公開すれば、ユーザーが好きなように機能を拡張出来ることになります。
+この変数定義機能を使用すれば、アプリケーションの機能をスクリプト内で参照できるようになるため、
+ユーザーがアプリケーションを拡張出来る、プラグインシステムを公開できることになります。
 
 ### funcity関数 (高度なトピック)
 
@@ -319,8 +343,9 @@ const variables = buildCandidateVariables(
           // エラーなのでundefinedを返す
           return undefined;
         }
-        // cが真の場合のみ
-        if (isConditionalTrue(c)) {
+        // cを評価し、真の場合のみ
+        const cr = await this.reduce(c);
+        if (isConditionalTrue(cr)) {
           // nを評価して返す
           return await this.reduce(n);
         }
@@ -338,6 +363,9 @@ const results = await runReducer(nodes, variables, errors);
 - `FunCityFunctionContext` は、インタープリタの一部の機能をfuncity関数内で使用するためのインターフェイスです。
   これは JavaScript `this` 参照として渡されれるため、 `function` 文を使用してかつ第1引数に `this` を定義する必要があります。
   なお、これはfuncity関数だけでなく、通常の関数でも取得して操作できます。
+- `this.reduce()` は、指定された引数のノードを評価（計算）します。
+  例えば、そのノードが変数を参照している場合は、その変数の値が返されます。
+  ノードが関数適用を示していれば、その計算が実行され、結果が返されます。
 - 通常の関数と同様に、引数が渡されていない（必要な個数の引数が渡されているかどうかは、実行時までわからない）可能性があるため、
   `undefined` であることを想定する必要があります。
 - エラーを記録した場合に `undefined` を返していますが、これは必須事項ではなく、任意の値を返すことが出来ます。
