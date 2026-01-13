@@ -79,7 +79,7 @@ const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
 // インタープリタを実行
 const variables = buildCandidateVariables();
 const errors: FunCityErrorInfo[] = [];
-const text = await runScriptOnce(script, variables, errors);
+const text = await runScriptOnceToText(script, variables, errors);
 
 // 結果の表示
 console.log(text);

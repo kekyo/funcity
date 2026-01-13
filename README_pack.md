@@ -62,7 +62,7 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 // Run the interpreter
 const variables = buildCandidateVariables();
 const errors: FunCityErrorInfo[] = [];
-const text = await runScriptOnce(script, variables, errors);
+const text = await runScriptOnceToText(script, variables, errors);
 
 // Display the result text
 console.log(text);
