@@ -268,7 +268,7 @@ const run = async (
 - Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
   Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
-Note: This code is exposed as a similar function named `runScriptOnce()`.
+Note: This code is exposed as a similar function named `runScriptOnce()` and  `runScriptOnceToText()`.
 That it actually converts `results` to text using `convertToString()`.
 
 ### Executing Only Functional Language Syntax

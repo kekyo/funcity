@@ -14,10 +14,8 @@ import {
   outputErrors,
   parseExpressions,
   reduceNode,
-  runParser,
-  runReducer,
-  runTokenizer,
   runCodeTokenizer,
+  runScriptOnceToText,
 } from 'funcity';
 import type {
   FunCityBlockNode,
@@ -94,23 +92,6 @@ export const createReplSession = (): ReplSession => {
   return { evaluateLine };
 };
 
-export interface ScriptRunResult {
-  readonly output: string;
-  readonly errors: FunCityErrorInfo[];
-}
-
-export const runScriptText = async (
-  script: string
-): Promise<ScriptRunResult> => {
-  const errors: FunCityErrorInfo[] = [];
-  const variables = buildCandidateVariables();
-  const tokens = runTokenizer(script, errors);
-  const nodes = runParser(tokens, errors);
-  const results = await runReducer(nodes, variables, errors);
-  const output = results.map((result) => convertToString(result)).join('');
-  return { output, errors };
-};
-
 const runRepl = async (): Promise<void> => {
   const session = createReplSession();
 
@@ -173,6 +154,13 @@ const runRepl = async (): Promise<void> => {
   rl.close();
 };
 
+export const runScriptToText = async (script: string) => {
+  const variables = buildCandidateVariables();
+  const errors: FunCityErrorInfo[] = [];
+  const output = await runScriptOnceToText(script, { variables, errors });
+  return { output, errors };
+};
+
 const runScript = async (input: string): Promise<void> => {
   const isStdin = input === '-';
   const source = isStdin ? '<stdin>' : input;
@@ -180,14 +168,15 @@ const runScript = async (input: string): Promise<void> => {
     ? await readStream(process.stdin)
     : await readFile(input, 'utf8');
 
-  const { output, errors } = await runScriptText(script);
-  const hasError = outputErrors(source, errors);
+  const { output, errors } = await runScriptToText(script);
+
+  const hasError = outputErrors(source, errors, console);
+  if (hasError) {
+    process.exitCode = 1;
+  }
 
   if (output) {
     process.stdout.write(output);
-  }
-  if (hasError) {
-    process.exitCode = 1;
   }
 };
 

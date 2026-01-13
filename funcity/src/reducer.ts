@@ -19,6 +19,8 @@ import {
   asIterable,
   isConditionalTrue,
   isFunCityFunction,
+  internalCreateFunctionIdGenerator,
+  internalConvertToString,
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -308,19 +310,19 @@ const createScopedReducerContext = (
   const createFunctionContext = (
     thisNode: FunCityExpressionNode
   ): FunCityFunctionContext => {
-    const newContext: FunCityFunctionContext = {
+    return {
       thisNode,
       abortSignal: parent.abortSignal,
       getValue,
       setValue,
       isFailed: parent.isFailed,
       appendError: parent.appendError,
+      convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) => {
         parent.abortSignal?.throwIfAborted();
         return reduceExpressionNode(thisContext, node);
       },
     };
-    return newContext;
   };
 
   thisContext = {
@@ -333,6 +335,7 @@ const createScopedReducerContext = (
       parent.abortSignal?.throwIfAborted();
       return createScopedReducerContext(thisContext);
     },
+    convertToString: parent.convertToString,
     createFunctionContext,
   };
   return thisContext;
@@ -364,7 +367,7 @@ export const createReducerContext = (
     }
   };
 
-  const setValue = (name: string, value: unknown) => {
+  const setValue = (name: string, value: unknown): void => {
     signal?.throwIfAborted();
     if (!thisVars) {
       thisVars = new Map();
@@ -372,30 +375,35 @@ export const createReducerContext = (
     thisVars.set(name, value);
   };
 
-  const appendError = (error: FunCityErrorInfo) => {
+  const appendError = (error: FunCityErrorInfo): void => {
     errors.push(error);
   };
 
-  const isFailed = () => {
+  const isFailed = (): boolean => {
     return errors.some((error) => error.type === 'error');
+  };
+
+  const getFuncId = internalCreateFunctionIdGenerator();
+  const convertToString = (v: unknown): string => {
+    return internalConvertToString(v, getFuncId);
   };
 
   const createFunctionContext = (
     thisNode: FunCityExpressionNode
   ): FunCityFunctionContext => {
-    const newContext: FunCityFunctionContext = {
+    return {
       thisNode,
       abortSignal: signal,
       getValue,
       setValue,
       isFailed,
       appendError,
+      convertToString,
       reduce: (node: FunCityExpressionNode) => {
         signal?.throwIfAborted();
         return reduceExpressionNode(thisContext, node);
       },
     };
-    return newContext;
   };
 
   thisContext = {
@@ -408,6 +416,7 @@ export const createReducerContext = (
       signal?.throwIfAborted();
       return createScopedReducerContext(thisContext);
     },
+    convertToString,
     createFunctionContext,
   };
   return thisContext;

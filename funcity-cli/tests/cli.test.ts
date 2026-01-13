@@ -4,7 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import { describe, expect, it } from 'vitest';
-import { createReplSession, runScriptText } from '../src/cli';
+import { createReplSession, runScriptToText } from '../src/cli';
 
 describe('funcity-cli repl', () => {
   it('evaluates code and keeps bindings', async () => {
@@ -29,16 +29,16 @@ describe('funcity-cli repl', () => {
 
 describe('funcity-cli run', () => {
   it('executes script with text blocks', async () => {
-    const result = await runScriptText('Hello {{add 1 2}}');
+    const result = await runScriptToText('Hello {{add 1 2}}');
     expect(result.errors).toEqual([]);
     expect(result.output).toBe('Hello 3');
   });
 
   it('executes Fibonacci example from README', async () => {
     const script = `{{\nset fib (fun n \\\n  (cond (le n 1) \\\n    n \\\n    (add (fib (sub n 1)) (fib (sub n 2)))))\n}}\nFibonacci (10) = {{fib 10}}\n`;
-    const result = await runScriptText(script);
+    const result = await runScriptToText(script);
 
     expect(result.errors).toEqual([]);
-    expect(result.output.trim()).toBe('Fibonacci (10) = 55');
+    expect(result.output?.trim()).toBe('Fibonacci (10) = 55');
   });
 });
