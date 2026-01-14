@@ -9,10 +9,24 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import process from 'process';
 import * as nodeReadline from 'readline';
+import { createRequire } from 'module';
 
 import type { FunCityFunctionContext } from '../types';
 
 //////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Create a Node.js require function bound to a base directory.
+ * @param basePath - Base directory for module resolution.
+ * @returns The require function bound to basePath.
+ */
+export const createRequireFunction = (
+  basePath?: string
+): ReturnType<typeof createRequire> => {
+  const baseDir = path.resolve(basePath ?? process.cwd());
+  const entryPath = path.join(baseDir, '__funcity__.js');
+  return createRequire(entryPath);
+};
 
 /**
  * Built-in Node.js variables and functions.

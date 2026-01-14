@@ -4,6 +4,9 @@
 // https://github.com/kekyo/funcity/
 
 import { describe, expect, it } from 'vitest';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { createReplSession, runScriptToText } from '../src/cli';
 
 describe('funcity-cli repl', () => {
@@ -32,6 +35,24 @@ describe('funcity-cli run', () => {
     const result = await runScriptToText('Hello {{add 1 2}}');
     expect(result.logs).toEqual([]);
     expect(result.output).toBe('Hello 3');
+  });
+
+  it('executes script that uses require', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'funcity-cli-'));
+    try {
+      const modulePath = path.join(dir, 'sample.cjs');
+      await fs.writeFile(
+        modulePath,
+        "module.exports = { value: 'ok' };",
+        'utf8'
+      );
+      const script = "{{set mod (require './sample.cjs')}}{{mod.value}}";
+      const result = await runScriptToText(script, dir);
+      expect(result.logs).toEqual([]);
+      expect(result.output).toBe('ok');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('executes Fibonacci example from README', async () => {

@@ -4,6 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import { readFile } from 'fs/promises';
+import * as path from 'path';
 import readline from 'readline';
 import { Command, Option } from 'commander';
 
@@ -29,7 +30,7 @@ import {
   runCodeTokenizer,
   runScriptOnceToText,
 } from 'funcity';
-import { nodeJsVariables } from 'funcity/node';
+import { createRequireFunction, nodeJsVariables } from 'funcity/node';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +160,9 @@ export interface ReplSession {
 export const createReplSession = (): ReplSession => {
   const exitSymbol = Symbol('exit');
   const replReadline = createReplReadline();
+  const require = createRequireFunction();
   const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
+    require,
     prompt: 'funcity> ',
     exit: exitSymbol,
     readline: replReadline,
@@ -356,8 +359,11 @@ const runRepl = async (): Promise<void> => {
 
 //////////////////////////////////////////////////////////////////////////////
 
-export const runScriptToText = async (script: string) => {
-  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables);
+export const runScriptToText = async (script: string, basePath?: string) => {
+  const require = createRequireFunction(basePath);
+  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
+    require,
+  });
   const logs: FunCityLogEntry[] = [];
   const output = await runScriptOnceToText(script, { variables, logs });
   return { output, logs };
@@ -370,7 +376,8 @@ const runScript = async (input: string): Promise<void> => {
     ? await readStream(process.stdin)
     : await readFile(input, 'utf8');
 
-  const { output, logs } = await runScriptToText(script);
+  const basePath = isStdin ? process.cwd() : path.dirname(path.resolve(input));
+  const { output, logs } = await runScriptToText(script, basePath);
 
   const hasError = outputErrors(source, logs, console);
   if (hasError) {

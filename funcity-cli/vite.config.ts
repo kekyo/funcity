@@ -41,6 +41,8 @@ export default defineConfig({
         'fs/promises',
         'commander',
         'funcity',
+        'funcity/node',
+        'module',
         'path',
         'os',
         'crypto',

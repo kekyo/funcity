@@ -10,7 +10,10 @@ import * as nodeOs from 'os';
 
 import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
 import { runReducer } from '../../src/reducer';
-import { nodeJsVariables } from '../../src/variables/nodejs-variables';
+import {
+  createRequireFunction,
+  nodeJsVariables,
+} from '../../src/variables/nodejs-variables';
 import { buildCandidateVariables } from '../../src/variables/standard-variables';
 import { applyNode, stringNode } from '../test-utils';
 
@@ -47,6 +50,23 @@ describe('nodejs variables test', () => {
   it('process.cwd', async () => {
     const value = await reduceSingle(applyNode('process.cwd', []));
     expect(value).toBe(process.cwd());
+  });
+
+  it('createRequireFunction resolves from basePath', async () => {
+    const dir = await fs.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'funcity-'));
+    try {
+      const modulePath = nodePath.join(dir, 'sample.cjs');
+      await fs.writeFile(
+        modulePath,
+        "module.exports = { value: 'hello' };",
+        'utf8'
+      );
+      const requireFromDir = createRequireFunction(dir);
+      const result = requireFromDir('./sample.cjs') as { value: string };
+      expect(result.value).toBe('hello');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('fs.readFile/writeFile', async () => {

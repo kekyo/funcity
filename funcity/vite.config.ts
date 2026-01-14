@@ -39,7 +39,15 @@ export default defineConfig({
       formats: ['es', 'cjs'],
     },
     rollupOptions: {
-      external: ['fs/promises', 'path', 'os', 'crypto', 'process', 'readline'],
+      external: [
+        'fs/promises',
+        'path',
+        'os',
+        'crypto',
+        'process',
+        'readline',
+        'module',
+      ],
     },
     target: 'es2018',
     sourcemap: true,
