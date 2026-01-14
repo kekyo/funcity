@@ -10,6 +10,7 @@ import { Command, Option } from 'commander';
 import * as packageMetadata from './generated/packageMetadata';
 import {
   FunCityBlockNode,
+  FunCityFunctionContext,
   FunCityLogEntry,
   FunCityReducerError,
   FunCityReducerContext,
@@ -33,6 +34,76 @@ import {
 //////////////////////////////////////////////////////////////////////////////
 
 const continuationPromptText = '? ';
+
+let replReadlineInterface: readline.Interface | undefined;
+
+const createReplReadline = () => {
+  const fallbackReadline = nodeJsVariables.readline as (
+    this: FunCityFunctionContext,
+    prompt?: unknown
+  ) => Promise<string>;
+
+  return async function (this: FunCityFunctionContext, prompt?: unknown) {
+    if (!replReadlineInterface) {
+      return await fallbackReadline.call(this, prompt);
+    }
+
+    const question = prompt === undefined ? '' : this.convertToString(prompt);
+    const signal = this.abortSignal;
+
+    if (signal?.aborted) {
+      const abortError = new Error('Aborted');
+      (abortError as { name?: string }).name = 'AbortError';
+      throw abortError;
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const rl = replReadlineInterface!;
+      let settled = false;
+
+      const cleanup = () => {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+      };
+
+      const finishResolve = (value: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const finishReject = (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      const onAbort = () => {
+        const abortError = new Error('Aborted');
+        (abortError as { name?: string }).name = 'AbortError';
+        finishReject(abortError);
+      };
+
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+        rl.question(question, { signal }, (answer) => {
+          finishResolve(answer);
+        });
+      } else {
+        rl.question(question, (answer) => {
+          finishResolve(answer);
+        });
+      }
+    });
+  };
+};
 
 const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
   return await new Promise((resolve, reject) => {
@@ -87,9 +158,11 @@ export interface ReplSession {
 
 export const createReplSession = (): ReplSession => {
   const exitSymbol = Symbol('exit');
+  const replReadline = createReplReadline();
   const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
     prompt: 'funcity> ',
     exit: exitSymbol,
+    readline: replReadline,
   });
 
   const warningLogs: FunCityWarningEntry[] = [];
@@ -180,6 +253,7 @@ const runRepl = async (): Promise<void> => {
     output: process.stdout,
     prompt: await session.getPrompt(),
   });
+  replReadlineInterface = rl;
 
   let bufferedLine = '';
   let isEvaluating = false;
@@ -277,6 +351,7 @@ const runRepl = async (): Promise<void> => {
   }
 
   rl.close();
+  replReadlineInterface = undefined;
 };
 
 //////////////////////////////////////////////////////////////////////////////
