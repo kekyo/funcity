@@ -205,6 +205,38 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('code token with line comment', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer('foo // bar\nbaz', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        range: {
+          start: { line: 1, column: 11 },
+          end: { line: 1, column: 11 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'baz',
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 3 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('member access variable token', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runTokenizer('{{foo.bar}}', logs);

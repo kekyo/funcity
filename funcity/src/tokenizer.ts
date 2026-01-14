@@ -313,6 +313,19 @@ const tokenizeCodeTokens = (
       }
     }
 
+    if (ch === '/' && context.cursor.getChar(1) === '/') {
+      finalizeUnknown();
+      context.cursor.skip(2);
+      while (!context.cursor.eot()) {
+        const commentCh = context.cursor.getChar();
+        if (commentCh === '\n' || commentCh === '\r') {
+          break;
+        }
+        context.cursor.skip(1);
+      }
+      continue;
+    }
+
     // Read string
     if (ch === "'") {
       finalizeUnknown();
