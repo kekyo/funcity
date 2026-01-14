@@ -3,6 +3,8 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
+import { FunCityFunctionContext } from './types';
+
 //////////////////////////////////////////////////////////////////////////////
 
 type FetchFunction = (
@@ -18,25 +20,64 @@ const getFetch = (): FetchFunction => {
   return fetchFn;
 };
 
-const _fetch = async (input: unknown, init?: unknown) => {
+const combineAbortSignal = (
+  init: RequestInit,
+  signal: AbortSignal | undefined
+) => {
+  const _init: RequestInit = init
+    ? {
+        ...init,
+        signal,
+      }
+    : {
+        signal,
+      };
+  return _init;
+};
+
+async function _fetch(
+  this: FunCityFunctionContext,
+  input: unknown,
+  init: unknown
+) {
+  const _init = combineAbortSignal(init as any, this.abortSignal);
   const fetchFn = getFetch();
-  return await fetchFn(input as any, init as any);
-};
+  const res = await fetchFn(input as any, _init);
+  return res;
+}
 
-const _fetchText = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
+async function _fetchText(
+  this: FunCityFunctionContext,
+  input: unknown,
+  init: unknown
+) {
+  const _init = combineAbortSignal(init as any, this.abortSignal);
+  const fetchFn = getFetch();
+  const res = await fetchFn(input as any, _init);
   return await res.text();
-};
+}
 
-const _fetchJson = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
+async function _fetchJson(
+  this: FunCityFunctionContext,
+  input: unknown,
+  init: unknown
+) {
+  const _init = combineAbortSignal(init as any, this.abortSignal);
+  const fetchFn = getFetch();
+  const res = await fetchFn(input as any, _init);
   return await res.json();
-};
+}
 
-const _fetchBlob = async (input: unknown, init?: unknown) => {
-  const res = await _fetch(input, init);
+async function _fetchBlob(
+  this: FunCityFunctionContext,
+  input: unknown,
+  init: unknown
+) {
+  const _init = combineAbortSignal(init as any, this.abortSignal);
+  const fetchFn = getFetch();
+  const res = await fetchFn(input as any, _init);
   return await res.blob();
-};
+}
 
 //////////////////////////////////////////////////////////////////////////////
 
