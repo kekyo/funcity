@@ -670,7 +670,7 @@ Node-only entry to avoid pulling Node built-ins into projects that do not use th
 | `crypto` | `crypto` object. |
 | `process` | `process` object. |
 | `console` | `console` object. |
-| `readline` | Read a line from console input (optional prompt). |
+| `readline` | Read a line from console input (optional prompt parameter). |
 
 ```typescript
 import { buildCandidateVariables } from 'funcity';
@@ -686,6 +686,7 @@ For example:
 
 ```funcity
 {{console.error 'Fatal meltdown detected.'}}
+{{set persons (toNumber (readline 'How many people? '))}}
 {{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 

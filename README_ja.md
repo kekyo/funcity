@@ -658,7 +658,7 @@ Node.js を使わないプロジェクトに影響しないよう、`funcity/nod
 | `crypto` | `crypto`オブジェクト |
 | `process` | `process` オブジェクト |
 | `console` | `console` オブジェクト |
-| `readline` | コンソールから1行入力を受け取る関数（プロンプトは任意） |
+| `readline` | コンソールから1行入力を受け取る関数（プロンプト引数は任意） |
 
 ```typescript
 import { buildCandidateVariables } from 'funcity';
@@ -674,6 +674,7 @@ const variables = buildCandidateVariables(nodeJsVariables);
 
 ```funcity
 {{console.error 'Fatal meltdown detected.'}}
+{{set persons (toNumber (readline 'How many people? '))}}
 {{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 
