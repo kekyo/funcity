@@ -271,7 +271,7 @@ export const internalCreateFunctionIdGenerator = () => {
   return getFuncId;
 };
 
-const getFuncId = internalCreateFunctionIdGenerator();
+const getGlobalFuncId = internalCreateFunctionIdGenerator();
 
 /**
  * Convert to string.
@@ -279,4 +279,4 @@ const getFuncId = internalCreateFunctionIdGenerator();
  * @returns String
  */
 export const convertToString = (v: unknown): string =>
-  internalConvertToString(v, getFuncId);
+  internalConvertToString(v, getGlobalFuncId);

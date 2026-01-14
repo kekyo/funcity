@@ -15,13 +15,15 @@ import { buildCandidateVariables } from './standard-variables';
  * Simply runs a script once.
  * @param script Input script text.
  * @param props - Runner properties.
+ * @param signal - AbortSignal when available.
  * @returns Result text when reducer is completed
  */
 export const runScriptOnce = async (
   script: string,
-  props: FunCityOnceRunnerProps
+  props: FunCityOnceRunnerProps,
+  signal?: AbortSignal
 ): Promise<unknown[]> => {
-  const { variables = buildCandidateVariables(), errors = [], signal } = props;
+  const { variables = buildCandidateVariables(), errors = [] } = props;
 
   const tokens = runTokenizer(script, errors);
   const nodes = runParser(tokens, errors);
@@ -29,11 +31,11 @@ export const runScriptOnce = async (
     return [];
   }
 
-  const reducerContext = createReducerContext(variables, signal);
+  const reducerContext = createReducerContext(variables);
   const resultList: unknown[] = [];
   try {
     for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node);
+      const results = await reduceNode(reducerContext, node, signal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);
@@ -55,13 +57,15 @@ export const runScriptOnce = async (
  * Simply runs a script once.
  * @param script Input script text.
  * @param props - Runner properties.
+ * @param signal - AbortSignal when available.
  * @returns Result text when reducer is completed
  */
 export const runScriptOnceToText = async (
   script: string,
-  props: FunCityOnceRunnerProps
+  props: FunCityOnceRunnerProps,
+  signal?: AbortSignal
 ): Promise<string | undefined> => {
-  const { variables = buildCandidateVariables(), errors = [], signal } = props;
+  const { variables = buildCandidateVariables(), errors = [] } = props;
 
   const tokens = runTokenizer(script, errors);
   const nodes = runParser(tokens, errors);
@@ -69,11 +73,11 @@ export const runScriptOnceToText = async (
     return undefined;
   }
 
-  const reducerContext = createReducerContext(variables, signal);
+  const reducerContext = createReducerContext(variables);
   const resultList: unknown[] = [];
   try {
     for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node);
+      const results = await reduceNode(reducerContext, node, signal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);

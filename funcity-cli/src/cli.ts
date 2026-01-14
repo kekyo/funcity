@@ -6,7 +6,14 @@
 import { readFile } from 'fs/promises';
 import readline from 'readline';
 import { Command, Option } from 'commander';
+
 import * as packageMetadata from './generated/packageMetadata';
+import {
+  FunCityBlockNode,
+  FunCityErrorInfo,
+  FunCityReducerError,
+  FunCityReducerContext,
+} from 'funcity';
 import {
   buildCandidateVariables,
   convertToString,
@@ -21,12 +28,8 @@ import {
   runCodeTokenizer,
   runScriptOnceToText,
 } from 'funcity';
-import {
-  FunCityBlockNode,
-  FunCityErrorInfo,
-  FunCityReducerError,
-  FunCityReducerContext,
-} from 'funcity';
+
+//////////////////////////////////////////////////////////////////////////////
 
 const continuationPromptText = '? ';
 
@@ -50,11 +53,12 @@ const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
 
 const reduceAndCollectResults = async (
   context: FunCityReducerContext,
-  nodes: readonly FunCityBlockNode[]
+  nodes: readonly FunCityBlockNode[],
+  signal: AbortSignal
 ): Promise<unknown[]> => {
   const resultList: unknown[] = [];
   for (const node of nodes) {
-    const results = await reduceNode(context, node);
+    const results = await reduceNode(context, node, signal);
     for (const result of results) {
       if (result !== undefined) {
         resultList.push(result);
@@ -64,26 +68,33 @@ const reduceAndCollectResults = async (
   return resultList;
 };
 
+//////////////////////////////////////////////////////////////////////////////
+
 export interface ReplEvaluationResult {
   readonly output: string | undefined;
   readonly errors: FunCityErrorInfo[];
 }
 
 export interface ReplSession {
+  evaluateLine: (
+    line: string,
+    signal: AbortSignal
+  ) => Promise<ReplEvaluationResult>;
   getPrompt: () => Promise<string>;
-  evaluateLine: (line: string) => Promise<ReplEvaluationResult>;
 }
 
 export const createReplSession = (): ReplSession => {
-  const variables = buildCandidateVariables(
-    fetchVariables, nodeJsVariables, {
-      prompt: 'funcity> ',
-    });
+  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
+    prompt: 'funcity> ',
+  });
 
   const errors: FunCityErrorInfo[] = [];
   const reducerContext = createReducerContext(variables);
 
-  const evaluateLine = async (line: string): Promise<ReplEvaluationResult> => {
+  const evaluateLine = async (
+    line: string,
+    signal: AbortSignal
+  ): Promise<ReplEvaluationResult> => {
     errors.length = 0;
     const tokens = runCodeTokenizer(line, errors);
     const nodes = parseExpressions(tokens, errors);
@@ -94,7 +105,11 @@ export const createReplSession = (): ReplSession => {
       };
     }
     try {
-      const results = await reduceAndCollectResults(reducerContext, nodes);
+      const results = await reduceAndCollectResults(
+        reducerContext,
+        nodes,
+        signal
+      );
       const output =
         results.length > 0
           ? results.map((result) => convertToString(result)).join('\n')
@@ -145,9 +160,9 @@ const runRepl = async (): Promise<void> => {
 
   const hasLineContinuation = (line: string): boolean => line.endsWith('\\');
 
-  const evaluateAndPrint = async (line: string) => {
+  const evaluateAndPrint = async (line: string, signal: AbortSignal) => {
     try {
-      const { output, errors } = await session.evaluateLine(line);
+      const { output, errors } = await session.evaluateLine(line, signal);
       if (errors.length > 0) {
         outputErrors('<repl>', errors, console);
       }
@@ -162,6 +177,9 @@ const runRepl = async (): Promise<void> => {
 
   await setPrompt(false);
   rl.prompt();
+
+  // TODO: interruption control
+  const abortController = new AbortController();
 
   for await (const line of rl) {
     if (bufferedLine) {
@@ -178,17 +196,19 @@ const runRepl = async (): Promise<void> => {
 
     const logicalLine = bufferedLine;
     bufferedLine = '';
-    await evaluateAndPrint(logicalLine);
+    await evaluateAndPrint(logicalLine, abortController.signal);
     await setPrompt(false);
     rl.prompt();
   }
 
   if (bufferedLine) {
-    await evaluateAndPrint(bufferedLine);
+    await evaluateAndPrint(bufferedLine, abortController.signal);
   }
 
   rl.close();
 };
+
+//////////////////////////////////////////////////////////////////////////////
 
 export const runScriptToText = async (script: string) => {
   const variables = buildCandidateVariables(fetchVariables, nodeJsVariables);
@@ -215,6 +235,8 @@ const runScript = async (input: string): Promise<void> => {
     process.stdout.write(output);
   }
 };
+
+//////////////////////////////////////////////////////////////////////////////
 
 const findExplicitCommand = (
   args: readonly string[]

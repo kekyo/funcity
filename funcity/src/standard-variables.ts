@@ -148,7 +148,11 @@ const _fun = makeFunCityFunction(async function (
 
     const newContext = createScope();
     for (let index = 0; index < nameNodes.length; index++) {
-      newContext.setValue(nameNodes[index]!.name, args[index]);
+      newContext.setValue(
+        nameNodes[index]!.name,
+        args[index],
+        this.abortSignal
+      );
     }
     const result = await reduceExpressionNode(newContext, bodyNode);
     return result;

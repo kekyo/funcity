@@ -493,16 +493,26 @@ export interface FunCityFunctionContext {
  */
 export interface FunCityReducerContext {
   /**
-   * Get current abort signal object.
-   * @returns AbortSignal when available.
-   */
-  readonly abortSignal: AbortSignal | undefined;
-  /**
    * Get current context (scope) variable value.
    * @param name - Variable name
+   * @param signal - AbortSignal when available.
    * @returns Variable value information
    */
-  readonly getValue: (name: string) => FunCityReducerContextValueResult;
+  readonly getValue: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => FunCityReducerContextValueResult;
+  /**
+   * Set current context (scope) variable value.
+   * @param name - Variable name
+   * @param value - New value
+   * @param signal - AbortSignal when available.
+   */
+  readonly setValue: (
+    name: string,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ) => void;
   /**
    * Get a bound function with caching for object receivers.
    * @param owner - Method owner object
@@ -510,12 +520,6 @@ export interface FunCityReducerContext {
    * @returns Bound function
    */
   readonly getBoundFunction: (owner: object, fn: Function) => Function;
-  /**
-   * Set current context (scope) variable value.
-   * @param name - Variable name
-   * @param value - New value
-   */
-  readonly setValue: (name: string, value: unknown) => void;
   /**
    * Append context error.
    * @param error - Error or warning information.
@@ -528,9 +532,10 @@ export interface FunCityReducerContext {
   readonly isFailed: () => boolean;
   /**
    * Create new scoped context.
+   * @param signal - AbortSignal when available.
    * @returns New reducer context.
    */
-  readonly newScope: () => FunCityReducerContext;
+  readonly newScope: (signal: AbortSignal | undefined) => FunCityReducerContext;
   /**
    * Convert a value to string.
    * @param v - A value
@@ -540,10 +545,12 @@ export interface FunCityReducerContext {
   /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
+   * @param signal - AbortSignal when available.
    * @returns Native function context proxy instance.
    */
   readonly createFunctionContext: (
-    thisNode: FunCityExpressionNode
+    thisNode: FunCityExpressionNode,
+    signal: AbortSignal | undefined
   ) => FunCityFunctionContext;
 }
 
@@ -561,8 +568,4 @@ export interface FunCityOnceRunnerProps {
    * Will be stored detected warnings/errors into it.
    */
   errors?: FunCityErrorInfo[];
-  /**
-   * Abort signal.
-   */
-  signal?: AbortSignal;
 }
