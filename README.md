@@ -657,26 +657,44 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLI includes `fetchVariables` by default.
 
-### Node.js Variables
+### require (Node.js)
 
-`nodeJsVariables` exposes Node.js built-ins for script bindings. Import it from the
-Node-only entry to avoid pulling Node built-ins into projects that do not use them:
+`createRequireFunction` creates a Node.js `require` function bound to a base
+directory. Import it from the Node-only entry to avoid pulling Node built-ins
+into projects that do not use them:
 
-| Object | Description |
-| :--- | :--- |
-| `fs` | `fs/promises` object. |
-| `path` | `path` object. |
-| `os` | `os` object. |
-| `crypto` | `crypto` object. |
-| `process` | `process` object. |
-| `console` | `console` object. |
-| `readline` | Read a line from console input (optional prompt parameter). |
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const require = createRequireFunction('/path/to/script/dir');
+// const require = createRequireFunction(); // defaults to process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+For example:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+CLI includes `require` by default. Script execution resolves modules from the
+script directory, while REPL uses the current working directory.
+
+### readline (Node.js)
+
+`nodeJsVariables` exposes a `readline` function for reading a single line from
+stdin (optional prompt). Import it from the Node-only entry to avoid pulling
+Node built-ins into projects that do not use them:
 
 ```typescript
 import { buildCandidateVariables } from 'funcity';
 import { nodeJsVariables } from 'funcity/node';
 
-// Enable Node.js built-in feature symbols
 const variables = buildCandidateVariables(nodeJsVariables);
 
 // ...
@@ -685,12 +703,38 @@ const variables = buildCandidateVariables(nodeJsVariables);
 For example:
 
 ```funcity
-{{console.error 'Fatal meltdown detected.'}}
 {{set persons (toNumber (readline 'How many people? '))}}
-{{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 
-CLI includes `nodeJsVariables` by default.
+Additionally, `createRequireFunction` generates a Node.js `require` function that resolves modules relative to a specified directory.
+Making this function available allows scripts to dynamically load NPM modules.
+
+However, modules must be either Node.js default modules or located within the `node_modules/` directory of the specified directory:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const _require = createRequireFunction(
+  '/path/to/script/dir');  // If not specified, use `process.cwd()`
+
+const variables = {
+  require: _require,
+};
+
+// ...
+```
+
+For example:
+
+```funcity
+{{
+set fs (require 'fs/promises')
+fs.readFile '/foo/bar/text' 'utf-8'
+}}
+```
+
+CLI includes both `readline` and `require` by default.
 
 ---
 

@@ -645,26 +645,48 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLIは `fetchVariables` を既定で含みます。
 
+### require (Node.js)
+
+`createRequireFunction` は、指定ディレクトリを基点に解決する
+Node.js の `require` 関数を生成します。Node.js を使わないプロジェクトに
+影響しないよう、`funcity/node` から import します:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const require = createRequireFunction('/path/to/script/dir');
+// const require = createRequireFunction(); // 未指定時は process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+CLIは `require` を既定で含みます。スクリプト実行時はスクリプトの
+ディレクトリ、REPLはカレントディレクトリを基点に解決されます。
+
 ### Node.js 変数
 
-`nodeJsVariables` は、Node.js の組み込み機能をバインド用に公開します。
-Node.js を使わないプロジェクトに影響しないよう、`funcity/node` から import します:
+`nodeJsVariables` は、標準入力から1行読み取る `readline` 関数を公開します
+（プロンプト引数は任意）。Node.js を使わないプロジェクトに影響しないよう、
+`funcity/node` から import します:
 
-| オブジェクト | 説明 |
+| 関数 | 説明 |
 | :--- | :--- |
-| `fs` | `fs/promises` オブジェクト |
-| `path` | `path` オブジェクト |
-| `os` | `os` オブジェクト |
-| `crypto` | `crypto`オブジェクト |
-| `process` | `process` オブジェクト |
-| `console` | `console` オブジェクト |
 | `readline` | コンソールから1行入力を受け取る関数（プロンプト引数は任意） |
 
 ```typescript
 import { buildCandidateVariables } from 'funcity';
 import { nodeJsVariables } from 'funcity/node';
 
-// Node.jsの組み込み機能シンボルを使用可能にする
 const variables = buildCandidateVariables(nodeJsVariables);
 
 // ...
@@ -673,12 +695,38 @@ const variables = buildCandidateVariables(nodeJsVariables);
 例えば、以下のように使用します:
 
 ```funcity
-{{console.error 'Fatal meltdown detected.'}}
 {{set persons (toNumber (readline 'How many people? '))}}
-{{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 
-CLIは `nodeJsVariables` を既定で含みます。
+また、 `createRequireFunction` は、指定ディレクトリを基点に解決する Node.js の `require` 関数を生成します。
+この関数を参照可能にすれば、スクリプトから動的にNPMモジュールをロードできます。
+
+但し、参照可能なモジュールは、Node.jsデフォルトモジュールか、または指定されたディレクトリ内の `node_modules/` に配置されている必要があります:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const _require = createRequireFunction(
+  '/path/to/script/dir');  // 未指定時は `process.cwd()`
+
+const variables = {
+  require: _require,
+};
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{
+set fs (require 'fs/promises')
+fs.readFile '/foo/bar/text' 'utf-8'
+}}
+```
+
+CLIは `readline` と `require` を既定で含みます。
 
 ---
 
