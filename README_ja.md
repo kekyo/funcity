@@ -655,7 +655,7 @@ Node.js の `require` 関数を生成します。Node.js を使わないプロ�
 import { buildCandidateVariables } from 'funcity';
 import { createRequireFunction } from 'funcity/node';
 
-const require = createRequireFunction('/path/to/script/dir');
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
 // const require = createRequireFunction(); // 未指定時は process.cwd()
 
 const variables = buildCandidateVariables({ require });
@@ -669,6 +669,11 @@ const variables = buildCandidateVariables({ require });
 {{set fs (require 'fs')}}
 {{fs.readFile './data.txt' 'utf-8'}}
 ```
+
+`acceptModules` を指定すると、指定したモジュール名のみ利用できます。
+`lodash/fp` や `fs/promises` のようなサブパスは、基点のモジュール名を
+許可していれば利用可能です。相対パスや絶対パスを許可したい場合は、
+その指定子を明示的に含めてください。
 
 CLIは `require` を既定で含みます。スクリプト実行時はスクリプトの
 ディレクトリ、REPLはカレントディレクトリを基点に解決されます。
@@ -701,6 +706,7 @@ const variables = buildCandidateVariables(nodeJsVariables);
 また、 `createRequireFunction` は、指定ディレクトリを基点に解決する Node.js の `require` 関数を生成します。
 この関数を参照可能にすれば、スクリプトから動的にNPMモジュールをロードできます。
 
+`acceptModules` 引数を指定すると、参照可能なモジュールをその許可リストに限定できます。
 但し、参照可能なモジュールは、Node.jsデフォルトモジュールか、または指定されたディレクトリ内の `node_modules/` に配置されている必要があります:
 
 ```typescript
@@ -708,7 +714,9 @@ import { buildCandidateVariables } from 'funcity';
 import { createRequireFunction } from 'funcity/node';
 
 const _require = createRequireFunction(
-  '/path/to/script/dir');  // 未指定時は `process.cwd()`
+  '/path/to/script/dir',  // 未指定時は `process.cwd()`
+  ['fs', 'lodash']        // `acceptModules`
+);
 
 const variables = {
   require: _require,

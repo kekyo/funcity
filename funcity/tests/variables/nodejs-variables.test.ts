@@ -35,4 +35,22 @@ describe('nodejs variables test', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('createRequireFunction filters modules', () => {
+    const requireWithFilter = createRequireFunction(undefined, ['fs']);
+    const fsModule = requireWithFilter('fs') as { readFile: Function };
+    expect(typeof fsModule.readFile).toBe('function');
+    const fsPromisesModule = requireWithFilter('fs/promises') as {
+      readFile: Function;
+    };
+    expect(typeof fsPromisesModule.readFile).toBe('function');
+
+    try {
+      requireWithFilter('path');
+      expect.fail('expected MODULE_NOT_ALLOWED');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as { code?: string }).code).toBe('MODULE_NOT_ALLOWED');
+    }
+  });
 });

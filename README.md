@@ -667,7 +667,7 @@ into projects that do not use them:
 import { buildCandidateVariables } from 'funcity';
 import { createRequireFunction } from 'funcity/node';
 
-const require = createRequireFunction('/path/to/script/dir');
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
 // const require = createRequireFunction(); // defaults to process.cwd()
 
 const variables = buildCandidateVariables({ require });
@@ -681,6 +681,11 @@ For example:
 {{set fs (require 'fs')}}
 {{fs.readFile './data.txt' 'utf-8'}}
 ```
+
+When `acceptModules` is provided, only the listed module names are allowed.
+Package subpaths (such as `lodash/fp` or `fs/promises`) are permitted when the
+base module name is listed. Relative or absolute specifiers must be listed
+explicitly if you want to allow them.
 
 CLI includes `require` by default. Script execution resolves modules from the
 script directory, while REPL uses the current working directory.
@@ -709,14 +714,17 @@ For example:
 Additionally, `createRequireFunction` generates a Node.js `require` function that resolves modules relative to a specified directory.
 Making this function available allows scripts to dynamically load NPM modules.
 
-However, modules must be either Node.js default modules or located within the `node_modules/` directory of the specified directory:
+When `acceptModules` argument is specified, module access is restricted to that allowlist.
+Modules must still be either Node.js default modules or located within the `node_modules/` directory of the specified directory:
 
 ```typescript
 import { buildCandidateVariables } from 'funcity';
 import { createRequireFunction } from 'funcity/node';
 
 const _require = createRequireFunction(
-  '/path/to/script/dir');  // If not specified, use `process.cwd()`
+  '/path/to/script/dir',  // If not specified, use `process.cwd()`
+  ['fs', 'lodash']        // `acceptModules`
+);
 
 const variables = {
   require: _require,
