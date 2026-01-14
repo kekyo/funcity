@@ -165,6 +165,14 @@ const isAbortError = (error: unknown): boolean => {
 };
 
 const runRepl = async (): Promise<void> => {
+  console.log(
+    `${packageMetadata.name} [${packageMetadata.version}-${packageMetadata.git_commit_hash}]`
+  );
+  console.log(`Copyright (c) kouji Matsui (@kekyo@mi.kekyo.net)`);
+  console.log(`${packageMetadata.repository_url}`);
+  console.log(`Type 'exit' to exit CLI`);
+  console.log('');
+
   const session = createReplSession();
 
   const rl = readline.createInterface({

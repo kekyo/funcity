@@ -668,6 +668,8 @@ CLI includes `fetchVariables` by default.
 | `os` | `os` object. |
 | `crypto` | `crypto` object. |
 | `process` | `process` object. |
+| `console` | `console` object. |
+| `readline` | Read a line from console input (optional prompt). |
 
 ```typescript
 import { buildCandidateVariables, nodeJsVariables } from 'funcity';
@@ -681,6 +683,7 @@ const variables = buildCandidateVariables(nodeJsVariables);
 For example:
 
 ```funcity
+{{console.error 'Fatal meltdown detected.'}}
 {{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 

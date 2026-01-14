@@ -656,6 +656,8 @@ CLIは `fetchVariables` を既定で含みます。
 | `os` | `os` オブジェクト |
 | `crypto` | `crypto`オブジェクト |
 | `process` | `process` オブジェクト |
+| `console` | `console` オブジェクト |
+| `readline` | コンソールから1行入力を受け取る関数（プロンプトは任意） |
 
 ```typescript
 import { buildCandidateVariables, nodeJsVariables } from 'funcity';
@@ -669,6 +671,7 @@ const variables = buildCandidateVariables(nodeJsVariables);
 例えば、以下のように使用します:
 
 ```funcity
+{{console.error 'Fatal meltdown detected.'}}
 {{fs.readFile '/foo/bar/text' 'utf-8'}}
 ```
 
