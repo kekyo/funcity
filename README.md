@@ -145,6 +145,8 @@ $ funcity run
 
 - If you omit `repl` / `run`, it defaults to `repl` when no options are provided.
 - If `--input` or `-i` is specified, it is treated as `run`.
+- On startup, the CLI loads `~/.funcityrc` once and executes it before running
+  the REPL or script. Use `--no-rc` to skip loading this file.
 
 ### REPL mode
 

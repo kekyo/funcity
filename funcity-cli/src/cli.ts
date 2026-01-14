@@ -4,6 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import { readFile } from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import readline from 'readline';
 import { Command, Option } from 'commander';
@@ -27,7 +28,9 @@ import {
   parseExpressions,
   reduceExpressionNode,
   reduceNode,
+  runParser,
   runCodeTokenizer,
+  runTokenizer,
   runScriptOnceToText,
 } from 'funcity';
 import { createRequireFunction, nodeJsVariables } from 'funcity/node';
@@ -124,6 +127,30 @@ const readStream = async (stream: NodeJS.ReadableStream): Promise<string> => {
   });
 };
 
+const getErrorCode = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  return (error as { code?: string }).code;
+};
+
+const readRcScript = async (): Promise<{
+  path: string;
+  script?: string;
+}> => {
+  const rcPath = path.join(os.homedir(), '.funcityrc');
+  try {
+    const script = await readFile(rcPath, 'utf8');
+    return { path: rcPath, script };
+  } catch (error) {
+    if (getErrorCode(error) !== 'ENOENT') {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`warning: failed to read ${rcPath}: ${message}`);
+    }
+    return { path: rcPath };
+  }
+};
+
 const reduceAndCollectResults = async (
   context: FunCityReducerContext,
   nodes: readonly FunCityBlockNode[],
@@ -141,6 +168,63 @@ const reduceAndCollectResults = async (
   return resultList;
 };
 
+const runCodeWithContext = async (
+  context: FunCityReducerContext,
+  warningLogs: FunCityWarningEntry[],
+  script: string,
+  signal: AbortSignal
+): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
+  const logs: FunCityLogEntry[] = [];
+  const tokens = runCodeTokenizer(script, logs);
+  const nodes = parseExpressions(tokens, logs);
+  if (logs.length >= 1) {
+    return { output: undefined, logs };
+  }
+
+  try {
+    warningLogs.length = 0;
+    const results = await reduceAndCollectResults(context, nodes, signal);
+    const output =
+      results.length > 0
+        ? results.map((result) => context.convertToString(result)).join('\n')
+        : '';
+    return { output, logs: [...warningLogs] };
+  } catch (error: unknown) {
+    if (error instanceof FunCityReducerError) {
+      return { output: undefined, logs: [...warningLogs, error.info] };
+    }
+    throw error;
+  }
+};
+
+const runScriptWithContext = async (
+  context: FunCityReducerContext,
+  warningLogs: FunCityWarningEntry[],
+  script: string,
+  signal: AbortSignal
+): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
+  const logs: FunCityLogEntry[] = [];
+  const tokens = runTokenizer(script, logs);
+  const nodes = runParser(tokens, logs);
+  if (logs.length >= 1) {
+    return { output: undefined, logs };
+  }
+
+  try {
+    warningLogs.length = 0;
+    const results = await reduceAndCollectResults(context, nodes, signal);
+    const output = results
+      .map((result) => context.convertToString(result))
+      .join('');
+    return { output, logs: [...warningLogs] };
+  } catch (error: unknown) {
+    if (error instanceof FunCityReducerError) {
+      return { output: undefined, logs: [...warningLogs, error.info] };
+    }
+    throw error;
+  }
+};
+
 //////////////////////////////////////////////////////////////////////////////
 
 export interface ReplEvaluationResult {
@@ -155,6 +239,7 @@ export interface ReplSession {
     signal: AbortSignal
   ) => Promise<ReplEvaluationResult>;
   getPrompt: () => Promise<string>;
+  setVariable: (name: string, value: unknown) => void;
 }
 
 export const createReplSession = (): ReplSession => {
@@ -229,7 +314,11 @@ export const createReplSession = (): ReplSession => {
     return reducerContext.convertToString(prompt);
   };
 
-  return { evaluateLine, getPrompt };
+  const setVariable = (name: string, value: unknown) => {
+    reducerContext.setValue(name, value, undefined);
+  };
+
+  return { evaluateLine, getPrompt, setVariable };
 };
 
 const isAbortError = (error: unknown): boolean => {
@@ -240,7 +329,26 @@ const isAbortError = (error: unknown): boolean => {
   return errorRecord.name === 'AbortError' || errorRecord.code === 'ABORT_ERR';
 };
 
-const runRepl = async (): Promise<void> => {
+const loadRcForRepl = async (session: ReplSession): Promise<void> => {
+  const { path: rcPath, script } = await readRcScript();
+  if (!script) {
+    return;
+  }
+
+  session.setVariable('require', createRequireFunction(os.homedir()));
+  const { output, logs } = await session.evaluateLine(
+    script,
+    new AbortController().signal
+  );
+  if (logs.length > 0) {
+    outputErrors(rcPath, logs, console);
+  }
+  if (output) {
+    console.log(output);
+  }
+};
+
+const runRepl = async (loadRc: boolean): Promise<void> => {
   console.log(
     `${packageMetadata.name} [${packageMetadata.version}-${packageMetadata.git_commit_hash}]`
   );
@@ -250,6 +358,10 @@ const runRepl = async (): Promise<void> => {
   console.log('');
 
   const session = createReplSession();
+  if (loadRc) {
+    await loadRcForRepl(session);
+  }
+  session.setVariable('require', createRequireFunction(process.cwd()));
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -369,7 +481,31 @@ export const runScriptToText = async (script: string, basePath?: string) => {
   return { output, logs };
 };
 
-const runScript = async (input: string): Promise<void> => {
+const loadRcForContext = async (
+  context: FunCityReducerContext,
+  warningLogs: FunCityWarningEntry[]
+): Promise<void> => {
+  const { path: rcPath, script } = await readRcScript();
+  if (!script) {
+    return;
+  }
+
+  context.setValue('require', createRequireFunction(os.homedir()), undefined);
+  const { output, logs } = await runCodeWithContext(
+    context,
+    warningLogs,
+    script,
+    new AbortController().signal
+  );
+  if (logs.length > 0) {
+    outputErrors(rcPath, logs, console);
+  }
+  if (output) {
+    console.log(output);
+  }
+};
+
+const runScript = async (input: string, loadRc: boolean): Promise<void> => {
   const isStdin = input === '-';
   const source = isStdin ? '<stdin>' : input;
   const script = isStdin
@@ -377,7 +513,26 @@ const runScript = async (input: string): Promise<void> => {
     : await readFile(input, 'utf8');
 
   const basePath = isStdin ? process.cwd() : path.dirname(path.resolve(input));
-  const { output, logs } = await runScriptToText(script, basePath);
+  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
+    require: createRequireFunction(loadRc ? os.homedir() : basePath),
+  });
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
+
+  if (loadRc) {
+    await loadRcForContext(reducerContext, warningLogs);
+  }
+  reducerContext.setValue(
+    'require',
+    createRequireFunction(basePath),
+    undefined
+  );
+  const { output, logs } = await runScriptWithContext(
+    reducerContext,
+    warningLogs,
+    script,
+    new AbortController().signal
+  );
 
   const hasError = outputErrors(source, logs, console);
   if (hasError) {
@@ -463,12 +618,14 @@ export const runMain = async (argv: string[] = process.argv): Promise<void> => {
     `${packageMetadata.version}-${packageMetadata.git_commit_hash}`
   );
   program.showHelpAfterError(true);
+  program.addOption(new Option('--no-rc', 'Do not load ~/.funcityrc'));
 
   program
     .command('repl')
     .summary('Start an interactive REPL session')
-    .action(async () => {
-      await runRepl();
+    .action(async (_options, command) => {
+      const { rc } = command.parent?.opts() ?? { rc: true };
+      await runRepl(rc);
     });
 
   program
@@ -480,8 +637,9 @@ export const runMain = async (argv: string[] = process.argv): Promise<void> => {
         'Input file path or "-" for stdin'
       ).default('-')
     )
-    .action(async (options: { input: string }) => {
-      await runScript(options.input);
+    .action(async (options: { input: string }, command) => {
+      const { rc } = command.parent?.opts() ?? { rc: true };
+      await runScript(options.input, rc);
     });
 
   await program.parseAsync(injectDefaultCommand(argv));
