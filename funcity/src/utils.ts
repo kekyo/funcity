@@ -209,6 +209,18 @@ export const outputErrors = (
   return isError;
 };
 
+const iterToString = (
+  iter: Iterable<unknown>,
+  getFuncId: (fn: Function) => number
+) => {
+  const strs: unknown[] = [];
+  for (const item of iter) {
+    const str = internalConvertToString(item, getFuncId);
+    strs.push(str);
+  }
+  return `[${strs.join(' ')}]`;
+};
+
 export const internalConvertToString = (
   v: unknown,
   getFuncId: (fn: Function) => number
@@ -236,12 +248,11 @@ export const internalConvertToString = (
           }
         default:
           if (Array.isArray(v)) {
-            return JSON.stringify(v);
+            return iterToString(v, getFuncId);
           }
           const iterable = asIterable(v);
           if (iterable) {
-            const arr = Array.from(iterable);
-            return JSON.stringify(arr);
+            return iterToString(iterable, getFuncId);
           } else if (v instanceof Date) {
             return v.toISOString();
           } else if (v instanceof Error) {

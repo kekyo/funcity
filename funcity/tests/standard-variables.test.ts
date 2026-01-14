@@ -428,7 +428,7 @@ describe('standard variables test', () => {
       ])
     );
     expect(value).toBe(
-      '123,ABC,true,false,(undefined),(null),[111,222],fun<#1>'
+      '123,ABC,true,false,(undefined),(null),[111 222],fun<#1>'
     );
   });
   it('toBoolean true', async () => {
