@@ -8,11 +8,11 @@ import * as fs from 'fs/promises';
 import * as nodePath from 'path';
 import * as nodeOs from 'os';
 
-import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
-import { runReducer } from '../src/reducer';
-import { nodeJsVariables } from '../src/nodejs-variables';
-import { buildCandidateVariables } from '../src/standard-variables';
-import { applyNode, stringNode } from './test-utils';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
+import { runReducer } from '../../src/reducer';
+import { nodeJsVariables } from '../../src/variables/nodejs-variables';
+import { buildCandidateVariables } from '../../src/variables/standard-variables';
+import { applyNode, stringNode } from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 

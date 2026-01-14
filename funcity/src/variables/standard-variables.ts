@@ -9,15 +9,15 @@ import {
   FunCityFunctionContext,
   FunCityVariableNode,
   FunCityReducerError,
-} from './types';
-import { reduceExpressionNode } from './reducer';
+} from '../types';
+import { reduceExpressionNode } from '../reducer';
 import {
   asIterable,
   combineVariables,
   convertToString,
   isConditionalTrue,
   makeFunCityFunction,
-} from './utils';
+} from '../utils';
 
 //////////////////////////////////////////////////////////////////////////////
 

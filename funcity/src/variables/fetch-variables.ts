@@ -3,7 +3,7 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { FunCityFunctionContext } from './types';
+import { FunCityFunctionContext } from '../types';
 
 //////////////////////////////////////////////////////////////////////////////
 

@@ -3,4 +3,6 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-export * from './nodejs-variables';
+// Node.js dependencies
+
+export * from './variables/nodejs-variables';

@@ -5,11 +5,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
-import { runReducer } from '../src/reducer';
-import { fetchVariables } from '../src/fetch-variables';
-import { buildCandidateVariables } from '../src/standard-variables';
-import { applyNode, setNode, stringNode } from './test-utils';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
+import { runReducer } from '../../src/reducer';
+import { fetchVariables } from '../../src/variables/fetch-variables';
+import { buildCandidateVariables } from '../../src/variables/standard-variables';
+import { applyNode, setNode, stringNode } from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 

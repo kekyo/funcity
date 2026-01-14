@@ -12,7 +12,7 @@ import type {
   FunCityFunctionContext,
   FunCityWarningEntry,
 } from '../src/types';
-import { buildCandidateVariables } from '../src/standard-variables';
+import { buildCandidateVariables } from '../src/variables/standard-variables';
 import { runReducer } from '../src/reducer';
 
 ///////////////////////////////////////////////////////////////////////////////////

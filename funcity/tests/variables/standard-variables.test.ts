@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
-import { runReducer } from '../src/reducer';
-import { buildCandidateVariables } from '../src/standard-variables';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
+import { runReducer } from '../../src/reducer';
+import { buildCandidateVariables } from '../../src/variables/standard-variables';
 import {
   applyNode,
   dummyRange,
@@ -16,7 +16,7 @@ import {
   numberNode,
   stringNode,
   variableNode,
-} from './test-utils';
+} from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 

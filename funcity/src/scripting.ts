@@ -11,7 +11,7 @@ import {
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { createReducerContext, reduceNode } from './reducer';
-import { buildCandidateVariables } from './standard-variables';
+import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
 

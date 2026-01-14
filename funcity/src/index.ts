@@ -8,8 +8,8 @@ export * from './tokenizer';
 export * from './parser';
 export * from './reducer';
 export * from './scripting';
-export * from './standard-variables';
-export * from './fetch-variables';
+export * from './variables/standard-variables';
+export * from './variables/fetch-variables';
 
 export {
   emptyLocation,

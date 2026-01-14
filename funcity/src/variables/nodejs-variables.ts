@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import process from 'process';
 import * as nodeReadline from 'readline';
 
-import type { FunCityFunctionContext } from './types';
+import type { FunCityFunctionContext } from '../types';
 
 //////////////////////////////////////////////////////////////////////////////
 
