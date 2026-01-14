@@ -74,6 +74,7 @@ const reduceAndCollectResults = async (
 export interface ReplEvaluationResult {
   readonly output: string | undefined;
   readonly logs: FunCityLogEntry[];
+  readonly shouldExit: boolean;
 }
 
 export interface ReplSession {
@@ -85,8 +86,10 @@ export interface ReplSession {
 }
 
 export const createReplSession = (): ReplSession => {
+  const exitSymbol = Symbol('exit');
   const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
     prompt: 'funcity> ',
+    exit: exitSymbol,
   });
 
   const warningLogs: FunCityWarningEntry[] = [];
@@ -104,6 +107,7 @@ export const createReplSession = (): ReplSession => {
       return {
         output: undefined,
         logs,
+        shouldExit: false,
       };
     }
 
@@ -115,13 +119,16 @@ export const createReplSession = (): ReplSession => {
         nodes,
         signal
       );
+      const shouldExit = results.some((result) => result === exitSymbol);
+      const outputResults = results.filter((result) => result !== exitSymbol);
       const output =
-        results.length > 0
-          ? results.map((result) => convertToString(result)).join('\n')
+        outputResults.length > 0
+          ? outputResults.map((result) => convertToString(result)).join('\n')
           : '';
       return {
         output,
         logs: [...warningLogs],
+        shouldExit,
       };
     } catch (error: unknown) {
       if (error instanceof FunCityReducerError) {
@@ -130,6 +137,7 @@ export const createReplSession = (): ReplSession => {
         return {
           output: undefined,
           logs,
+          shouldExit: false,
         };
       }
       throw error;
@@ -148,6 +156,14 @@ export const createReplSession = (): ReplSession => {
   return { evaluateLine, getPrompt };
 };
 
+const isAbortError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const errorRecord = error as { name?: string; code?: string };
+  return errorRecord.name === 'AbortError' || errorRecord.code === 'ABORT_ERR';
+};
+
 const runRepl = async (): Promise<void> => {
   const session = createReplSession();
 
@@ -158,6 +174,8 @@ const runRepl = async (): Promise<void> => {
   });
 
   let bufferedLine = '';
+  let isEvaluating = false;
+  let abortController = new AbortController();
 
   const setPrompt = async (isContinuation: boolean) => {
     rl.setPrompt(
@@ -169,24 +187,48 @@ const runRepl = async (): Promise<void> => {
 
   const evaluateAndPrint = async (line: string, signal: AbortSignal) => {
     try {
-      const { output, logs } = await session.evaluateLine(line, signal);
+      const { output, logs, shouldExit } = await session.evaluateLine(
+        line,
+        signal
+      );
       if (logs.length > 0) {
         outputErrors('<repl>', logs, console);
       }
       if (output) {
         console.log(output);
       }
+      return shouldExit;
     } catch (error) {
+      if (isAbortError(error)) {
+        return false;
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.error(message);
+      return false;
     }
   };
 
   await setPrompt(false);
   rl.prompt();
 
-  // TODO: interruption control
-  const abortController = new AbortController();
+  const handleInterrupt = async () => {
+    if (!abortController.signal.aborted) {
+      abortController.abort();
+    }
+    abortController = new AbortController();
+    bufferedLine = '';
+    process.stdout.write('\nInterrupted\n');
+    if (!isEvaluating) {
+      await setPrompt(false);
+      rl.prompt();
+    }
+  };
+
+  rl.on('SIGINT', () => {
+    void handleInterrupt();
+  });
+
+  let shouldExit = false;
 
   for await (const line of rl) {
     if (bufferedLine) {
@@ -203,13 +245,27 @@ const runRepl = async (): Promise<void> => {
 
     const logicalLine = bufferedLine;
     bufferedLine = '';
-    await evaluateAndPrint(logicalLine, abortController.signal);
+    isEvaluating = true;
+    try {
+      shouldExit = await evaluateAndPrint(logicalLine, abortController.signal);
+    } finally {
+      isEvaluating = false;
+    }
+    if (shouldExit) {
+      bufferedLine = '';
+      break;
+    }
     await setPrompt(false);
     rl.prompt();
   }
 
-  if (bufferedLine) {
-    await evaluateAndPrint(bufferedLine, abortController.signal);
+  if (!shouldExit && bufferedLine) {
+    isEvaluating = true;
+    try {
+      await evaluateAndPrint(bufferedLine, abortController.signal);
+    } finally {
+      isEvaluating = false;
+    }
   }
 
   rl.close();
