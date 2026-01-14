@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode } from '../src/types';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
 import { runReducer } from '../src/reducer';
 import { fetchVariables } from '../src/fetch-variables';
 import { buildCandidateVariables } from '../src/standard-variables';
@@ -15,13 +15,16 @@ import { applyNode, setNode, stringNode } from './test-utils';
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables(fetchVariables);
-    const reduced = await runReducer([node], variables);
+    const reduced = await runReducer([node], variables, warningLogs);
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     return reduced[0];
   };
 
   it('fetch', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables(fetchVariables);
     const reduced = await runReducer(
       [
@@ -31,7 +34,8 @@ describe('standard variables test', () => {
         ),
         applyNode('res.text', []),
       ],
-      variables
+      variables,
+      warningLogs
     );
     expect(reduced).toEqual(['hello']);
   });

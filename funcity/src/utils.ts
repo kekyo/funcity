@@ -4,8 +4,8 @@
 // https://github.com/kekyo/funcity/
 
 import {
-  FunCityErrorInfo,
-  FunCityErrorInfoWriter,
+  FunCityLogEntry,
+  FunCityLogEntryWriter,
   FunCityLocation,
   FunCityRange,
   FunCityVariables,
@@ -170,8 +170,8 @@ const getLocationString = (range: FunCityRange) =>
 
 const printErrorString = (
   path: string,
-  error: FunCityErrorInfo,
-  writer: FunCityErrorInfoWriter
+  error: FunCityLogEntry,
+  writer: FunCityLogEntryWriter
 ) => {
   switch (error.type) {
     case 'warning':
@@ -191,18 +191,18 @@ const printErrorString = (
 /**
  * Output error list and return whether any error-level entry exists.
  * @param path - Source path.
- * @param errors - Errors to output.
+ * @param logs - Errors to output.
  * @param writer - Writer interface.
  * @returns True when an error-level entry exists.
  */
 export const outputErrors = (
   path: string,
-  errors: readonly FunCityErrorInfo[],
-  writer?: FunCityErrorInfoWriter
+  logs: readonly FunCityLogEntry[],
+  writer?: FunCityLogEntryWriter
 ) => {
   const _writer = writer ?? console;
   let isError = false;
-  for (const error of errors) {
+  for (const error of logs) {
     const result = printErrorString(path, error, _writer);
     isError ||= result;
   }

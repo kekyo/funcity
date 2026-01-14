@@ -4,7 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import type {
-  FunCityErrorInfo,
+  FunCityLogEntry,
   FunCityIdentityToken,
   FunCityLocation,
   FunCityNumberToken,
@@ -83,9 +83,9 @@ interface TokenizerContext {
    */
   readonly cursor: TokenizerCursor;
   /**
-   * Will be stored detected warnings/errors into it
+   * Will be stored detected warnings/logs into it
    */
-  readonly errors: FunCityErrorInfo[];
+  readonly logs: FunCityLogEntry[];
 }
 
 /**
@@ -123,7 +123,7 @@ const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
       const escapeStart = context.cursor.location('start');
       context.cursor.skip(1);
       if (context.cursor.eot()) {
-        context.errors.push({
+        context.logs.push({
           type: 'error',
           description: 'invalid escape sequence: \\\\',
           range: { start: escapeStart, end: context.cursor.location('end') },
@@ -139,7 +139,7 @@ const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
         continue;
       }
       context.cursor.skip(1);
-      context.errors.push({
+      context.logs.push({
         type: 'error',
         description: `invalid escape sequence: \\${escape}`,
         range: { start: escapeStart, end: context.cursor.location('end') },
@@ -153,7 +153,7 @@ const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
 
   if (!closed) {
     const location = context.cursor.location('start');
-    context.errors.push({
+    context.logs.push({
       type: 'error',
       description: 'string close quote is not found',
       range: { start: location, end: location },
@@ -278,7 +278,7 @@ const tokenizeCodeTokens = (
   let unknownStartLocation: FunCityLocation | undefined;
   const finalizeUnknown = () => {
     if (unknownStartLocation) {
-      context.errors.push({
+      context.logs.push({
         type: 'warning',
         description: 'unknown words',
         range: {
@@ -445,7 +445,7 @@ const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   }
 
   const causeLocation = context.cursor.location('start');
-  context.errors.push({
+  context.logs.push({
     type: 'error',
     description: 'required code block closer: `}}`',
     range: { start: causeLocation, end: causeLocation },
@@ -577,16 +577,16 @@ const createTokenizerCursor = (script: string): TokenizerCursor => {
 /**
  * Run the tokenizer for code expressions only.
  * @param script - Input script text
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns The token list
  */
 export const runCodeTokenizer = (
   script: string,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
-    errors,
+    logs,
   };
 
   const result = tokenizeCodeTokens(context, false, true);
@@ -596,16 +596,16 @@ export const runCodeTokenizer = (
 /**
  * Run the tokenizer.
  * @param script - Input script text
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns The token list
  */
 export const runTokenizer = (
   script: string,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
-    errors,
+    logs,
   };
 
   const tokens: FunCityToken[] = [];

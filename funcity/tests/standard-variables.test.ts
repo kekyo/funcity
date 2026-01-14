@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode } from '../src/types';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
 import { runReducer } from '../src/reducer';
 import { buildCandidateVariables } from '../src/standard-variables';
 import {
@@ -22,9 +22,11 @@ import {
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables);
+    const reduced = await runReducer([node], variables, warningLogs);
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     return reduced[0];
   };
 
@@ -141,9 +143,15 @@ describe('standard variables test', () => {
   it('now', async () => {
     const variables = buildCandidateVariables();
     const nowBefore = Date.now();
-    const reduced = await runReducer([applyNode('now', [])], variables);
+    const warningLogs: FunCityWarningEntry[] = [];
+    const reduced = await runReducer(
+      [applyNode('now', [])],
+      variables,
+      warningLogs
+    );
     const nowAfter = Date.now();
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     const nowValue = reduced[0] as number;
     expect(typeof nowValue).toBe('number');
     expect(nowValue).toBeGreaterThanOrEqual(nowBefore);
@@ -475,14 +483,17 @@ describe('standard variables test', () => {
   });
 
   it('delay', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables();
     const start = Date.now();
     const reduced = await runReducer(
       [applyNode('delay', [numberNode(10)]), numberNode(1)],
-      variables
+      variables,
+      warningLogs
     );
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(5);
     expect(reduced).toEqual([1]);
+    expect(warningLogs).toEqual([]);
   });
 });

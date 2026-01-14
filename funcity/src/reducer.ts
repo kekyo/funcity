@@ -4,7 +4,6 @@
 // https://github.com/kekyo/funcity/
 
 import {
-  type FunCityErrorInfo,
   type FunCityVariables,
   type FunCityExpressionNode,
   type FunCityBlockNode,
@@ -13,7 +12,9 @@ import {
   type FunCityReducerContextValueResult,
   type FunCityFunctionContext,
   type FunCityApplyNode,
+  type FunCityRange,
   FunCityReducerError,
+  FunCityWarningEntry,
 } from './types';
 import {
   fromError,
@@ -25,6 +26,18 @@ import {
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
+
+interface ThrowErrorInfo {
+  description: string;
+  range: FunCityRange;
+}
+
+const throwError = (info: ThrowErrorInfo) => {
+  throw new FunCityReducerError({
+    type: 'error',
+    ...info,
+  });
+};
 
 interface DeconstructConditionalCombineResult {
   readonly name: string;
@@ -68,8 +81,7 @@ const traverseVariable = (
   const result0 = context.getValue(n0r.name, signal);
   if (!result0.isFound) {
     if (!n0r.canIgnore) {
-      context.appendError({
-        type: 'error',
+      throwError({
         description: `variable is not bound: ${names[0]}`,
         range: name.range,
       });
@@ -86,8 +98,7 @@ const traverseVariable = (
       value = r[nr.name];
     } else {
       if (!nr.canIgnore) {
-        context.appendError({
-          type: 'error',
+        throwError({
           description: `variable is not bound: ${n}`,
           range: name.range,
         });
@@ -109,8 +120,7 @@ const applyFunction = async (
   signal?.throwIfAborted();
   const func = await reduceExpressionNode(context, node.func);
   if (typeof func !== 'function') {
-    context.appendError({
-      type: 'error',
+    throwError({
       description: 'could not apply it for function',
       range: node.range,
     });
@@ -178,19 +188,11 @@ export const reduceExpressionNode = async (
       if (node.nodes.length === 0) {
         return [];
       }
-      let index = 0;
-      while (!context.isFailed()) {
-        const result = await reduceExpressionNode(
-          context,
-          node.nodes[index]!,
-          signal
-        );
-        index++;
-        if (index >= node.nodes.length) {
-          return result;
-        }
+      let result: unknown = undefined;
+      for (const childNode of node.nodes) {
+        result = await reduceExpressionNode(context, childNode, signal);
       }
-      return undefined;
+      return result;
     }
   }
 };
@@ -215,8 +217,7 @@ export const reduceNode = async (
       const result = await reduceExpressionNode(context, node.iterable, signal);
       const iterable = asIterable(result);
       if (!iterable) {
-        context.appendError({
-          type: 'error',
+        throwError({
           description: 'could not apply it for function',
           range: node.range,
         });
@@ -224,9 +225,6 @@ export const reduceNode = async (
       }
       const resultList: unknown[] = [];
       for (const item of iterable) {
-        if (context.isFailed()) {
-          break;
-        }
         context.setValue(node.bind.name, item, signal);
         for (const repeat of node.repeat) {
           const results = await reduceNode(context, repeat, signal);
@@ -237,7 +235,7 @@ export const reduceNode = async (
     }
     case 'while': {
       const resultList: unknown[] = [];
-      while (!context.isFailed()) {
+      while (true) {
         const condition = await reduceExpressionNode(
           context,
           node.condition,
@@ -326,8 +324,7 @@ const createScopedReducerContext = (
       abortSignal: signal,
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
-      isFailed: parent.isFailed,
-      appendError: parent.appendError,
+      appendWarning: parent.appendWarning,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) =>
@@ -339,8 +336,7 @@ const createScopedReducerContext = (
     getValue,
     setValue,
     getBoundFunction,
-    isFailed: parent.isFailed,
-    appendError: parent.appendError,
+    appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString: parent.convertToString,
@@ -355,7 +351,8 @@ const createScopedReducerContext = (
  * @returns Reducer context
  */
 export const createReducerContext = (
-  variables: FunCityVariables
+  variables: FunCityVariables,
+  warningLogs: FunCityWarningEntry[]
 ): FunCityReducerContext => {
   let thisVars: Map<string, unknown> | undefined;
   let thisContext: FunCityReducerContext;
@@ -405,15 +402,8 @@ export const createReducerContext = (
     thisVars.set(name, value);
   };
 
-  const appendError = (error: FunCityErrorInfo): void => {
-    if (error.type === 'warning') {
-      return;
-    }
-    throw new FunCityReducerError(error);
-  };
-
-  const isFailed = (): boolean => {
-    return false;
+  const appendWarning = (warning: FunCityWarningEntry): void => {
+    warningLogs.push(warning);
   };
 
   const getFuncId = internalCreateFunctionIdGenerator();
@@ -430,8 +420,7 @@ export const createReducerContext = (
       abortSignal: signal,
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
-      isFailed,
-      appendError,
+      appendWarning,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString,
       reduce: (node: FunCityExpressionNode) =>
@@ -443,8 +432,7 @@ export const createReducerContext = (
     getValue,
     setValue,
     getBoundFunction,
-    appendError,
-    isFailed,
+    appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString,
@@ -459,15 +447,17 @@ export const createReducerContext = (
  * Run the reducer.
  * @param nodes - Target nodes
  * @param variables - Predefined variables
+ * @param logs - Will be stored logs
  * @param signal - Abort signal
  * @returns Reduced native values
  */
 export async function runReducer(
   nodes: readonly FunCityBlockNode[],
   variables: FunCityVariables,
+  warningLogs: FunCityWarningEntry[],
   signal?: AbortSignal
 ): Promise<unknown[]> {
-  const context = createReducerContext(variables);
+  const context = createReducerContext(variables, warningLogs);
 
   const resultList: unknown[] = [];
   for (const node of nodes) {

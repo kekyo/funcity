@@ -8,7 +8,7 @@
 /**
  * Error/Warning information writers.
  */
-export interface FunCityErrorInfoWriter {
+export interface FunCityLogEntryWriter {
   /**
    * Warning message writer.
    * @param message - Message string
@@ -52,18 +52,31 @@ export interface FunCityRange {
 }
 
 /**
- * Error severity type.
+ * Warning information with location.
  */
-export type FunCityErrorType = 'warning' | 'error';
+export interface FunCityWarningEntry {
+  /**
+   * Warning severity.
+   */
+  readonly type: 'warning';
+  /**
+   * Warning description.
+   */
+  readonly description: string;
+  /**
+   * Warning range in source text.
+   */
+  readonly range: FunCityRange;
+}
 
 /**
  * Error information with location.
  */
-export interface FunCityErrorInfo {
+export interface FunCityErrorEntry {
   /**
    * Error severity.
    */
-  readonly type: FunCityErrorType;
+  readonly type: 'error';
   /**
    * Error description.
    */
@@ -73,6 +86,11 @@ export interface FunCityErrorInfo {
    */
   readonly range: FunCityRange;
 }
+
+/**
+ * Log entry type.
+ */
+export type FunCityLogEntry = FunCityWarningEntry | FunCityErrorEntry;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -410,9 +428,9 @@ export class FunCityReducerError extends Error {
   /**
    * Error information.
    */
-  readonly info: FunCityErrorInfo;
+  readonly info: FunCityErrorEntry;
 
-  constructor(info: FunCityErrorInfo) {
+  constructor(info: FunCityErrorEntry) {
     super(info.description);
     this.name = 'FunCityReducerError';
     this.info = info;
@@ -460,15 +478,10 @@ export interface FunCityFunctionContext {
    */
   readonly setValue: (name: string, value: unknown) => void;
   /**
-   * Append context error.
-   * @param error - Error or warning information.
+   * Append context warning.
+   * @param warning - Warning information.
    */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
+  readonly appendWarning: (warning: FunCityWarningEntry) => void;
   /**
    * Create new scoped context.
    * @returns New reducer context.
@@ -521,15 +534,10 @@ export interface FunCityReducerContext {
    */
   readonly getBoundFunction: (owner: object, fn: Function) => Function;
   /**
-   * Append context error.
-   * @param error - Error or warning information.
+   * Append context warning.
+   * @param warning - Warning information.
    */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
+  readonly appendWarning: (warning: FunCityWarningEntry) => void;
   /**
    * Create new scoped context.
    * @param signal - AbortSignal when available.
@@ -565,7 +573,7 @@ export interface FunCityOnceRunnerProps {
    */
   variables?: FunCityVariables;
   /**
-   * Will be stored detected warnings/errors into it.
+   * Will be stored detected warnings/logs into it.
    */
-  errors?: FunCityErrorInfo[];
+  logs?: FunCityLogEntry[];
 }

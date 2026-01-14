@@ -78,8 +78,8 @@ const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
 
 // インタープリタを実行
 const variables = buildCandidateVariables();
-const errors: FunCityErrorInfo[] = [];
-const text = await runScriptOnceToText(script, variables, errors);
+const logs: FunCityLogEntry[] = [];
+const text = await runScriptOnceToText(script, variables, logs);
 
 // 結果の表示
 console.log(text);
@@ -239,17 +239,17 @@ flowchart LR
 ```typescript
 const run = async (
   script: string,
-  errors: FunCityErrorInfo[] = []
+  logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // トークナイザーの実行
-  const blocks: FunCityToken[] = runTokenizer(script, errors);
+  const blocks: FunCityToken[] = runTokenizer(script, logs);
 
   // パーサーの実行
-  const nodes: FunCityBlockNode[] = runParser(blocks, errors);
+  const nodes: FunCityBlockNode[] = runParser(blocks, logs);
 
   // インタープリタの実行
   const variables: FunCityVariables = buildCandidateVariables();
-  const results: unknown[] = await runReducer(nodes, variables, errors);
+  const results: unknown[] = await runReducer(nodes, variables, logs);
 
   // すべての結果をテキストとして結合
   const text: string = results.join('');
@@ -262,8 +262,8 @@ const run = async (
 - インタープリタの出力は、生の計算結果です。また、複数の結果が得られる可能性があります。したがって、これらを文字列として結合して、最終的な出力テキストを得ます。
 - スクリプトが一度読み込んだら変更されず、何度もインタープリタ実行だけを行いたい場合は、
   トークナイザーとパーサーの実行までを事前に行っておき、インタープリタだけ実行するようにすれば、効率よく処理できます。
-- エラーやウォーニングは、 `errors` に追加されます。
-  もし、エラーやウォーニングで早期に停止させたいなら、各処理が終了した時点で `errors` に記録があるかどうかを調べることができます。
+- エラーやウォーニングは、 `logs` に追加されます。
+  もし、エラーやウォーニングで早期に停止させたいなら、各処理が終了した時点で `logs` に記録があるかどうかを調べることができます。
 - エラーがウォーニングが存在しても、インタープリタまで処理を続行できます。
   エラーが存在した箇所は、適当なトークン・ノードに置き換えられている可能性があり、それらの情報を使用してインタープリタを実行すると、正しく動作しない可能性が高いです。
   しかし、ある程度の構造が維持されるので、トークンやノードを解析して、より適切なエラーを生成出来るかもしれません。
@@ -295,7 +295,7 @@ const variables = buildCandidateVariables(
 );
 
 // 例: `{{foo}}` ---> ['ABCDE']
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 ### 関数オブジェクトのバインド
@@ -311,7 +311,7 @@ const variables = buildCandidateVariables(
 );
 
 // 例: `{{bar 21}}` ---> [42]
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - 関数オブジェクトを指定する場合は、上記のように非同期関数を渡すことができます。
@@ -365,7 +365,7 @@ const variables = buildCandidateVariables(
 
 // 例: `{{baz true 5}}` ---> [5]
 // 例: `{{baz false 5}}` ---> [-1]   (`5`の式の評価は行われない)
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - `FunCityFunctionContext` は、インタープリタの一部の機能をfuncity関数内で使用するためのインターフェイスです。

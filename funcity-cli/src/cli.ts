@@ -10,9 +10,10 @@ import { Command, Option } from 'commander';
 import * as packageMetadata from './generated/packageMetadata';
 import {
   FunCityBlockNode,
-  FunCityErrorInfo,
+  FunCityLogEntry,
   FunCityReducerError,
   FunCityReducerContext,
+  FunCityWarningEntry,
 } from 'funcity';
 import {
   buildCandidateVariables,
@@ -72,7 +73,7 @@ const reduceAndCollectResults = async (
 
 export interface ReplEvaluationResult {
   readonly output: string | undefined;
-  readonly errors: FunCityErrorInfo[];
+  readonly logs: FunCityLogEntry[];
 }
 
 export interface ReplSession {
@@ -88,23 +89,27 @@ export const createReplSession = (): ReplSession => {
     prompt: 'funcity> ',
   });
 
-  const errors: FunCityErrorInfo[] = [];
-  const reducerContext = createReducerContext(variables);
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
 
   const evaluateLine = async (
     line: string,
     signal: AbortSignal
   ): Promise<ReplEvaluationResult> => {
-    errors.length = 0;
-    const tokens = runCodeTokenizer(line, errors);
-    const nodes = parseExpressions(tokens, errors);
-    if (errors.length >= 1) {
+    // Tokenize and parse step
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer(line, logs);
+    const nodes = parseExpressions(tokens, logs);
+    if (logs.length >= 1) {
       return {
         output: undefined,
-        errors: [...errors],
+        logs,
       };
     }
+
+    // Reduce step
     try {
+      warningLogs.length = 0;
       const results = await reduceAndCollectResults(
         reducerContext,
         nodes,
@@ -116,19 +121,21 @@ export const createReplSession = (): ReplSession => {
           : '';
       return {
         output,
-        errors: [...errors],
+        logs: [...warningLogs],
       };
     } catch (error: unknown) {
       if (error instanceof FunCityReducerError) {
-        errors.push(error.info);
+        const logs: FunCityLogEntry[] = [...warningLogs];
+        logs.push(error.info);
         return {
           output: undefined,
-          errors: [...errors],
+          logs,
         };
       }
       throw error;
     }
   };
+
   const getPrompt = async () => {
     const prompt = await reduceExpressionNode(reducerContext, {
       kind: 'variable',
@@ -162,9 +169,9 @@ const runRepl = async (): Promise<void> => {
 
   const evaluateAndPrint = async (line: string, signal: AbortSignal) => {
     try {
-      const { output, errors } = await session.evaluateLine(line, signal);
-      if (errors.length > 0) {
-        outputErrors('<repl>', errors, console);
+      const { output, logs } = await session.evaluateLine(line, signal);
+      if (logs.length > 0) {
+        outputErrors('<repl>', logs, console);
       }
       if (output) {
         console.log(output);
@@ -212,9 +219,9 @@ const runRepl = async (): Promise<void> => {
 
 export const runScriptToText = async (script: string) => {
   const variables = buildCandidateVariables(fetchVariables, nodeJsVariables);
-  const errors: FunCityErrorInfo[] = [];
-  const output = await runScriptOnceToText(script, { variables, errors });
-  return { output, errors };
+  const logs: FunCityLogEntry[] = [];
+  const output = await runScriptOnceToText(script, { variables, logs });
+  return { output, logs };
 };
 
 const runScript = async (input: string): Promise<void> => {
@@ -224,9 +231,9 @@ const runScript = async (input: string): Promise<void> => {
     ? await readStream(process.stdin)
     : await readFile(input, 'utf8');
 
-  const { output, errors } = await runScriptToText(script);
+  const { output, logs } = await runScriptToText(script);
 
-  const hasError = outputErrors(source, errors, console);
+  const hasError = outputErrors(source, logs, console);
   if (hasError) {
     process.exitCode = 1;
   }

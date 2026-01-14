@@ -8,7 +8,7 @@ import * as fs from 'fs/promises';
 import * as nodePath from 'path';
 import * as nodeOs from 'os';
 
-import type { FunCityBlockNode } from '../src/types';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../src/types';
 import { runReducer } from '../src/reducer';
 import { nodeJsVariables } from '../src/nodejs-variables';
 import { buildCandidateVariables } from '../src/standard-variables';
@@ -18,9 +18,11 @@ import { applyNode, stringNode } from './test-utils';
 
 describe('nodejs variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables(nodeJsVariables);
-    const reduced = await runReducer([node], variables);
+    const reduced = await runReducer([node], variables, warningLogs);
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     return reduced[0];
   };
 
@@ -51,6 +53,7 @@ describe('nodejs variables test', () => {
     const dir = await fs.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'funcity-'));
     const filePath = nodePath.join(dir, 'sample.txt');
     try {
+      const warningLogs: FunCityWarningEntry[] = [];
       const variables = buildCandidateVariables(nodeJsVariables);
       const reduced = await runReducer(
         [
@@ -60,9 +63,11 @@ describe('nodejs variables test', () => {
           ]),
           applyNode('fs.readFile', [stringNode(filePath), stringNode('utf8')]),
         ],
-        variables
+        variables,
+        warningLogs
       );
       expect(reduced).toEqual(['hello']);
+      expect(warningLogs).toEqual([]);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
