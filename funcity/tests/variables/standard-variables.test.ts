@@ -142,20 +142,19 @@ describe('standard variables test', () => {
   });
   it('now', async () => {
     const variables = buildCandidateVariables();
-    const nowBefore = Date.now();
+    const nowBefore = new Date().getTime();
     const warningLogs: FunCityWarningEntry[] = [];
     const reduced = await runReducer(
       [applyNode('now', [])],
       variables,
       warningLogs
     );
-    const nowAfter = Date.now();
+    const nowAfter = new Date().getTime();
     expect(reduced).toHaveLength(1);
     expect(warningLogs).toEqual([]);
-    const nowValue = reduced[0] as number;
-    expect(typeof nowValue).toBe('number');
-    expect(nowValue).toBeGreaterThanOrEqual(nowBefore);
-    expect(nowValue).toBeLessThanOrEqual(nowAfter);
+    const nowValue = reduced[0] as Date;
+    expect(nowValue.getTime()).toBeGreaterThanOrEqual(nowBefore);
+    expect(nowValue.getTime()).toBeLessThanOrEqual(nowAfter);
   });
   it('concat', async () => {
     const value = await reduceSingle(

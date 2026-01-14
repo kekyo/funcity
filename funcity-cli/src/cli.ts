@@ -24,6 +24,7 @@ import {
   createReducerContext,
   emptyRange,
   fetchVariables,
+  objectVariables,
   outputErrors,
   parseExpressions,
   reduceExpressionNode,
@@ -246,12 +247,17 @@ export const createReplSession = (): ReplSession => {
   const exitSymbol = Symbol('exit');
   const replReadline = createReplReadline();
   const require = createRequireFunction();
-  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
-    require,
-    prompt: 'funcity> ',
-    exit: exitSymbol,
-    readline: replReadline,
-  });
+  const variables = buildCandidateVariables(
+    objectVariables,
+    fetchVariables,
+    nodeJsVariables,
+    {
+      require,
+      prompt: 'funcity> ',
+      exit: exitSymbol,
+      readline: replReadline,
+    }
+  );
 
   const warningLogs: FunCityWarningEntry[] = [];
   const reducerContext = createReducerContext(variables, warningLogs);
@@ -473,9 +479,14 @@ const runRepl = async (loadRc: boolean): Promise<void> => {
 
 export const runScriptToText = async (script: string, basePath?: string) => {
   const require = createRequireFunction(basePath);
-  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
-    require,
-  });
+  const variables = buildCandidateVariables(
+    objectVariables,
+    fetchVariables,
+    nodeJsVariables,
+    {
+      require,
+    }
+  );
   const logs: FunCityLogEntry[] = [];
   const output = await runScriptOnceToText(script, { variables, logs });
   return { output, logs };
@@ -513,9 +524,14 @@ const runScript = async (input: string, loadRc: boolean): Promise<void> => {
     : await readFile(input, 'utf8');
 
   const basePath = isStdin ? process.cwd() : path.dirname(path.resolve(input));
-  const variables = buildCandidateVariables(fetchVariables, nodeJsVariables, {
-    require: createRequireFunction(loadRc ? os.homedir() : basePath),
-  });
+  const variables = buildCandidateVariables(
+    objectVariables,
+    fetchVariables,
+    nodeJsVariables,
+    {
+      require: createRequireFunction(loadRc ? os.homedir() : basePath),
+    }
+  );
   const warningLogs: FunCityWarningEntry[] = [];
   const reducerContext = createReducerContext(variables, warningLogs);
 

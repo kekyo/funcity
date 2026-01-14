@@ -261,7 +261,7 @@ const _ge = async (arg0: unknown, arg1: unknown) => {
 };
 
 const _now = async () => {
-  return Date.now();
+  return new Date();
 };
 
 const concatInner = (args: Iterable<unknown>) => {
@@ -672,7 +672,6 @@ export const standardVariables = Object.freeze({
   bind: _bind,
   url: _url,
   delay: _delay,
-  math: Math,
 } as const);
 
 /**

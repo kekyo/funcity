@@ -551,6 +551,12 @@ export interface FunCityReducerContext {
    */
   readonly convertToString: (v: unknown) => string;
   /**
+   * Check whether a function is constructable.
+   * @param fn - Target function
+   * @returns True when constructable.
+   */
+  readonly isConstructable: (fn: Function) => boolean;
+  /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
    * @param signal - AbortSignal when available.

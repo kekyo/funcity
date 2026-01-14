@@ -92,7 +92,10 @@ const traverseVariable = (
   let parent: object | undefined;
   for (const n of names.slice(1)) {
     const nr = deconstructConditionalCombine(n);
-    if (value !== null && typeof value === 'object') {
+    if (
+      value !== null &&
+      (typeof value === 'object' || typeof value === 'function')
+    ) {
       const r = value as Record<string, unknown>;
       parent = value as object;
       value = r[nr.name];
@@ -126,7 +129,8 @@ const applyFunction = async (
     });
     return undefined;
   }
-  const args = isFunCityFunction(func)
+  const isSpecial = isFunCityFunction(func);
+  const args = isSpecial
     ? node.args // Passing directly node objects
     : await Promise.all(
         node.args.map(async (argNode) => {
@@ -134,11 +138,13 @@ const applyFunction = async (
           return arg;
         })
       );
-  const thisProxy = context.createFunctionContext(node, signal);
+  const shouldConstruct = !isSpecial && context.isConstructable(func);
   try {
-    // Call the function
-    const value = await func.call(thisProxy, ...args);
-    return value;
+    if (shouldConstruct) {
+      return Reflect.construct(func, args);
+    }
+    const thisProxy = context.createFunctionContext(node, signal);
+    return await func.call(thisProxy, ...args);
   } catch (e: unknown) {
     if (e instanceof FunCityReducerError) {
       throw e;
@@ -313,8 +319,6 @@ const createScopedReducerContext = (
     thisVars.set(name, value);
   };
 
-  const getBoundFunction = parent.getBoundFunction;
-
   const createFunctionContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
@@ -335,11 +339,12 @@ const createScopedReducerContext = (
   thisContext = {
     getValue,
     setValue,
-    getBoundFunction,
+    getBoundFunction: parent.getBoundFunction,
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString: parent.convertToString,
+    isConstructable: parent.isConstructable,
     createFunctionContext,
   };
   return thisContext;
@@ -357,24 +362,23 @@ export const createReducerContext = (
   let thisVars: Map<string, unknown> | undefined;
   let thisContext: FunCityReducerContext;
 
-  const createBoundFunctionResolver = () => {
-    const cache = new WeakMap<object, WeakMap<Function, Function>>();
-    return (owner: object, fn: Function): Function => {
-      let ownerCache = cache.get(owner);
-      if (!ownerCache) {
-        ownerCache = new WeakMap();
-        cache.set(owner, ownerCache);
-      }
-      const cached = ownerCache.get(fn);
-      if (cached) {
-        return cached;
-      }
-      const bound = fn.bind(owner);
-      ownerCache.set(fn, bound);
-      return bound;
-    };
+  const boundFunctionCache = new WeakMap<object, WeakMap<Function, Function>>();
+  const getBoundFunction = (owner: object, fn: Function): Function => {
+    let ownerCache = boundFunctionCache.get(owner);
+    if (!ownerCache) {
+      ownerCache = new WeakMap();
+      boundFunctionCache.set(owner, ownerCache);
+    }
+    const cached = ownerCache.get(fn);
+    if (cached) {
+      return cached;
+    }
+    const bound = fn.bind(owner);
+    ownerCache.set(fn, bound);
+    return bound;
   };
-  const getBoundFunction = createBoundFunctionResolver();
+
+  const constructorCache = new WeakMap<Function, boolean>();
 
   const getValue = (
     name: string,
@@ -404,6 +408,21 @@ export const createReducerContext = (
 
   const appendWarning = (warning: FunCityWarningEntry): void => {
     warningLogs.push(warning);
+  };
+
+  const isConstructable = (fn: Function): boolean => {
+    if (constructorCache.has(fn)) {
+      return constructorCache.get(fn)!;
+    }
+    let result = false;
+    try {
+      Reflect.construct(Object, [], fn);
+      result = true;
+    } catch {
+      result = false;
+    }
+    constructorCache.set(fn, result);
+    return result;
   };
 
   const getFuncId = internalCreateFunctionIdGenerator();
@@ -436,6 +455,7 @@ export const createReducerContext = (
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString,
+    isConstructable,
     createFunctionContext,
   };
   return thisContext;

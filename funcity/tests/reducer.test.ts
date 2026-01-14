@@ -230,6 +230,29 @@ describe('scripting reducer test', () => {
     expect(warningLogs).toEqual([]);
   });
 
+  it('variable node (function object method)', async () => {
+    // "{{fn.get ()}}"
+    const fn = Object.assign(
+      function () {
+        return 0;
+      },
+      {
+        value: 456,
+        get(this: { value: number }) {
+          return this.value;
+        },
+      }
+    );
+    const nodes: FunCityBlockNode[] = [applyNode(variableNode('fn.get'), [])];
+
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables({ fn });
+    const reduced = await runReducer(nodes, variables, warningLogs);
+
+    expect(reduced).toEqual([456]);
+    expect(warningLogs).toEqual([]);
+  });
+
   it('variable node (conditional combine)', async () => {
     // "{{siteName?}}"
     const nodes: FunCityBlockNode[] = [variableNode('siteName?')];
