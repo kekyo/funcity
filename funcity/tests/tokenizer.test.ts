@@ -5,23 +5,23 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type FunCityErrorInfo } from '../src/types';
+import { type FunCityLogEntry } from '../src/types';
 import { runCodeTokenizer, runTokenizer } from '../src/tokenizer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
 describe('scripting tokenize test', () => {
   it('empty', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('', logs);
 
     expect(tokens).toEqual([]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('text block token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('Hello', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('Hello', logs);
 
     expect(tokens).toEqual([
       {
@@ -33,13 +33,13 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('escaped block braces in text', () => {
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
     // Escaped block braces: 'Hello \{{World\}}'
-    const tokens = runTokenizer('Hello \\{{World\\}}', errors);
+    const tokens = runTokenizer('Hello \\{{World\\}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -51,13 +51,13 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('literal backslash is kept', () => {
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
     // Escape character '\' is not affected without block braces.
-    const tokens = runTokenizer('A\\nB', errors);
+    const tokens = runTokenizer('A\\nB', logs);
 
     expect(tokens).toEqual([
       {
@@ -69,12 +69,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('variable token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{hello}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{hello}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -102,12 +102,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('code token without block braces', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runCodeTokenizer("foo 123 'bar'", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer("foo 123 'bar'", logs);
 
     expect(tokens).toEqual([
       {
@@ -135,12 +135,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('code token with line continuation (LF)', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runCodeTokenizer('add 1 \\\n2', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer('add 1 \\\n2', logs);
 
     expect(tokens).toEqual([
       {
@@ -168,13 +168,13 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('code token with line continuation (CRLF)', () => {
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
     const crlf = String.fromCharCode(13, 10);
-    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, errors);
+    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, logs);
 
     expect(tokens).toEqual([
       {
@@ -202,12 +202,44 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
+  });
+
+  it('code token with line comment', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer('foo // bar\nbaz', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        range: {
+          start: { line: 1, column: 11 },
+          end: { line: 1, column: 11 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'baz',
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 3 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
   });
 
   it('member access variable token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{foo.bar}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{foo.bar}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -235,12 +267,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('combined both text and apply body tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('ABC{{hello}}DEF', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('ABC{{hello}}DEF', logs);
 
     expect(tokens).toEqual([
       {
@@ -284,12 +316,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('before space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{  'hello'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{  'hello'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -317,12 +349,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('after space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'  }}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'  }}", logs);
 
     expect(tokens).toEqual([
       {
@@ -350,12 +382,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple lines 2', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'\n12345}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'\n12345}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -398,12 +430,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple lines 3', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'\n12345\nfoobar}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'\n12345\nfoobar}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -461,12 +493,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple lines after space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'  \n12345}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'  \n12345}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -509,12 +541,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple lines before space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'\n  12345}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'\n  12345}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -557,12 +589,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'hello'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'hello'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -590,12 +622,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('empty string token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{''}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{''}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -623,35 +655,35 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string token with escapes', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'a\\n\\t\\r\\v\\f\\0\\\\\\'b'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'a\\n\\t\\r\\v\\f\\0\\\\\\'b'}}", logs);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
       value: "a\n\t\r\v\f\0\\'b",
     });
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string token with invalid escape keeps raw', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{'a\\xb'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'a\\xb'}}", logs);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
       value: 'a\\xb',
     });
-    expect(errors).toHaveLength(1);
-    expect(errors[0]?.description).toBe('invalid escape sequence: \\x');
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.description).toBe('invalid escape sequence: \\x');
   });
 
   it('number token 12345', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{12345}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{12345}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -679,12 +711,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number token -1234', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{-1234}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{-1234}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -712,12 +744,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number token +1234', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{+1234}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{+1234}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -745,12 +777,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number token 12.34', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{12.34}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{12.34}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -778,12 +810,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('variable token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{hello}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{hello}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -811,12 +843,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{foo 123 'bar'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{foo 123 'bar'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -860,12 +892,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple token with multiple spaces', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{foo  123  'bar'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{foo  123  'bar'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -909,12 +941,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('variable parenteses token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{(hello)}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{(hello)}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -958,12 +990,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string parenteses token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{('hello')}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{('hello')}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1007,12 +1039,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number parenteses token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{(12345)}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{(12345)}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1056,12 +1088,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple parenteses tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{(foo 123 'bar')}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{(foo 123 'bar')}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1121,12 +1153,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested multiple parenteses tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{foo (123) 'bar'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{foo (123) 'bar'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1186,12 +1218,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('open token before space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{  (12345)}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{  (12345)}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1235,12 +1267,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('open token after space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{(  12345)}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{(  12345)}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1284,12 +1316,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('close token before space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{(12345  )}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{(12345  )}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1333,12 +1365,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('close token after space', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{(12345)  }}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{(12345)  }}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1382,12 +1414,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('variable bracket token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{[hello]}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{[hello]}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1431,12 +1463,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string bracket token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{['hello']}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{['hello']}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1480,12 +1512,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number bracket token', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer('{{[12345]}}', errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{[12345]}}', logs);
 
     expect(tokens).toEqual([
       {
@@ -1529,12 +1561,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple bracket tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{[foo 123 'bar']}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{[foo 123 'bar']}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1594,12 +1626,12 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested multiple bracket tokens', () => {
-    const errors: FunCityErrorInfo[] = [];
-    const tokens = runTokenizer("{{foo [123] 'bar'}}", errors);
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{foo [123] 'bar'}}", logs);
 
     expect(tokens).toEqual([
       {
@@ -1659,6 +1691,6 @@ describe('scripting tokenize test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 });

@@ -80,8 +80,8 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 
 // Run the interpreter
 const variables = buildCandidateVariables();
-const errors: FunCityErrorInfo[] = [];
-const text = await runScriptOnceToText(script, variables, errors);
+const logs: FunCityLogEntry[] = [];
+const text = await runScriptOnceToText(script, variables, logs);
 
 // Display the result text
 console.log(text);
@@ -145,6 +145,8 @@ $ funcity run
 
 - If you omit `repl` / `run`, it defaults to `repl` when no options are provided.
 - If `--input` or `-i` is specified, it is treated as `run`.
+- On startup, the CLI loads `~/.funcityrc` once and executes it before running
+  the REPL or script. Use `--no-rc` to skip loading this file.
 
 ### REPL mode
 
@@ -242,17 +244,17 @@ Writing the whole operation in code gives a minimal example like this:
 ```typescript
 const run = async (
   script: string,
-  errors: FunCityErrorInfo[] = []
+  logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // Run the tokenizer
-  const blocks: FunCityToken[] = runTokenizer(script, errors);
+  const blocks: FunCityToken[] = runTokenizer(script, logs);
 
   // Run the parser
-  const nodes: FunCityBlockNode[] = runParser(blocks, errors);
+  const nodes: FunCityBlockNode[] = runParser(blocks, logs);
 
   // Run the reducer
   const variables: FunCityVariables = buildCandidateVariables();
-  const results: unknown[] = await runReducer(nodes, variables, errors);
+  const results: unknown[] = await runReducer(nodes, variables, logs);
 
   // Concatenate all results as text
   const text: string = results.join('');
@@ -267,12 +269,12 @@ const run = async (
   Therefore, these are concatenated as strings to produce the final output text.
 - If a script does not change once loaded and you want to run only the reducer many times,
   you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
-- Errors and warnings are added to `errors`.
-  If you want to terminate early due to errors or warnings, you can check whether `errors` contains any entries after each operation completes.
-- Even if errors and/or warnings exist, processing can continue to the interpreter.
+- Errors and warnings are added to `logs`.
+  If you want to terminate early due to logs or warnings, you can check whether `logs` contains any entries after each operation completes.
+- Even if logs and/or warnings exist, processing can continue to the interpreter.
   The location where the error occurred may have been replaced with an appropriate token node,
   and executing the interpreter using that information will likely not function correctly.
-  However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate errors.
+  However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate logs.
 - Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
   Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
@@ -303,7 +305,7 @@ const variables = buildCandidateVariables(
 );
 
 // ex: `{{foo}}` ---> ['ABCDE']
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 ### Bind function objects
@@ -319,7 +321,7 @@ const variables = buildCandidateVariables(
 );
 
 // ex: `{{bar 21}}` ---> [42]
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - When specifying function objects, you can pass async functions as shown above.
@@ -373,7 +375,7 @@ const variables = buildCandidateVariables(
 
 // ex: `{{baz true 5}}` ---> [5]
 // ex: `{{baz false 5}}` ---> [-1]   (The expression `5` is not reduced)
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - `FunCityFunctionContext` is an interface for using some interpreter features inside funcity functions.
@@ -386,7 +388,7 @@ const results = await runReducer(nodes, variables, errors);
   so you should assume they can be `undefined`.
 - In this example we return `undefined` when an error is recorded, but this is not required; you can return any value.
   If you return a meaningful value, evaluation continues using that value
-  (processing usually continues even if errors are recorded).
+  (processing usually continues even if logs are recorded).
 
 ---
 
@@ -657,22 +659,49 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLI includes `fetchVariables` by default.
 
-### Node.js Variables
+### require (Node.js)
 
-`nodeJsVariables` exposes Node.js built-ins for script bindings:
-
-| Object | Description |
-| :--- | :--- |
-| `fs` | `fs/promises` object. |
-| `path` | `path` object. |
-| `os` | `os` object. |
-| `crypto` | `crypto` object. |
-| `process` | `process` object. |
+`createRequireFunction` creates a Node.js `require` function bound to a base
+directory. Import it from the Node-only entry to avoid pulling Node built-ins
+into projects that do not use them:
 
 ```typescript
-import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
 
-// Enable Node.js built-in feature symbols
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
+// const require = createRequireFunction(); // defaults to process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+For example:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+When `acceptModules` is provided, only the listed module names are allowed.
+Package subpaths (such as `lodash/fp` or `fs/promises`) are permitted when the
+base module name is listed. Relative or absolute specifiers must be listed
+explicitly if you want to allow them.
+
+CLI includes `require` by default. Script execution resolves modules from the
+script directory, while REPL uses the current working directory.
+
+### readline (Node.js)
+
+`nodeJsVariables` exposes a `readline` function for reading a single line from
+stdin (optional prompt). Import it from the Node-only entry to avoid pulling
+Node built-ins into projects that do not use them:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { nodeJsVariables } from 'funcity/node';
+
 const variables = buildCandidateVariables(nodeJsVariables);
 
 // ...
@@ -681,10 +710,41 @@ const variables = buildCandidateVariables(nodeJsVariables);
 For example:
 
 ```funcity
-{{fs.readFile '/foo/bar/text' 'utf-8'}}
+{{set persons (toNumber (readline 'How many people? '))}}
 ```
 
-CLI includes `nodeJsVariables` by default.
+Additionally, `createRequireFunction` generates a Node.js `require` function that resolves modules relative to a specified directory.
+Making this function available allows scripts to dynamically load NPM modules.
+
+When `acceptModules` argument is specified, module access is restricted to that allowlist.
+Modules must still be either Node.js default modules or located within the `node_modules/` directory of the specified directory:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const _require = createRequireFunction(
+  '/path/to/script/dir',  // If not specified, use `process.cwd()`
+  ['fs', 'lodash']        // `acceptModules`
+);
+
+const variables = {
+  require: _require,
+};
+
+// ...
+```
+
+For example:
+
+```funcity
+{{
+set fs (require 'fs/promises')
+fs.readFile '/foo/bar/text' 'utf-8'
+}}
+```
+
+CLI includes both `readline` and `require` by default.
 
 ---
 

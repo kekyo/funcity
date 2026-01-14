@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityErrorInfo, FunCityToken } from '../src/types';
+import type { FunCityLogEntry, FunCityToken } from '../src/types';
 import { parseExpressions, runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -14,13 +14,13 @@ describe('scripting parser test', () => {
   it('nop token 1', () => {
     // ""
     const token: FunCityToken[] = [];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // ""
     expect(nodes).toEqual([]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nop token 2', () => {
@@ -43,13 +43,13 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{}}"
     expect(nodes).toEqual([]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('number token', () => {
@@ -80,9 +80,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{12345}}"
     expect(nodes).toEqual([
@@ -95,7 +95,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('string token', () => {
@@ -126,9 +126,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{'hello'}}"
     expect(nodes).toEqual([
@@ -141,7 +141,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('variable token', () => {
@@ -172,9 +172,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar}}"
     expect(nodes).toEqual([
@@ -187,7 +187,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('member access variable token', () => {
@@ -218,9 +218,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foo.bar}}"
     expect(nodes).toEqual([
@@ -233,7 +233,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('both text and number body', () => {
@@ -280,9 +280,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "Hello{{123}}World"
     expect(nodes).toEqual([
@@ -311,7 +311,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple tokens application', () => {
@@ -358,9 +358,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar 'hello' 12345}}"
     expect(nodes).toEqual([
@@ -398,7 +398,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested application tokens', () => {
@@ -461,9 +461,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar (baz 12345)}}"
     expect(nodes).toEqual([
@@ -510,7 +510,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested application tokens (empty argument)', () => {
@@ -557,9 +557,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar ()}}"
     expect(nodes).toEqual([
@@ -580,7 +580,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested application tokens (empty argument 2)', () => {
@@ -651,9 +651,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar (baz ())}}"
     expect(nodes).toEqual([
@@ -691,7 +691,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple tokens application with eol (1)', () => {
@@ -737,9 +737,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foobar\n12345}}"
     expect(nodes).toEqual([
@@ -769,7 +769,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple tokens application with eol (2)', () => {
@@ -815,9 +815,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{12345\n'ABC'}}"
     expect(nodes).toEqual([
@@ -847,7 +847,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('parentheses number token', () => {
@@ -894,9 +894,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{(12345)}}"
     expect(nodes).toEqual([
@@ -909,7 +909,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('parentheses string token', () => {
@@ -956,9 +956,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{('hello')}}"
     expect(nodes).toEqual([
@@ -971,7 +971,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('parentheses variable token', () => {
@@ -1018,9 +1018,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     expect(nodes).toEqual([
       {
@@ -1032,7 +1032,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('parentheses multiple tokens', () => {
@@ -1095,9 +1095,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{(foobar 'hello' 12345)}}"
     expect(nodes).toEqual([
@@ -1135,7 +1135,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('parentheses multiple scoped tokens', () => {
@@ -1212,9 +1212,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{(foobar\n'hello'\n12345)}}"
     expect(nodes).toEqual([
@@ -1252,7 +1252,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested parentheses multiple tokens', () => {
@@ -1355,9 +1355,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foo (bar (baz 'hello') 12345) hoge}}"
     expect(nodes).toEqual([
@@ -1437,7 +1437,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('bracket number token', () => {
@@ -1484,9 +1484,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{[12345]}}"
     expect(nodes).toEqual([
@@ -1508,7 +1508,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('bracket string token', () => {
@@ -1555,9 +1555,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{['hello']}}"
     expect(nodes).toEqual([
@@ -1579,7 +1579,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('bracket variable token', () => {
@@ -1626,9 +1626,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{[foobar]}}"
     expect(nodes).toEqual([
@@ -1650,7 +1650,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('bracket multiple tokens', () => {
@@ -1713,9 +1713,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{[foobar 'hello' 12345]}}"
     expect(nodes).toEqual([
@@ -1753,7 +1753,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('nested bracket multiple tokens', () => {
@@ -1856,9 +1856,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{foo [123 [bar 'hello'] 456] baz}}"
     expect(nodes).toEqual([
@@ -1938,7 +1938,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (if)', () => {
@@ -2007,9 +2007,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\n123\nend}}"
     expect(nodes).toEqual([
@@ -2040,7 +2040,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (applied if)', () => {
@@ -2117,9 +2117,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\nfoo 123\nend}}"
     expect(nodes).toEqual([
@@ -2167,7 +2167,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (scoped if)', () => {
@@ -2251,9 +2251,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\nfoo\n123\nend}}"
     expect(nodes).toEqual([
@@ -2301,7 +2301,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (if-else)', () => {
@@ -2400,9 +2400,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\n123\nelse\n456\nend}}"
     expect(nodes).toEqual([
@@ -2442,7 +2442,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (if-else across blocks)', () => {
@@ -2545,9 +2545,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if flag?}}THEN{{else}}ELSE{{end}}"
     expect(nodes).toEqual([
@@ -2587,7 +2587,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (nested if)', () => {
@@ -2694,9 +2694,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\nif 0\n123\nend\nend}}"
     expect(nodes).toEqual([
@@ -2745,7 +2745,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('conditional token (nested if-else)', () => {
@@ -2912,9 +2912,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{if 1\nif 0\n123\nelse\n456\nend\nelse\n789\nend}}"
     expect(nodes).toEqual([
@@ -2981,7 +2981,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('repeat token (while)', () => {
@@ -3050,9 +3050,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{while 1\n123\nend}}"
     expect(nodes).toEqual([
@@ -3082,7 +3082,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('repeat token (for)', () => {
@@ -3159,9 +3159,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{for item items\nitem\nend}}"
     expect(nodes).toEqual([
@@ -3199,7 +3199,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('bind token (set)', () => {
@@ -3261,9 +3261,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{set foo 123\nfoo}}"
     expect(nodes).toEqual([
@@ -3318,7 +3318,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('fun token (single parameter)', () => {
@@ -3365,9 +3365,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{fun foo 123}}"
     expect(nodes).toEqual([
@@ -3405,7 +3405,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('fun token (list parameter)', () => {
@@ -3468,9 +3468,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{fun [foo] 123}}"
     expect(nodes).toEqual([
@@ -3517,7 +3517,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('fun token (list parameter, 2 args)', () => {
@@ -3588,9 +3588,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{fun [foo bar] 123}}"
     expect(nodes).toEqual([
@@ -3645,7 +3645,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('fun expression in func position', () => {
@@ -3732,9 +3732,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{(fun [foo] foo) 123}}"
     expect(nodes).toEqual([
@@ -3798,7 +3798,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('fun expression with extra argument', () => {
@@ -3869,9 +3869,9 @@ describe('scripting parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = runParser(token, errors);
+    const nodes = runParser(token, logs);
 
     // "{{fun [foo] foo 123}}"
     expect(nodes).toEqual([
@@ -3926,7 +3926,7 @@ describe('scripting parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 });
 
@@ -3950,9 +3950,9 @@ describe('code parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = parseExpressions(token, errors);
+    const nodes = parseExpressions(token, logs);
 
     expect(nodes).toEqual([
       {
@@ -3981,7 +3981,7 @@ describe('code parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('multiple expressions', () => {
@@ -4010,9 +4010,9 @@ describe('code parser test', () => {
         },
       },
     ];
-    const errors: FunCityErrorInfo[] = [];
+    const logs: FunCityLogEntry[] = [];
 
-    const nodes = parseExpressions(token, errors);
+    const nodes = parseExpressions(token, logs);
 
     expect(nodes).toEqual([
       {
@@ -4041,6 +4041,6 @@ describe('code parser test', () => {
         },
       },
     ]);
-    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 });

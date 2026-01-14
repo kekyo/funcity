@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { FunCityBlockNode } from '../src/types';
-import { runReducer } from '../src/reducer';
-import { buildCandidateVariables } from '../src/standard-variables';
+import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
+import { runReducer } from '../../src/reducer';
+import { buildCandidateVariables } from '../../src/variables/standard-variables';
 import {
   applyNode,
   dummyRange,
@@ -16,15 +16,17 @@ import {
   numberNode,
   stringNode,
   variableNode,
-} from './test-utils';
+} from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
 describe('standard variables test', () => {
   const reduceSingle = async (node: FunCityBlockNode) => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables();
-    const reduced = await runReducer([node], variables);
+    const reduced = await runReducer([node], variables, warningLogs);
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     return reduced[0];
   };
 
@@ -141,9 +143,15 @@ describe('standard variables test', () => {
   it('now', async () => {
     const variables = buildCandidateVariables();
     const nowBefore = Date.now();
-    const reduced = await runReducer([applyNode('now', [])], variables);
+    const warningLogs: FunCityWarningEntry[] = [];
+    const reduced = await runReducer(
+      [applyNode('now', [])],
+      variables,
+      warningLogs
+    );
     const nowAfter = Date.now();
     expect(reduced).toHaveLength(1);
+    expect(warningLogs).toEqual([]);
     const nowValue = reduced[0] as number;
     expect(typeof nowValue).toBe('number');
     expect(nowValue).toBeGreaterThanOrEqual(nowBefore);
@@ -420,7 +428,7 @@ describe('standard variables test', () => {
       ])
     );
     expect(value).toBe(
-      '123,ABC,true,false,(undefined),(null),[111,222],fun<#1>'
+      '123,ABC,true,false,(undefined),(null),[111 222],fun<#1>'
     );
   });
   it('toBoolean true', async () => {
@@ -475,14 +483,66 @@ describe('standard variables test', () => {
   });
 
   it('delay', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables();
     const start = Date.now();
     const reduced = await runReducer(
       [applyNode('delay', [numberNode(10)]), numberNode(1)],
-      variables
+      variables,
+      warningLogs
     );
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(5);
     expect(reduced).toEqual([1]);
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('delay abort signal', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 10);
+
+    try {
+      await expect(
+        runReducer(
+          [applyNode('delay', [numberNode(100)])],
+          variables,
+          warningLogs,
+          controller.signal
+        )
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('fun delay abort signal', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 10);
+
+    try {
+      await expect(
+        runReducer(
+          [
+            applyNode('map', [
+              funNode(['x'], applyNode('delay', [numberNode(50)])),
+              applyNode('range', [numberNode(0), numberNode(5)]),
+            ]),
+          ],
+          variables,
+          warningLogs,
+          controller.signal
+        )
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    expect(warningLogs).toEqual([]);
   });
 });

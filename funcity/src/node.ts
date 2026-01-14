@@ -1,0 +1,8 @@
+// funcity - A functional language interpreter with text processing
+// Copyright (c) Kouji Matsui (@kekyo@mi.kekyo.net)
+// Under MIT.
+// https://github.com/kekyo/funcity/
+
+// Node.js dependencies
+
+export * from './variables/nodejs-variables';

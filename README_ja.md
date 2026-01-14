@@ -78,8 +78,8 @@ const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
 
 // インタープリタを実行
 const variables = buildCandidateVariables();
-const errors: FunCityErrorInfo[] = [];
-const text = await runScriptOnceToText(script, variables, errors);
+const logs: FunCityLogEntry[] = [];
+const text = await runScriptOnceToText(script, variables, logs);
 
 // 結果の表示
 console.log(text);
@@ -142,6 +142,8 @@ $ funcity run
 
 - コマンド `repl` / `run` を指定しない場合、オプションがなければ `repl` として扱われます。
 - `--input` または `-i` が指定されている場合は `run` として扱われます。
+- CLI起動時に `~/.funcityrc` を1回読み込み、REPL/スクリプト実行の前に実行します。
+  `--no-rc` を指定すると読み込みを行いません。
 
 ### REPLモード
 
@@ -239,17 +241,17 @@ flowchart LR
 ```typescript
 const run = async (
   script: string,
-  errors: FunCityErrorInfo[] = []
+  logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // トークナイザーの実行
-  const blocks: FunCityToken[] = runTokenizer(script, errors);
+  const blocks: FunCityToken[] = runTokenizer(script, logs);
 
   // パーサーの実行
-  const nodes: FunCityBlockNode[] = runParser(blocks, errors);
+  const nodes: FunCityBlockNode[] = runParser(blocks, logs);
 
   // インタープリタの実行
   const variables: FunCityVariables = buildCandidateVariables();
-  const results: unknown[] = await runReducer(nodes, variables, errors);
+  const results: unknown[] = await runReducer(nodes, variables, logs);
 
   // すべての結果をテキストとして結合
   const text: string = results.join('');
@@ -262,8 +264,8 @@ const run = async (
 - インタープリタの出力は、生の計算結果です。また、複数の結果が得られる可能性があります。したがって、これらを文字列として結合して、最終的な出力テキストを得ます。
 - スクリプトが一度読み込んだら変更されず、何度もインタープリタ実行だけを行いたい場合は、
   トークナイザーとパーサーの実行までを事前に行っておき、インタープリタだけ実行するようにすれば、効率よく処理できます。
-- エラーやウォーニングは、 `errors` に追加されます。
-  もし、エラーやウォーニングで早期に停止させたいなら、各処理が終了した時点で `errors` に記録があるかどうかを調べることができます。
+- エラーやウォーニングは、 `logs` に追加されます。
+  もし、エラーやウォーニングで早期に停止させたいなら、各処理が終了した時点で `logs` に記録があるかどうかを調べることができます。
 - エラーがウォーニングが存在しても、インタープリタまで処理を続行できます。
   エラーが存在した箇所は、適当なトークン・ノードに置き換えられている可能性があり、それらの情報を使用してインタープリタを実行すると、正しく動作しない可能性が高いです。
   しかし、ある程度の構造が維持されるので、トークンやノードを解析して、より適切なエラーを生成出来るかもしれません。
@@ -295,7 +297,7 @@ const variables = buildCandidateVariables(
 );
 
 // 例: `{{foo}}` ---> ['ABCDE']
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 ### 関数オブジェクトのバインド
@@ -311,7 +313,7 @@ const variables = buildCandidateVariables(
 );
 
 // 例: `{{bar 21}}` ---> [42]
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - 関数オブジェクトを指定する場合は、上記のように非同期関数を渡すことができます。
@@ -365,7 +367,7 @@ const variables = buildCandidateVariables(
 
 // 例: `{{baz true 5}}` ---> [5]
 // 例: `{{baz false 5}}` ---> [-1]   (`5`の式の評価は行われない)
-const results = await runReducer(nodes, variables, errors);
+const results = await runReducer(nodes, variables, logs);
 ```
 
 - `FunCityFunctionContext` は、インタープリタの一部の機能をfuncity関数内で使用するためのインターフェイスです。
@@ -645,22 +647,53 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLIは `fetchVariables` を既定で含みます。
 
-### Node.js 変数
+### require (Node.js)
 
-`nodeJsVariables` は、Node.js の組み込み機能をバインド用に公開します:
-
-| オブジェクト | 説明 |
-| :--- | :--- |
-| `fs` | `fs/promises` オブジェクト |
-| `path` | `path` オブジェクト |
-| `os` | `os` オブジェクト |
-| `crypto` | `crypto`オブジェクト |
-| `process` | `process` オブジェクト |
+`createRequireFunction` は、指定ディレクトリを基点に解決する
+Node.js の `require` 関数を生成します。Node.js を使わないプロジェクトに
+影響しないよう、`funcity/node` から import します:
 
 ```typescript
-import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
 
-// Node.jsの組み込み機能シンボルを使用可能にする
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
+// const require = createRequireFunction(); // 未指定時は process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+`acceptModules` を指定すると、指定したモジュール名のみ利用できます。
+`lodash/fp` や `fs/promises` のようなサブパスは、基点のモジュール名を
+許可していれば利用可能です。相対パスや絶対パスを許可したい場合は、
+その指定子を明示的に含めてください。
+
+CLIは `require` を既定で含みます。スクリプト実行時はスクリプトの
+ディレクトリ、REPLはカレントディレクトリを基点に解決されます。
+
+### Node.js 変数
+
+`nodeJsVariables` は、標準入力から1行読み取る `readline` 関数を公開します
+（プロンプト引数は任意）。Node.js を使わないプロジェクトに影響しないよう、
+`funcity/node` から import します:
+
+| 関数 | 説明 |
+| :--- | :--- |
+| `readline` | コンソールから1行入力を受け取る関数（プロンプト引数は任意） |
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { nodeJsVariables } from 'funcity/node';
+
 const variables = buildCandidateVariables(nodeJsVariables);
 
 // ...
@@ -669,10 +702,41 @@ const variables = buildCandidateVariables(nodeJsVariables);
 例えば、以下のように使用します:
 
 ```funcity
-{{fs.readFile '/foo/bar/text' 'utf-8'}}
+{{set persons (toNumber (readline 'How many people? '))}}
 ```
 
-CLIは `nodeJsVariables` を既定で含みます。
+また、 `createRequireFunction` は、指定ディレクトリを基点に解決する Node.js の `require` 関数を生成します。
+この関数を参照可能にすれば、スクリプトから動的にNPMモジュールをロードできます。
+
+`acceptModules` 引数を指定すると、参照可能なモジュールをその許可リストに限定できます。
+但し、参照可能なモジュールは、Node.jsデフォルトモジュールか、または指定されたディレクトリ内の `node_modules/` に配置されている必要があります:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const _require = createRequireFunction(
+  '/path/to/script/dir',  // 未指定時は `process.cwd()`
+  ['fs', 'lodash']        // `acceptModules`
+);
+
+const variables = {
+  require: _require,
+};
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{
+set fs (require 'fs/promises')
+fs.readFile '/foo/bar/text' 'utf-8'
+}}
+```
+
+CLIは `readline` と `require` を既定で含みます。
 
 ---
 

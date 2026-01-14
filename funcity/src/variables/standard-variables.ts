@@ -8,15 +8,16 @@ import {
   FunCityVariables,
   FunCityFunctionContext,
   FunCityVariableNode,
-} from './types';
-import { reduceExpressionNode } from './reducer';
+  FunCityReducerError,
+} from '../types';
+import { reduceExpressionNode } from '../reducer';
 import {
   asIterable,
   combineVariables,
   convertToString,
   isConditionalTrue,
   makeFunCityFunction,
-} from './utils';
+} from '../utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +29,7 @@ const _cond = makeFunCityFunction(async function (
   arg2: FunCityExpressionNode | undefined
 ) {
   if (!arg0 || !arg1 || !arg2) {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'Required `cond` condition, true and false expressions',
       range: this.thisNode.range,
@@ -50,20 +51,18 @@ const _set = makeFunCityFunction(async function (
   ...rest: FunCityExpressionNode[]
 ) {
   if (!arg0 || !arg1 || rest.length !== 0) {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'Required `set` bind identity and expression',
       range: this.thisNode.range,
     });
-    return undefined;
   }
   if (arg0.kind !== 'variable') {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'Required `set` bind identity',
       range: arg0.range,
     });
-    return undefined;
   }
   const value = await this.reduce(arg1);
   this.setValue(arg0.name, value);
@@ -72,7 +71,7 @@ const _set = makeFunCityFunction(async function (
 
 const extractParameterArguments = (
   namesNode: FunCityExpressionNode,
-  context: FunCityFunctionContext
+  _context: FunCityFunctionContext
 ): FunCityVariableNode[] | undefined => {
   switch (namesNode.kind) {
     case 'variable': {
@@ -83,7 +82,7 @@ const extractParameterArguments = (
       let hasError = false;
       for (const nameNode of namesNode.items) {
         if (nameNode.kind !== 'variable') {
-          context.appendError({
+          throw new FunCityReducerError({
             type: 'error',
             description: 'Required `fun` parameter identity',
             range: nameNode.range,
@@ -96,7 +95,7 @@ const extractParameterArguments = (
       return hasError ? undefined : nameNodes;
     }
     default: {
-      context.appendError({
+      throw new FunCityReducerError({
         type: 'error',
         description: 'Required `fun` parameter identity',
         range: namesNode.range,
@@ -113,12 +112,11 @@ const _fun = makeFunCityFunction(async function (
   ...rest: FunCityExpressionNode[]
 ) {
   if (!arg0 || !arg1 || rest.length !== 0) {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'Required `fun` parameter identity and expression',
       range: this.thisNode.range,
     });
-    return undefined;
   }
 
   const nameNodes = extractParameterArguments(arg0, this);
@@ -132,14 +130,13 @@ const _fun = makeFunCityFunction(async function (
 
   return async (...args: readonly unknown[]) => {
     if (args.length < nameNodes.length) {
-      this.appendError({
+      throw new FunCityReducerError({
         type: 'error',
         description: `Arguments are not filled: ${args.length} < ${nameNodes.length}`,
         range: lambdaRange,
       });
-      return undefined;
     } else if (args.length > nameNodes.length) {
-      this.appendError({
+      this.appendWarning({
         type: 'warning',
         description: `Too many arguments: ${args.length} > ${nameNodes.length}`,
         range: lambdaRange,
@@ -148,9 +145,17 @@ const _fun = makeFunCityFunction(async function (
 
     const newContext = createScope();
     for (let index = 0; index < nameNodes.length; index++) {
-      newContext.setValue(nameNodes[index]!.name, args[index]);
+      newContext.setValue(
+        nameNodes[index]!.name,
+        args[index],
+        this.abortSignal
+      );
     }
-    const result = await reduceExpressionNode(newContext, bodyNode);
+    const result = await reduceExpressionNode(
+      newContext,
+      bodyNode,
+      this.abortSignal
+    );
     return result;
   };
 });
@@ -338,12 +343,11 @@ const _and = makeFunCityFunction(async function (
   ...args: FunCityExpressionNode[]
 ) {
   if (args.length === 0) {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'empty arguments',
       range: this.thisNode.range,
     });
-    return undefined;
   }
   for (const arg of args) {
     const value = await this.reduce(arg);
@@ -359,12 +363,11 @@ const _or = makeFunCityFunction(async function (
   ...args: FunCityExpressionNode[]
 ) {
   if (args.length === 0) {
-    this.appendError({
+    throw new FunCityReducerError({
       type: 'error',
       description: 'empty arguments',
       range: this.thisNode.range,
     });
-    return undefined;
   }
   for (const arg of args) {
     const value = await this.reduce(arg);
@@ -560,10 +563,58 @@ const _url = async (arg0: unknown, arg1: unknown) => {
   return url;
 };
 
-const _delay = (ms: unknown, value?: unknown) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, Number(ms), value);
+const _delay = async function (
+  this: FunCityFunctionContext,
+  ms: unknown,
+  value?: unknown
+) {
+  const delayMs = Number(ms);
+  const signal = this.abortSignal;
+
+  if (!signal) {
+    return await new Promise((resolve) => {
+      setTimeout(resolve, delayMs, value);
+    });
+  }
+
+  signal.throwIfAborted();
+
+  return await new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      signal.removeEventListener('abort', onAbort);
+    };
+
+    const onAbort = () => {
+      cleanup();
+      try {
+        signal.throwIfAborted();
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      const abortError = new Error('Aborted');
+      (abortError as any).name = 'AbortError';
+      reject(abortError);
+    };
+
+    timer = setTimeout(() => {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      cleanup();
+      resolve(value);
+    }, delayMs);
+
+    signal.addEventListener('abort', onAbort, { once: true });
   });
+};
 
 //////////////////////////////////////////////////////////////////////////////
 

@@ -8,7 +8,7 @@
 /**
  * Error/Warning information writers.
  */
-export interface FunCityErrorInfoWriter {
+export interface FunCityLogEntryWriter {
   /**
    * Warning message writer.
    * @param message - Message string
@@ -52,18 +52,31 @@ export interface FunCityRange {
 }
 
 /**
- * Error severity type.
+ * Warning information with location.
  */
-export type FunCityErrorType = 'warning' | 'error';
+export interface FunCityWarningEntry {
+  /**
+   * Warning severity.
+   */
+  readonly type: 'warning';
+  /**
+   * Warning description.
+   */
+  readonly description: string;
+  /**
+   * Warning range in source text.
+   */
+  readonly range: FunCityRange;
+}
 
 /**
  * Error information with location.
  */
-export interface FunCityErrorInfo {
+export interface FunCityErrorEntry {
   /**
    * Error severity.
    */
-  readonly type: FunCityErrorType;
+  readonly type: 'error';
   /**
    * Error description.
    */
@@ -73,6 +86,11 @@ export interface FunCityErrorInfo {
    */
   readonly range: FunCityRange;
 }
+
+/**
+ * Log entry type.
+ */
+export type FunCityLogEntry = FunCityWarningEntry | FunCityErrorEntry;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -410,9 +428,9 @@ export class FunCityReducerError extends Error {
   /**
    * Error information.
    */
-  readonly info: FunCityErrorInfo;
+  readonly info: FunCityErrorEntry;
 
-  constructor(info: FunCityErrorInfo) {
+  constructor(info: FunCityErrorEntry) {
     super(info.description);
     this.name = 'FunCityReducerError';
     this.info = info;
@@ -460,15 +478,10 @@ export interface FunCityFunctionContext {
    */
   readonly setValue: (name: string, value: unknown) => void;
   /**
-   * Append context error.
-   * @param error - Error or warning information.
+   * Append context warning.
+   * @param warning - Warning information.
    */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
+  readonly appendWarning: (warning: FunCityWarningEntry) => void;
   /**
    * Create new scoped context.
    * @returns New reducer context.
@@ -493,16 +506,26 @@ export interface FunCityFunctionContext {
  */
 export interface FunCityReducerContext {
   /**
-   * Get current abort signal object.
-   * @returns AbortSignal when available.
-   */
-  readonly abortSignal: AbortSignal | undefined;
-  /**
    * Get current context (scope) variable value.
    * @param name - Variable name
+   * @param signal - AbortSignal when available.
    * @returns Variable value information
    */
-  readonly getValue: (name: string) => FunCityReducerContextValueResult;
+  readonly getValue: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => FunCityReducerContextValueResult;
+  /**
+   * Set current context (scope) variable value.
+   * @param name - Variable name
+   * @param value - New value
+   * @param signal - AbortSignal when available.
+   */
+  readonly setValue: (
+    name: string,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ) => void;
   /**
    * Get a bound function with caching for object receivers.
    * @param owner - Method owner object
@@ -511,26 +534,16 @@ export interface FunCityReducerContext {
    */
   readonly getBoundFunction: (owner: object, fn: Function) => Function;
   /**
-   * Set current context (scope) variable value.
-   * @param name - Variable name
-   * @param value - New value
+   * Append context warning.
+   * @param warning - Warning information.
    */
-  readonly setValue: (name: string, value: unknown) => void;
-  /**
-   * Append context error.
-   * @param error - Error or warning information.
-   */
-  readonly appendError: (error: FunCityErrorInfo) => void;
-  /**
-   * Indicate error received.
-   * @returns The context is received any errors.
-   */
-  readonly isFailed: () => boolean;
+  readonly appendWarning: (warning: FunCityWarningEntry) => void;
   /**
    * Create new scoped context.
+   * @param signal - AbortSignal when available.
    * @returns New reducer context.
    */
-  readonly newScope: () => FunCityReducerContext;
+  readonly newScope: (signal: AbortSignal | undefined) => FunCityReducerContext;
   /**
    * Convert a value to string.
    * @param v - A value
@@ -540,10 +553,12 @@ export interface FunCityReducerContext {
   /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
+   * @param signal - AbortSignal when available.
    * @returns Native function context proxy instance.
    */
   readonly createFunctionContext: (
-    thisNode: FunCityExpressionNode
+    thisNode: FunCityExpressionNode,
+    signal: AbortSignal | undefined
   ) => FunCityFunctionContext;
 }
 
@@ -558,11 +573,7 @@ export interface FunCityOnceRunnerProps {
    */
   variables?: FunCityVariables;
   /**
-   * Will be stored detected warnings/errors into it.
+   * Will be stored detected warnings/logs into it.
    */
-  errors?: FunCityErrorInfo[];
-  /**
-   * Abort signal.
-   */
-  signal?: AbortSignal;
+  logs?: FunCityLogEntry[];
 }

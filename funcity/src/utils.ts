@@ -4,8 +4,8 @@
 // https://github.com/kekyo/funcity/
 
 import {
-  FunCityErrorInfo,
-  FunCityErrorInfoWriter,
+  FunCityLogEntry,
+  FunCityLogEntryWriter,
   FunCityLocation,
   FunCityRange,
   FunCityVariables,
@@ -170,8 +170,8 @@ const getLocationString = (range: FunCityRange) =>
 
 const printErrorString = (
   path: string,
-  error: FunCityErrorInfo,
-  writer: FunCityErrorInfoWriter
+  error: FunCityLogEntry,
+  writer: FunCityLogEntryWriter
 ) => {
   switch (error.type) {
     case 'warning':
@@ -191,22 +191,34 @@ const printErrorString = (
 /**
  * Output error list and return whether any error-level entry exists.
  * @param path - Source path.
- * @param errors - Errors to output.
+ * @param logs - Errors to output.
  * @param writer - Writer interface.
  * @returns True when an error-level entry exists.
  */
 export const outputErrors = (
   path: string,
-  errors: readonly FunCityErrorInfo[],
-  writer?: FunCityErrorInfoWriter
+  logs: readonly FunCityLogEntry[],
+  writer?: FunCityLogEntryWriter
 ) => {
   const _writer = writer ?? console;
   let isError = false;
-  for (const error of errors) {
+  for (const error of logs) {
     const result = printErrorString(path, error, _writer);
     isError ||= result;
   }
   return isError;
+};
+
+const iterToString = (
+  iter: Iterable<unknown>,
+  getFuncId: (fn: Function) => number
+) => {
+  const strs: unknown[] = [];
+  for (const item of iter) {
+    const str = internalConvertToString(item, getFuncId);
+    strs.push(str);
+  }
+  return `[${strs.join(' ')}]`;
 };
 
 export const internalConvertToString = (
@@ -236,12 +248,11 @@ export const internalConvertToString = (
           }
         default:
           if (Array.isArray(v)) {
-            return JSON.stringify(v);
+            return iterToString(v, getFuncId);
           }
           const iterable = asIterable(v);
           if (iterable) {
-            const arr = Array.from(iterable);
-            return JSON.stringify(arr);
+            return iterToString(iterable, getFuncId);
           } else if (v instanceof Date) {
             return v.toISOString();
           } else if (v instanceof Error) {
@@ -271,7 +282,7 @@ export const internalCreateFunctionIdGenerator = () => {
   return getFuncId;
 };
 
-const getFuncId = internalCreateFunctionIdGenerator();
+const getGlobalFuncId = internalCreateFunctionIdGenerator();
 
 /**
  * Convert to string.
@@ -279,4 +290,4 @@ const getFuncId = internalCreateFunctionIdGenerator();
  * @returns String
  */
 export const convertToString = (v: unknown): string =>
-  internalConvertToString(v, getFuncId);
+  internalConvertToString(v, getGlobalFuncId);

@@ -4,7 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import type {
-  FunCityErrorInfo,
+  FunCityLogEntry,
   FunCityRange,
   FunCityNumberToken,
   FunCityStringToken,
@@ -23,7 +23,7 @@ import { emptyRange, widerRange } from './utils';
 
 const parseNumber = (
   cursor: ParserCursor,
-  _errors: FunCityErrorInfo[]
+  _errors: FunCityLogEntry[]
 ): FunCityNumberNode => {
   const token = cursor.takeToken() as FunCityNumberToken;
   return {
@@ -35,7 +35,7 @@ const parseNumber = (
 
 const parseString = (
   cursor: ParserCursor,
-  _errors: FunCityErrorInfo[]
+  _errors: FunCityLogEntry[]
 ): FunCityStringNode => {
   const token = cursor.takeToken() as FunCityStringToken;
   return {
@@ -47,7 +47,7 @@ const parseString = (
 
 const parseIdentity = (
   cursor: ParserCursor,
-  _errors: FunCityErrorInfo[]
+  _errors: FunCityLogEntry[]
 ): FunCityVariableNode => {
   const token = cursor.takeToken() as FunCityIdentityToken;
   return {
@@ -93,7 +93,7 @@ const combineIntoScopeMultipleExpressions = (
 
 const parsePartialExpression = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): PartialParsedExpressionNode | undefined => {
   const token = cursor.peekToken();
   if (!token) {
@@ -101,15 +101,15 @@ const parsePartialExpression = (
   }
   switch (token.kind) {
     case 'number': {
-      const node = parseNumber(cursor, errors);
+      const node = parseNumber(cursor, logs);
       return node;
     }
     case 'string': {
-      const node = parseString(cursor, errors);
+      const node = parseString(cursor, logs);
       return node;
     }
     case 'identity': {
-      const node = parseIdentity(cursor, errors);
+      const node = parseIdentity(cursor, logs);
       return node;
     }
     case 'open': {
@@ -117,10 +117,7 @@ const parsePartialExpression = (
       switch (token.symbol) {
         // Parenthesis surrounding expression list `( ... )` (Scope)
         case '(': {
-          const innerNodes = parseMultipleApplicationExpressions(
-            cursor,
-            errors
-          );
+          const innerNodes = parseMultipleApplicationExpressions(cursor, logs);
           const closeToken = cursor.peekToken();
           let range: FunCityRange;
           if (!closeToken) {
@@ -128,7 +125,7 @@ const parsePartialExpression = (
               token.range,
               ...innerNodes.map((node) => node.range)
             );
-            errors.push({
+            logs.push({
               type: 'error',
               description: 'Could not find close parenthesis',
               range: widerRange(
@@ -144,7 +141,7 @@ const parsePartialExpression = (
               closeToken.range
             );
             if (closeToken.kind !== 'close' || closeToken.symbol !== ')') {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: `Mismatched close parenthesis`,
                 range,
@@ -165,7 +162,7 @@ const parsePartialExpression = (
         }
         // Bracket surrounding expression list `[ ... ]` (Iterable list)
         case '[': {
-          const itemNodes = parseListExpression(cursor, errors);
+          const itemNodes = parseListExpression(cursor, logs);
           const closeToken = cursor.peekToken();
           let range: FunCityRange;
           if (!closeToken) {
@@ -173,7 +170,7 @@ const parsePartialExpression = (
               token.range,
               ...itemNodes.map((node) => node.range)
             );
-            errors.push({
+            logs.push({
               type: 'error',
               description: 'Could not find close bracket',
               range,
@@ -186,7 +183,7 @@ const parsePartialExpression = (
               closeToken.range
             );
             if (closeToken.kind !== 'close' || closeToken.symbol !== ']') {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: `Mismatched close bracket`,
                 range,
@@ -200,7 +197,7 @@ const parsePartialExpression = (
           };
         }
         default: {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Invalid open parenthesis/bracket`,
             range: token.range,
@@ -215,10 +212,10 @@ const parsePartialExpression = (
 
 const normalizePartialUnitNode = (
   node: PartialParsedExpressionNode,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode => {
   if (node.kind === unitKind) {
-    errors.push({
+    logs.push({
       type: 'error',
       description: `Invalid ${unitKind} at this location`,
       range: node.range,
@@ -235,7 +232,7 @@ const normalizePartialUnitNode = (
 
 const finalizeApplicationException = (
   partialNodes: readonly PartialParsedExpressionNode[],
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode | undefined => {
   // Empty inputs
   if (partialNodes.length === 0) {
@@ -243,12 +240,12 @@ const finalizeApplicationException = (
   }
   // Single variable
   if (partialNodes.length === 1) {
-    return normalizePartialUnitNode(partialNodes[0]!, errors);
+    return normalizePartialUnitNode(partialNodes[0]!, logs);
   }
   // Application
   const func = partialNodes[0]!;
   if (func.kind === unitKind) {
-    errors.push({
+    logs.push({
       type: 'error',
       description: `Invalid ${unitKind} at this location`,
       range: func.range,
@@ -266,7 +263,7 @@ const finalizeApplicationException = (
   }
   const args = partialNodes
     .slice(1)
-    .map((node) => normalizePartialUnitNode(node, errors));
+    .map((node) => normalizePartialUnitNode(node, logs));
   return {
     kind: 'apply',
     func: func as FunCityExpressionNode,
@@ -277,7 +274,7 @@ const finalizeApplicationException = (
 
 const parseMultipleApplicationExpressions = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode[] => {
   const expressionList: FunCityExpressionNode[] = [];
   const partialNodes: PartialParsedExpressionNode[] = [];
@@ -290,7 +287,7 @@ const parseMultipleApplicationExpressions = (
     switch (token.kind) {
       case 'eol': {
         cursor.skipToken();
-        const expr = finalizeApplicationException(partialNodes, errors);
+        const expr = finalizeApplicationException(partialNodes, logs);
         if (expr) {
           expressionList.push(expr);
         }
@@ -298,14 +295,14 @@ const parseMultipleApplicationExpressions = (
         continue;
       }
     }
-    const partialNode = parsePartialExpression(cursor, errors);
+    const partialNode = parsePartialExpression(cursor, logs);
     if (!partialNode) {
       break;
     }
     partialNodes.push(partialNode);
   }
 
-  const expr = finalizeApplicationException(partialNodes, errors);
+  const expr = finalizeApplicationException(partialNodes, logs);
   if (expr) {
     expressionList.push(expr);
   }
@@ -314,7 +311,7 @@ const parseMultipleApplicationExpressions = (
 
 const parseListExpression = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode[] => {
   const itemNodes: FunCityExpressionNode[] = [];
 
@@ -331,12 +328,12 @@ const parseListExpression = (
       }
     }
 
-    const partialNode = parsePartialExpression(cursor, errors);
+    const partialNode = parsePartialExpression(cursor, logs);
     if (!partialNode) {
       break;
     }
 
-    itemNodes.push(normalizePartialUnitNode(partialNode, errors));
+    itemNodes.push(normalizePartialUnitNode(partialNode, logs));
   }
 
   return itemNodes;
@@ -360,12 +357,12 @@ const drainEndOfLineAndPeek = (
 /**
  * Parse expression in the single line.
  * @param cursor - Parser cursor
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns Parsed expression node when available
  */
 export const parseExpression = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode | undefined => {
   // Ignored when reached end of line or end of cursor.
   let token = drainEndOfLineAndPeek(cursor);
@@ -378,7 +375,7 @@ export const parseExpression = (
 
   while (true) {
     // Parse current cursor location.
-    const partialNode = parsePartialExpression(cursor, errors);
+    const partialNode = parsePartialExpression(cursor, logs);
     if (!partialNode) {
       // Exit when failed (finished stacking nodes)
       break;
@@ -405,7 +402,7 @@ export const parseExpression = (
   drainEndOfLineAndPeek(cursor);
 
   // Finalize nodes into apply expression when available multiple expressions.
-  const expr = finalizeApplicationException(partialNodes, errors);
+  const expr = finalizeApplicationException(partialNodes, logs);
   return expr;
 };
 
@@ -554,7 +551,7 @@ const pushNode = (
 
 const parseStatementArguments = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityExpressionNode[] => {
   const args: FunCityExpressionNode[] = [];
 
@@ -569,12 +566,12 @@ const parseStatementArguments = (
       break;
     }
 
-    const partialNode = parsePartialExpression(cursor, errors);
+    const partialNode = parsePartialExpression(cursor, logs);
     if (!partialNode) {
       break;
     }
 
-    args.push(normalizePartialUnitNode(partialNode, errors));
+    args.push(normalizePartialUnitNode(partialNode, logs));
   }
 
   return args;
@@ -584,7 +581,7 @@ type ParseMode = 'script' | 'code';
 
 const parseBlockCore = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[],
+  logs: FunCityLogEntry[],
   mode: ParseMode
 ): FunCityBlockNode[] => {
   // Logical statement state is started at 'root' state.
@@ -608,7 +605,7 @@ const parseBlockCore = (
       case 'text': {
         cursor.skipToken();
         if (isInExpressionBlock) {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Already opened expression block (tokenizer bug?)`,
             range: token.range,
@@ -628,7 +625,7 @@ const parseBlockCore = (
           cursor.skipToken();
           if (!isCodeMode) {
             if (isInExpressionBlock) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: `Already opened expression block`,
                 range: token.range,
@@ -637,7 +634,7 @@ const parseBlockCore = (
             isInExpressionBlock = true;
           }
         } else {
-          const node = parseExpression(cursor, errors);
+          const node = parseExpression(cursor, logs);
           if (node) {
             pushNode(statementStates, node);
           }
@@ -652,7 +649,7 @@ const parseBlockCore = (
           break;
         }
         if (!isInExpressionBlock) {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Mismatched close bracket`,
             range: token.range,
@@ -660,7 +657,7 @@ const parseBlockCore = (
           break;
         }
         if (isCodeMode) {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Mismatched close bracket`,
             range: token.range,
@@ -673,7 +670,7 @@ const parseBlockCore = (
       }
       case 'identity': {
         if (!isInExpressionBlock) {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Invalid identity (tokenizer bug?)`,
             range: token.range,
@@ -683,9 +680,9 @@ const parseBlockCore = (
         switch (token.name) {
           case 'if': {
             cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
+            const args = parseStatementArguments(cursor, logs);
             if (args.length !== 1) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Required `if` condition',
                 range: widerRange(
@@ -708,9 +705,9 @@ const parseBlockCore = (
           }
           case 'else': {
             cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
+            const args = parseStatementArguments(cursor, logs);
             if (args.length !== 0) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Could not take any arguments in `else` statement',
                 range: widerRange(
@@ -720,7 +717,7 @@ const parseBlockCore = (
               });
             }
             if (statementStates.length <= 1) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Cound not find pair of `if` statement',
                 range: token.range,
@@ -729,7 +726,7 @@ const parseBlockCore = (
             }
             const lastState = statementStates[statementStates.length - 1]!;
             if (lastState.kind !== 'if') {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Cound not find pair of `if` statement',
                 range: token.range,
@@ -737,7 +734,7 @@ const parseBlockCore = (
               break;
             }
             if (lastState.currentBlock === 'else') {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Duplicated `else` statement',
                 range: token.range,
@@ -750,9 +747,9 @@ const parseBlockCore = (
           }
           case 'while': {
             cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
+            const args = parseStatementArguments(cursor, logs);
             if (args.length !== 1) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Required `while` condition',
                 range: widerRange(
@@ -773,9 +770,9 @@ const parseBlockCore = (
           }
           case 'for': {
             cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
+            const args = parseStatementArguments(cursor, logs);
             if (args.length !== 2) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description:
                   'Required `for` bind identity and iterable expression',
@@ -788,7 +785,7 @@ const parseBlockCore = (
             }
             const bindNode = args[0]!;
             if (bindNode.kind !== 'variable') {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Required `for` bind identity',
                 range: bindNode.range,
@@ -807,9 +804,9 @@ const parseBlockCore = (
           }
           case 'end': {
             cursor.skipToken();
-            const args = parseStatementArguments(cursor, errors);
+            const args = parseStatementArguments(cursor, logs);
             if (args.length !== 0) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description: 'Could not take any arguments in `end` statement',
                 range: widerRange(
@@ -819,7 +816,7 @@ const parseBlockCore = (
               });
             }
             if (statementStates.length <= 1) {
-              errors.push({
+              logs.push({
                 type: 'error',
                 description:
                   'Cound not find pair of `if`,`while` or `for` statement',
@@ -879,7 +876,7 @@ const parseBlockCore = (
             break;
           }
           default: {
-            const node = parseExpression(cursor, errors);
+            const node = parseExpression(cursor, logs);
             if (node) {
               pushNode(statementStates, node);
             }
@@ -890,14 +887,14 @@ const parseBlockCore = (
       }
       default: {
         if (!isInExpressionBlock) {
-          errors.push({
+          logs.push({
             type: 'error',
             description: `Invalid ${token.kind} (tokenizer bug?)`,
             range: token.range,
           });
           break;
         }
-        const node = parseExpression(cursor, errors);
+        const node = parseExpression(cursor, logs);
         if (node) {
           pushNode(statementStates, node);
         }
@@ -908,7 +905,7 @@ const parseBlockCore = (
 
   flushStatementState(rootState);
   if (statementStates.length !== 1) {
-    errors.push({
+    logs.push({
       type: 'error',
       description: `Could not find statement closing`,
       range: widerRange(...statementStates.map((state) => state.startRange)),
@@ -920,14 +917,14 @@ const parseBlockCore = (
 /**
  * Parse blocks.
  * @param cursor - Parser cursor
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns Parsed block nodes
  */
 export const parseBlock = (
   cursor: ParserCursor,
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityBlockNode[] => {
-  return parseBlockCore(cursor, errors, 'script');
+  return parseBlockCore(cursor, logs, 'script');
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -972,15 +969,15 @@ export const createParserCursor = (
 /**
  * Parse expressions in code block.
  * @param tokens - Token list
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns Parsed node list
  */
 export const parseExpressions = (
   tokens: readonly FunCityToken[],
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityBlockNode[] => {
   const cursor = createParserCursor(tokens);
-  return parseBlockCore(cursor, errors, 'code');
+  return parseBlockCore(cursor, logs, 'code');
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -988,15 +985,15 @@ export const parseExpressions = (
 /**
  * Run the parser.
  * @param tokens - Token list
- * @param errors - Will be stored detected warnings/errors into it
+ * @param logs - Will be stored detected warnings/logs into it
  * @returns Parsed node list
  */
 export const runParser = (
   tokens: readonly FunCityToken[],
-  errors: FunCityErrorInfo[]
+  logs: FunCityLogEntry[]
 ): FunCityBlockNode[] => {
   const cursor = createParserCursor(tokens);
 
-  const blockNodes = parseBlock(cursor, errors);
+  const blockNodes = parseBlock(cursor, logs);
   return blockNodes;
 };

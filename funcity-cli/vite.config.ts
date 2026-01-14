@@ -37,7 +37,18 @@ export default defineConfig({
       formats: ['cjs'],
     },
     rollupOptions: {
-      external: ['fs/promises', 'readline', 'commander', 'funcity'],
+      external: [
+        'fs/promises',
+        'commander',
+        'funcity',
+        'funcity/node',
+        'module',
+        'path',
+        'os',
+        'crypto',
+        'process',
+        'readline',
+      ],
       output: {
         banner: '#!/usr/bin/env node',
       },

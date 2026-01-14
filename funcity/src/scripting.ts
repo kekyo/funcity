@@ -3,11 +3,15 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { FunCityOnceRunnerProps, FunCityReducerError } from './types';
+import {
+  FunCityOnceRunnerProps,
+  FunCityReducerError,
+  FunCityWarningEntry,
+} from './types';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
 import { createReducerContext, reduceNode } from './reducer';
-import { buildCandidateVariables } from './standard-variables';
+import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -15,25 +19,28 @@ import { buildCandidateVariables } from './standard-variables';
  * Simply runs a script once.
  * @param script Input script text.
  * @param props - Runner properties.
+ * @param signal - AbortSignal when available.
  * @returns Result text when reducer is completed
  */
 export const runScriptOnce = async (
   script: string,
-  props: FunCityOnceRunnerProps
+  props: FunCityOnceRunnerProps,
+  signal?: AbortSignal
 ): Promise<unknown[]> => {
-  const { variables = buildCandidateVariables(), errors = [], signal } = props;
+  const { variables = buildCandidateVariables(), logs = [] } = props;
 
-  const tokens = runTokenizer(script, errors);
-  const nodes = runParser(tokens, errors);
-  if (errors.length >= 1) {
+  const tokens = runTokenizer(script, logs);
+  const nodes = runParser(tokens, logs);
+  if (logs.length >= 1) {
     return [];
   }
 
-  const reducerContext = createReducerContext(variables, signal);
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
   const resultList: unknown[] = [];
   try {
     for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node);
+      const results = await reduceNode(reducerContext, node, signal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);
@@ -41,13 +48,15 @@ export const runScriptOnce = async (
       }
     }
   } catch (error: unknown) {
+    logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
-      errors.push(error.info);
+      logs.push(error.info);
       return [];
     }
     throw error;
   }
 
+  logs.push(...warningLogs);
   return resultList;
 };
 
@@ -55,25 +64,28 @@ export const runScriptOnce = async (
  * Simply runs a script once.
  * @param script Input script text.
  * @param props - Runner properties.
+ * @param signal - AbortSignal when available.
  * @returns Result text when reducer is completed
  */
 export const runScriptOnceToText = async (
   script: string,
-  props: FunCityOnceRunnerProps
+  props: FunCityOnceRunnerProps,
+  signal?: AbortSignal
 ): Promise<string | undefined> => {
-  const { variables = buildCandidateVariables(), errors = [], signal } = props;
+  const { variables = buildCandidateVariables(), logs = [] } = props;
 
-  const tokens = runTokenizer(script, errors);
-  const nodes = runParser(tokens, errors);
-  if (errors.length >= 1) {
+  const tokens = runTokenizer(script, logs);
+  const nodes = runParser(tokens, logs);
+  if (logs.length >= 1) {
     return undefined;
   }
 
-  const reducerContext = createReducerContext(variables, signal);
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
   const resultList: unknown[] = [];
   try {
     for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node);
+      const results = await reduceNode(reducerContext, node, signal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);
@@ -81,13 +93,15 @@ export const runScriptOnceToText = async (
       }
     }
   } catch (error: unknown) {
+    logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
-      errors.push(error.info);
+      logs.push(error.info);
       return undefined;
     }
     throw error;
   }
 
+  logs.push(...warningLogs);
   const text = resultList
     .map((result) => reducerContext.convertToString(result))
     .join('');
