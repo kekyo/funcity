@@ -23,10 +23,16 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(
-        fileURLToPath(new URL('.', import.meta.url)),
-        'src/index.ts'
-      ),
+      entry: {
+        index: resolve(
+          fileURLToPath(new URL('.', import.meta.url)),
+          'src/index.ts'
+        ),
+        node: resolve(
+          fileURLToPath(new URL('.', import.meta.url)),
+          'src/node.ts'
+        ),
+      },
       name: 'funcity',
       fileName: (format, entryName) =>
         `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,

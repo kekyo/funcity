@@ -647,7 +647,8 @@ CLIは `fetchVariables` を既定で含みます。
 
 ### Node.js 変数
 
-`nodeJsVariables` は、Node.js の組み込み機能をバインド用に公開します:
+`nodeJsVariables` は、Node.js の組み込み機能をバインド用に公開します。
+Node.js を使わないプロジェクトに影響しないよう、`funcity/node` から import します:
 
 | オブジェクト | 説明 |
 | :--- | :--- |
@@ -660,7 +661,8 @@ CLIは `fetchVariables` を既定で含みます。
 | `readline` | コンソールから1行入力を受け取る関数（プロンプトは任意） |
 
 ```typescript
-import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+import { buildCandidateVariables } from 'funcity';
+import { nodeJsVariables } from 'funcity/node';
 
 // Node.jsの組み込み機能シンボルを使用可能にする
 const variables = buildCandidateVariables(nodeJsVariables);

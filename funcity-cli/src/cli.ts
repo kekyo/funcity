@@ -21,7 +21,6 @@ import {
   convertToString,
   createReducerContext,
   emptyRange,
-  nodeJsVariables,
   fetchVariables,
   outputErrors,
   parseExpressions,
@@ -30,6 +29,7 @@ import {
   runCodeTokenizer,
   runScriptOnceToText,
 } from 'funcity';
+import { nodeJsVariables } from 'funcity/node';
 
 //////////////////////////////////////////////////////////////////////////////
 

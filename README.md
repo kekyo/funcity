@@ -659,7 +659,8 @@ CLI includes `fetchVariables` by default.
 
 ### Node.js Variables
 
-`nodeJsVariables` exposes Node.js built-ins for script bindings:
+`nodeJsVariables` exposes Node.js built-ins for script bindings. Import it from the
+Node-only entry to avoid pulling Node built-ins into projects that do not use them:
 
 | Object | Description |
 | :--- | :--- |
@@ -672,7 +673,8 @@ CLI includes `fetchVariables` by default.
 | `readline` | Read a line from console input (optional prompt). |
 
 ```typescript
-import { buildCandidateVariables, nodeJsVariables } from 'funcity';
+import { buildCandidateVariables } from 'funcity';
+import { nodeJsVariables } from 'funcity/node';
 
 // Enable Node.js built-in feature symbols
 const variables = buildCandidateVariables(nodeJsVariables);
