@@ -151,7 +151,11 @@ const _fun = makeFunCityFunction(async function (
         this.abortSignal
       );
     }
-    const result = await reduceExpressionNode(newContext, bodyNode);
+    const result = await reduceExpressionNode(
+      newContext,
+      bodyNode,
+      this.abortSignal
+    );
     return result;
   };
 });
@@ -559,10 +563,58 @@ const _url = async (arg0: unknown, arg1: unknown) => {
   return url;
 };
 
-const _delay = (ms: unknown, value?: unknown) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, Number(ms), value);
+const _delay = async function (
+  this: FunCityFunctionContext,
+  ms: unknown,
+  value?: unknown
+) {
+  const delayMs = Number(ms);
+  const signal = this.abortSignal;
+
+  if (!signal) {
+    return await new Promise((resolve) => {
+      setTimeout(resolve, delayMs, value);
+    });
+  }
+
+  signal.throwIfAborted();
+
+  return await new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      signal.removeEventListener('abort', onAbort);
+    };
+
+    const onAbort = () => {
+      cleanup();
+      try {
+        signal.throwIfAborted();
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      const abortError = new Error('Aborted');
+      (abortError as any).name = 'AbortError';
+      reject(abortError);
+    };
+
+    timer = setTimeout(() => {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      cleanup();
+      resolve(value);
+    }, delayMs);
+
+    signal.addEventListener('abort', onAbort, { once: true });
   });
+};
 
 //////////////////////////////////////////////////////////////////////////////
 

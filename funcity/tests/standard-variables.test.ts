@@ -496,4 +496,53 @@ describe('standard variables test', () => {
     expect(reduced).toEqual([1]);
     expect(warningLogs).toEqual([]);
   });
+
+  it('delay abort signal', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 10);
+
+    try {
+      await expect(
+        runReducer(
+          [applyNode('delay', [numberNode(100)])],
+          variables,
+          warningLogs,
+          controller.signal
+        )
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('fun delay abort signal', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 10);
+
+    try {
+      await expect(
+        runReducer(
+          [
+            applyNode('map', [
+              funNode(['x'], applyNode('delay', [numberNode(50)])),
+              applyNode('range', [numberNode(0), numberNode(5)]),
+            ]),
+          ],
+          variables,
+          warningLogs,
+          controller.signal
+        )
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    expect(warningLogs).toEqual([]);
+  });
 });

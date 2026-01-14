@@ -118,7 +118,7 @@ const applyFunction = async (
   signal: AbortSignal | undefined
 ) => {
   signal?.throwIfAborted();
-  const func = await reduceExpressionNode(context, node.func);
+  const func = await reduceExpressionNode(context, node.func, signal);
   if (typeof func !== 'function') {
     throwError({
       description: 'could not apply it for function',
@@ -130,7 +130,7 @@ const applyFunction = async (
     ? node.args // Passing directly node objects
     : await Promise.all(
         node.args.map(async (argNode) => {
-          const arg = await reduceExpressionNode(context, argNode);
+          const arg = await reduceExpressionNode(context, argNode, signal);
           return arg;
         })
       );
