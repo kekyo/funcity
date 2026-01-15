@@ -14,113 +14,25 @@ import type {
 } from '../src/types';
 import { buildCandidateVariables } from '../src/variables/standard-variables';
 import { runReducer } from '../src/reducer';
+import {
+  applyNode,
+  dotNode,
+  dummyRange,
+  forNode,
+  funNode,
+  ifNode,
+  listNode,
+  numberNode,
+  scopeNode,
+  setNode,
+  stringNode,
+  textNode,
+  variableNode,
+  whileNode,
+} from './test-utils';
+import { emptyRange } from '../src/utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
-
-// ATTENTION: All `range` fields are dummy value.
-const range = {
-  start: { line: 1, column: 1 },
-  end: { line: 1, column: 1 },
-};
-const variableNode = (name: string) => ({
-  kind: 'variable' as const,
-  name,
-  range,
-});
-const numberNode = (value: number) => ({
-  kind: 'number' as const,
-  value,
-  range,
-});
-const stringNode = (value: string) => ({
-  kind: 'string' as const,
-  value,
-  range,
-});
-const textNode = (text: string) => ({
-  kind: 'text' as const,
-  text,
-  range,
-});
-const listNode = (items: FunCityExpressionNode[]) => ({
-  kind: 'list' as const,
-  items,
-  range,
-});
-const dotNode = (
-  base: FunCityExpressionNode,
-  segments: readonly { name: string; optional?: boolean }[]
-) => ({
-  kind: 'dot' as const,
-  base,
-  segments: segments.map((segment) => ({
-    name: segment.name,
-    optional: segment.optional ?? false,
-    range,
-    operatorRange: range,
-  })),
-  range,
-});
-const applyNode = (
-  func: FunCityExpressionNode,
-  args: FunCityExpressionNode[]
-) => ({
-  kind: 'apply' as const,
-  func,
-  args,
-  range,
-});
-const funNode = (names: readonly string[], body: FunCityExpressionNode) => {
-  const nameNode =
-    names.length === 0
-      ? listNode([])
-      : names.length === 1
-        ? variableNode(names[0]!)
-        : listNode(names.map(variableNode));
-  return applyNode(variableNode('fun'), [nameNode, body]);
-};
-const scopeNode = (nodes: FunCityExpressionNode[]) => ({
-  kind: 'scope' as const,
-  nodes,
-  range,
-});
-const setNode = (name: string, expr: FunCityExpressionNode) => ({
-  kind: 'apply' as const,
-  func: variableNode('set'),
-  args: [variableNode(name), expr],
-  range,
-});
-const ifNode = (
-  condition: FunCityExpressionNode,
-  thenNodes: FunCityBlockNode[],
-  elseNodes: FunCityBlockNode[]
-) => ({
-  kind: 'if' as const,
-  condition,
-  then: thenNodes,
-  else: elseNodes,
-  range,
-});
-const whileNode = (
-  condition: FunCityExpressionNode,
-  repeat: FunCityBlockNode[]
-) => ({
-  kind: 'while' as const,
-  condition,
-  repeat,
-  range,
-});
-const forNode = (
-  bind: string,
-  iterable: FunCityExpressionNode,
-  repeat: FunCityBlockNode[]
-) => ({
-  kind: 'for' as const,
-  bind: variableNode(bind),
-  iterable,
-  repeat,
-  range,
-});
 
 const expectReducerError = async (
   promise: Promise<unknown>,
@@ -199,7 +111,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'variable is not bound: foobar',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
@@ -472,7 +384,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'Required `set` bind identity',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
@@ -489,7 +401,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'Required `set` bind identity and expression',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
@@ -510,7 +422,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'Required `set` bind identity and expression',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
@@ -705,7 +617,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'Required `fun` parameter identity and expression',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
@@ -722,7 +634,7 @@ describe('scripting reducer test', () => {
     await expectReducerError(runReducer(nodes, variables, warningLogs), {
       type: 'error',
       description: 'Required `fun` parameter identity',
-      range,
+      range: dummyRange,
     });
 
     expect(warningLogs).toEqual([]);
