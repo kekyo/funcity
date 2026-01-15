@@ -5,6 +5,7 @@
 
 import {
   FunCityApplyNode,
+  FunCityDotNode,
   FunCityExpressionNode,
   FunCityListNode,
   FunCityNumberNode,
@@ -50,12 +51,27 @@ export const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
   range: dummyRange,
 });
 
+export const dotNode = (
+  base: FunCityExpressionNode,
+  segments: readonly { name: string; optional?: boolean }[]
+): FunCityDotNode => ({
+  kind: 'dot' as const,
+  base,
+  segments: segments.map((segment) => ({
+    name: segment.name,
+    optional: segment.optional ?? false,
+    range: dummyRange,
+    operatorRange: dummyRange,
+  })),
+  range: dummyRange,
+});
+
 export const applyNode = (
-  name: string,
+  func: string | FunCityExpressionNode,
   args: FunCityExpressionNode[]
 ): FunCityApplyNode => ({
   kind: 'apply' as const,
-  func: variableNode(name),
+  func: typeof func === 'string' ? variableNode(func) : func,
   args,
   range: dummyRange,
 });

@@ -9,7 +9,7 @@ import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
 import { runReducer } from '../../src/reducer';
 import { objectVariables } from '../../src/variables/object-variables';
 import { buildCandidateVariables } from '../../src/variables/standard-variables';
-import { applyNode, stringNode, variableNode } from '../test-utils';
+import { applyNode, dotNode, stringNode, variableNode } from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,9 @@ describe('object variables test', () => {
 
   it('Object.keys', async () => {
     const value = await reduceSingle(
-      applyNode('Object.keys', [variableNode('foo')]),
+      applyNode(dotNode(variableNode('Object'), [{ name: 'keys' }]), [
+        variableNode('foo'),
+      ]),
       { foo: { alpha: 1, beta: 2 } }
     );
     expect(value).toStrictEqual(['alpha', 'beta']);

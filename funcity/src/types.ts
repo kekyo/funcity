@@ -186,6 +186,10 @@ export interface FunCityDotToken extends FunCityRangedObject {
    * Token kind.
    */
   readonly kind: 'dot';
+  /**
+   * Is this optional dot token?
+   */
+  readonly optional: boolean;
 }
 
 /**
@@ -270,6 +274,46 @@ export interface FunCityVariableNode extends FunCityRangedObject {
 }
 
 /**
+ * Dot (member access) segment node.
+ */
+export interface FunCityDotSegment {
+  /**
+   * Segment name.
+   */
+  readonly name: string;
+  /**
+   * Segment is optional access.
+   */
+  readonly optional: boolean;
+  /**
+   * Segment name range.
+   */
+  readonly range: FunCityRange;
+  /**
+   * Operator range (dot or optional dot).
+   */
+  readonly operatorRange: FunCityRange;
+}
+
+/**
+ * Dot (member access) expression node.
+ */
+export interface FunCityDotNode extends FunCityRangedObject {
+  /**
+   * Node kind.
+   */
+  readonly kind: 'dot';
+  /**
+   * Base expression node.
+   */
+  readonly base: FunCityExpressionNode;
+  /**
+   * Member access segments.
+   */
+  readonly segments: readonly FunCityDotSegment[];
+}
+
+/**
  * Application expression node.
  */
 export interface FunCityApplyNode extends FunCityRangedObject {
@@ -323,6 +367,7 @@ export type FunCityExpressionNode =
   | FunCityNumberNode
   | FunCityStringNode
   | FunCityVariableNode
+  | FunCityDotNode
   | FunCityApplyNode
   | FunCityListNode
   | FunCityScopeNode;

@@ -10,11 +10,13 @@ import type {
   FunCityStringToken,
   FunCityToken,
   FunCityIdentityToken,
+  FunCityDotToken,
   FunCityNumberNode,
   FunCityStringNode,
   FunCityVariableNode,
   FunCityExpressionNode,
   FunCityBlockNode,
+  FunCityDotSegment,
   ParserCursor,
 } from './types';
 import { emptyRange, widerRange } from './utils';
@@ -47,72 +49,13 @@ const parseString = (
 
 const parseIdentity = (
   cursor: ParserCursor,
-  logs: FunCityLogEntry[]
-): FunCityExpressionNode => {
+  _errors: FunCityLogEntry[]
+): FunCityVariableNode => {
   const token = cursor.takeToken() as FunCityIdentityToken;
-  const firstNode: FunCityVariableNode = {
+  return {
     kind: 'variable',
     name: token.name,
     range: token.range,
-  };
-
-  const segments: FunCityVariableNode[] = [firstNode];
-  const ranges: FunCityRange[] = [token.range];
-  let dotRange: FunCityRange | undefined;
-
-  while (true) {
-    const dotToken = cursor.peekToken();
-    if (!dotToken || dotToken.kind !== 'dot') {
-      break;
-    }
-    cursor.skipToken();
-    if (!dotRange) {
-      dotRange = dotToken.range;
-    }
-    ranges.push(dotToken.range);
-
-    const nextToken = cursor.peekToken();
-    if (!nextToken) {
-      logs.push({
-        type: 'error',
-        description: 'Could not find member identity after dot',
-        range: dotToken.range,
-      });
-      break;
-    }
-    if (nextToken.kind !== 'identity') {
-      logs.push({
-        type: 'error',
-        description: 'Required member identity after dot',
-        range: widerRange(dotToken.range, nextToken.range),
-      });
-      break;
-    }
-
-    const memberToken = cursor.takeToken() as FunCityIdentityToken;
-    const memberNode: FunCityVariableNode = {
-      kind: 'variable',
-      name: memberToken.name,
-      range: memberToken.range,
-    };
-    segments.push(memberNode);
-    ranges.push(memberToken.range);
-  }
-
-  if (segments.length === 1) {
-    return firstNode;
-  }
-
-  const funcRange = dotRange ?? token.range;
-  return {
-    kind: 'apply',
-    func: {
-      kind: 'variable',
-      name: 'dot',
-      range: funcRange,
-    },
-    args: segments,
-    range: widerRange(...ranges),
   };
 };
 
@@ -150,6 +93,62 @@ const combineIntoScopeMultipleExpressions = (
   }
 };
 
+const parseDotChain = (
+  cursor: ParserCursor,
+  logs: FunCityLogEntry[],
+  baseNode: FunCityExpressionNode
+): FunCityExpressionNode => {
+  const segments: FunCityDotSegment[] = [];
+  const ranges: FunCityRange[] = [baseNode.range];
+
+  while (true) {
+    const dotToken = cursor.peekToken();
+    if (!dotToken || dotToken.kind !== 'dot') {
+      break;
+    }
+    const actualDotToken = cursor.takeToken() as FunCityDotToken;
+    ranges.push(actualDotToken.range);
+
+    const nextToken = cursor.peekToken();
+    if (!nextToken) {
+      logs.push({
+        type: 'error',
+        description: 'Could not find member identity after dot',
+        range: actualDotToken.range,
+      });
+      break;
+    }
+    if (nextToken.kind !== 'identity') {
+      logs.push({
+        type: 'error',
+        description: 'Required member identity after dot',
+        range: widerRange(actualDotToken.range, nextToken.range),
+      });
+      break;
+    }
+
+    const memberToken = cursor.takeToken() as FunCityIdentityToken;
+    segments.push({
+      name: memberToken.name,
+      optional: actualDotToken.optional,
+      range: memberToken.range,
+      operatorRange: actualDotToken.range,
+    });
+    ranges.push(memberToken.range);
+  }
+
+  if (segments.length === 0) {
+    return baseNode;
+  }
+
+  return {
+    kind: 'dot',
+    base: baseNode,
+    segments,
+    range: widerRange(...ranges),
+  };
+};
+
 const parsePartialExpression = (
   cursor: ParserCursor,
   logs: FunCityLogEntry[]
@@ -161,15 +160,15 @@ const parsePartialExpression = (
   switch (token.kind) {
     case 'number': {
       const node = parseNumber(cursor, logs);
-      return node;
+      return parseDotChain(cursor, logs, node);
     }
     case 'string': {
       const node = parseString(cursor, logs);
-      return node;
+      return parseDotChain(cursor, logs, node);
     }
     case 'identity': {
       const node = parseIdentity(cursor, logs);
-      return node;
+      return parseDotChain(cursor, logs, node);
     }
     case 'dot': {
       const dotToken = cursor.takeToken()!;
@@ -225,7 +224,7 @@ const parsePartialExpression = (
           } else {
             // When multiple expressions exist, they must be grouped into a single expression within a scope.
             const node = combineIntoScopeMultipleExpressions(innerNodes, range);
-            return node;
+            return node ? parseDotChain(cursor, logs, node) : node;
           }
         }
         // Bracket surrounding expression list `[ ... ]` (Iterable list)
@@ -258,11 +257,12 @@ const parsePartialExpression = (
               });
             }
           }
-          return {
+          const node: FunCityExpressionNode = {
             kind: 'list',
             items: itemNodes,
             range,
           };
+          return parseDotChain(cursor, logs, node);
         }
         default: {
           logs.push({

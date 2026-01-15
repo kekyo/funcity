@@ -238,7 +238,6 @@ const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
   const start = context.cursor.location('start');
 
   let index = 1;
-  let lastCh = '';
   while (true) {
     if (context.cursor.eot()) {
       break;
@@ -247,12 +246,15 @@ const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
     if (variableChars.indexOf(ch) < 0) {
       break;
     }
-    if (lastCh === '?') {
-      index--;
+    if (ch === '?') {
+      const next = context.cursor.getChar(index + 1);
+      if (next === '.') {
+        break;
+      }
+      index++;
       break;
     }
 
-    lastCh = ch;
     index++;
   }
 
@@ -379,12 +381,24 @@ const tokenizeCodeTokens = (
       });
       context.cursor.skip(1);
     }
+    // Read optional dot
+    else if (ch === '?' && context.cursor.getChar(1) === '.') {
+      finalizeUnknown();
+      const start = context.cursor.location('start');
+      context.cursor.skip(2);
+      tokens.push({
+        kind: 'dot',
+        optional: true,
+        range: { start, end: context.cursor.location('end') },
+      });
+    }
     // Read dot
     else if (ch === '.') {
       finalizeUnknown();
       const location = context.cursor.location('start');
       tokens.push({
         kind: 'dot',
+        optional: false,
         range: { start: location, end: location },
       });
       context.cursor.skip(1);

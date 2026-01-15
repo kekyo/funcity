@@ -12,6 +12,7 @@ import {
   type FunCityReducerContextValueResult,
   type FunCityFunctionContext,
   type FunCityApplyNode,
+  type FunCityDotNode,
   type FunCityRange,
   FunCityReducerError,
   FunCityWarningEntry,
@@ -65,45 +66,68 @@ const deconstructConditionalCombine = (
   };
 };
 
-// Traverse variable with dot-notation.
-// ex: `foo`             --> foo or cause error
-// ex: `foo?`            --> foo or undefined
-// ex: `foo.bar.baz`     --> traverse to baz or cause error
-// ex: `foo?.bar?.baz`   --> traverse to baz may undefined incompletion or cause error (at the tail baz)
-const traverseVariable = (
+// Resolve variable with conditional combine syntax.
+// ex: `foo`  --> foo or cause error
+// ex: `foo?` --> foo or undefined
+const resolveVariable = (
   context: FunCityReducerContext,
   name: FunCityVariableNode,
   signal: AbortSignal | undefined
 ) => {
-  const names = name.name.split('.');
-  const n0 = names[0]!;
-  const n0r = deconstructConditionalCombine(n0);
-  const result0 = context.getValue(n0r.name, signal);
-  if (!result0.isFound) {
-    if (!n0r.canIgnore) {
+  const result = deconstructConditionalCombine(name.name);
+  const valueResult = context.getValue(result.name, signal);
+  if (!valueResult.isFound) {
+    if (!result.canIgnore) {
       throwError({
-        description: `variable is not bound: ${names[0]}`,
+        description: `variable is not bound: ${result.name}`,
         range: name.range,
       });
     }
     return undefined;
   }
-  let value = result0.value;
+  return valueResult.value;
+};
+
+const resolveDotNode = async (
+  context: FunCityReducerContext,
+  node: FunCityDotNode,
+  signal: AbortSignal | undefined
+) => {
+  signal?.throwIfAborted();
+  const firstSegmentOptional = node.segments[0]?.optional ?? false;
+  let value: unknown;
+  if (node.base.kind === 'variable') {
+    const baseResult = deconstructConditionalCombine(node.base.name);
+    const valueResult = context.getValue(baseResult.name, signal);
+    if (!valueResult.isFound) {
+      if (!baseResult.canIgnore && !firstSegmentOptional) {
+        throwError({
+          description: `variable is not bound: ${baseResult.name}`,
+          range: node.base.range,
+        });
+      }
+      return undefined;
+    }
+    value = valueResult.value;
+  } else {
+    value = await reduceExpressionNode(context, node.base, signal);
+  }
   let parent: object | undefined;
-  for (const n of names.slice(1)) {
-    const nr = deconstructConditionalCombine(n);
+  for (const segment of node.segments) {
+    const result = deconstructConditionalCombine(segment.name);
+    const isOptional = segment.optional || result.canIgnore;
     if (
       value !== null &&
       (typeof value === 'object' || typeof value === 'function')
     ) {
-      const r = value as Record<string, unknown>;
+      const record = value as Record<string, unknown>;
       parent = value as object;
-      value = r[nr.name];
+      value = record[result.name];
     } else {
-      if (!nr.canIgnore) {
+      if (!isOptional) {
         throwError({
-          description: `variable is not bound: ${n}`,
-          range: name.range,
+          description: `variable is not bound: ${result.name}`,
+          range: segment.range,
         });
       }
       return undefined;
@@ -179,7 +203,10 @@ export const reduceExpressionNode = async (
       return node.value;
     }
     case 'variable': {
-      return traverseVariable(context, node, signal);
+      return resolveVariable(context, node, signal);
+    }
+    case 'dot': {
+      return await resolveDotNode(context, node, signal);
     }
     case 'apply': {
       return await applyFunction(context, node, signal);

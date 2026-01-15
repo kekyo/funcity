@@ -47,6 +47,20 @@ const listNode = (items: FunCityExpressionNode[]) => ({
   items,
   range,
 });
+const dotNode = (
+  base: FunCityExpressionNode,
+  segments: readonly { name: string; optional?: boolean }[]
+) => ({
+  kind: 'dot' as const,
+  base,
+  segments: segments.map((segment) => ({
+    name: segment.name,
+    optional: segment.optional ?? false,
+    range,
+    operatorRange: range,
+  })),
+  range,
+});
 const applyNode = (
   func: FunCityExpressionNode,
   args: FunCityExpressionNode[]
@@ -194,10 +208,7 @@ describe('scripting reducer test', () => {
   it('variable node (traverse)', async () => {
     // "{{foo.bar}}"
     const nodes: FunCityBlockNode[] = [
-      applyNode(variableNode('dot'), [
-        variableNode('foo'),
-        variableNode('bar'),
-      ]),
+      dotNode(variableNode('foo'), [{ name: 'bar' }]),
     ];
 
     const warningLogs: FunCityWarningEntry[] = [];
@@ -216,11 +227,7 @@ describe('scripting reducer test', () => {
     // "{{foo.bar.get ()}}"
     const nodes: FunCityBlockNode[] = [
       applyNode(
-        applyNode(variableNode('dot'), [
-          variableNode('foo'),
-          variableNode('bar'),
-          variableNode('get'),
-        ]),
+        dotNode(variableNode('foo'), [{ name: 'bar' }, { name: 'get' }]),
         []
       ),
     ];
@@ -256,13 +263,7 @@ describe('scripting reducer test', () => {
       }
     );
     const nodes: FunCityBlockNode[] = [
-      applyNode(
-        applyNode(variableNode('dot'), [
-          variableNode('fn'),
-          variableNode('get'),
-        ]),
-        []
-      ),
+      applyNode(dotNode(variableNode('fn'), [{ name: 'get' }]), []),
     ];
 
     const warningLogs: FunCityWarningEntry[] = [];
@@ -270,6 +271,32 @@ describe('scripting reducer test', () => {
     const reduced = await runReducer(nodes, variables, warningLogs);
 
     expect(reduced).toEqual([456]);
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('dot node (expression base)', async () => {
+    // "{{(foo ()).bar ()}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(
+        dotNode(applyNode(variableNode('foo'), []), [{ name: 'bar' }]),
+        []
+      ),
+    ];
+
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables({
+      foo() {
+        return {
+          value: 321,
+          bar() {
+            return this.value;
+          },
+        };
+      },
+    });
+    const reduced = await runReducer(nodes, variables, warningLogs);
+
+    expect(reduced).toEqual([321]);
     expect(warningLogs).toEqual([]);
   });
 
@@ -287,17 +314,42 @@ describe('scripting reducer test', () => {
     expect(warningLogs).toEqual([]);
   });
 
-  it('dot function (conditional combine)', async () => {
+  it('dot node (conditional combine)', async () => {
     // "{{foo?.bar}}"
     const nodes: FunCityBlockNode[] = [
-      applyNode(variableNode('dot'), [
-        variableNode('foo?'),
-        variableNode('bar'),
-      ]),
+      dotNode(variableNode('foo'), [{ name: 'bar', optional: true }]),
     ];
 
     const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, warningLogs);
+
+    expect(reduced).toEqual([]);
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('dot node (optional dot with non-object base)', async () => {
+    // "{{foo?.bar}}"
+    const nodes: FunCityBlockNode[] = [
+      dotNode(variableNode('foo'), [{ name: 'bar', optional: true }]),
+    ];
+
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables({ foo: 123 });
+    const reduced = await runReducer(nodes, variables, warningLogs);
+
+    expect(reduced).toEqual([]);
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('dot node (segment postfix optional)', async () => {
+    // "{{foo.bar?}}"
+    const nodes: FunCityBlockNode[] = [
+      dotNode(variableNode('foo'), [{ name: 'bar?' }]),
+    ];
+
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables({ foo: 123 });
     const reduced = await runReducer(nodes, variables, warningLogs);
 
     expect(reduced).toEqual([]);

@@ -16,37 +16,10 @@ import {
   combineVariables,
   convertToString,
   isConditionalTrue,
-  isFunCityFunction,
   makeFunCityFunction,
 } from '../utils';
 
 //////////////////////////////////////////////////////////////////////////////
-
-interface DeconstructConditionalCombineResult {
-  readonly name: string;
-  readonly canIgnore: boolean;
-}
-
-// Deconstruct with conditional combine syntax.
-// ex: `foo`   --> foo, explicit
-// ex: `foo?`  --> foo, can ignore
-const deconstructConditionalCombine = (
-  name: string
-): DeconstructConditionalCombineResult => {
-  if (name.length >= 1) {
-    const last = name[name.length - 1]!;
-    if (last === '?') {
-      return {
-        name: name.substring(0, name.length - 1),
-        canIgnore: true,
-      };
-    }
-  }
-  return {
-    name,
-    canIgnore: false,
-  };
-};
 
 // `cond` function requires delayed execution both then/else expressions.
 const _cond = makeFunCityFunction(async function (
@@ -94,73 +67,6 @@ const _set = makeFunCityFunction(async function (
   const value = await this.reduce(arg1);
   this.setValue(arg0.name, value);
   return undefined;
-});
-
-// `dot` function traverses member access with optional segments.
-const _dot = makeFunCityFunction(function (
-  this: FunCityFunctionContext,
-  ...args: FunCityExpressionNode[]
-) {
-  if (args.length === 0) {
-    throw new FunCityReducerError({
-      type: 'error',
-      description: 'Required `dot` segment identity',
-      range: this.thisNode.range,
-    });
-  }
-
-  const segments: FunCityVariableNode[] = [];
-  for (const arg of args) {
-    if (!arg || arg.kind !== 'variable') {
-      throw new FunCityReducerError({
-        type: 'error',
-        description: 'Required `dot` segment identity',
-        range: arg ? arg.range : this.thisNode.range,
-      });
-    }
-    segments.push(arg);
-  }
-
-  const head = segments[0]!;
-  const headResult = deconstructConditionalCombine(head.name);
-  const valueResult = this.getValue(headResult.name);
-  if (!valueResult.isFound) {
-    if (!headResult.canIgnore) {
-      throw new FunCityReducerError({
-        type: 'error',
-        description: `variable is not bound: ${head.name}`,
-        range: this.thisNode.range,
-      });
-    }
-    return undefined;
-  }
-
-  let value = valueResult.value;
-  let parent: object | undefined;
-  for (const segment of segments.slice(1)) {
-    const segResult = deconstructConditionalCombine(segment.name);
-    if (
-      value !== null &&
-      (typeof value === 'object' || typeof value === 'function')
-    ) {
-      parent = value as object;
-      value = (value as Record<string, unknown>)[segResult.name];
-    } else {
-      if (!segResult.canIgnore) {
-        throw new FunCityReducerError({
-          type: 'error',
-          description: `variable is not bound: ${segment.name}`,
-          range: this.thisNode.range,
-        });
-      }
-      return undefined;
-    }
-  }
-
-  if (parent && typeof value === 'function' && !isFunCityFunction(value)) {
-    return this.getBoundFunction(parent, value);
-  }
-  return value;
 });
 
 const extractParameterArguments = (
@@ -722,7 +628,6 @@ export const standardVariables = Object.freeze({
   false: false,
   cond: _cond,
   set: _set,
-  dot: _dot,
   fun: _fun,
   toString: _toString,
   toBoolean: _toBoolean,

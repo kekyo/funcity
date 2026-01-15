@@ -9,7 +9,13 @@ import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
 import { runReducer } from '../../src/reducer';
 import { fetchVariables } from '../../src/variables/fetch-variables';
 import { buildCandidateVariables } from '../../src/variables/standard-variables';
-import { applyNode, setNode, stringNode } from '../test-utils';
+import {
+  applyNode,
+  dotNode,
+  setNode,
+  stringNode,
+  variableNode,
+} from '../test-utils';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +38,7 @@ describe('standard variables test', () => {
           'res',
           applyNode('fetch', [stringNode('data:text/plain,hello')])
         ),
-        applyNode('res.text', []),
+        applyNode(dotNode(variableNode('res'), [{ name: 'text' }]), []),
       ],
       variables,
       warningLogs
