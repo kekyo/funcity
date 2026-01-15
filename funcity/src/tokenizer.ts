@@ -227,7 +227,7 @@ const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
 const firstVariableChars =
   '_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const variableChars =
-  '_-.?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  '_-?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
 /**
  * Tokenize the identity (variable name).
@@ -243,7 +243,6 @@ const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
     if (context.cursor.eot()) {
       break;
     }
-
     const ch = context.cursor.getChar(index);
     if (variableChars.indexOf(ch) < 0) {
       break;
@@ -376,6 +375,16 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'close',
         symbol: ']',
+        range: { start: location, end: location },
+      });
+      context.cursor.skip(1);
+    }
+    // Read dot
+    else if (ch === '.') {
+      finalizeUnknown();
+      const location = context.cursor.location('start');
+      tokens.push({
+        kind: 'dot',
         range: { start: location, end: location },
       });
       context.cursor.skip(1);

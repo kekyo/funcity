@@ -193,7 +193,12 @@ describe('scripting reducer test', () => {
 
   it('variable node (traverse)', async () => {
     // "{{foo.bar}}"
-    const nodes: FunCityBlockNode[] = [variableNode('foo.bar')];
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('dot'), [
+        variableNode('foo'),
+        variableNode('bar'),
+      ]),
+    ];
 
     const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables({
@@ -210,7 +215,14 @@ describe('scripting reducer test', () => {
   it('variable node (bound method)', async () => {
     // "{{foo.bar.get ()}}"
     const nodes: FunCityBlockNode[] = [
-      applyNode(variableNode('foo.bar.get'), []),
+      applyNode(
+        applyNode(variableNode('dot'), [
+          variableNode('foo'),
+          variableNode('bar'),
+          variableNode('get'),
+        ]),
+        []
+      ),
     ];
 
     const warningLogs: FunCityWarningEntry[] = [];
@@ -243,7 +255,15 @@ describe('scripting reducer test', () => {
         },
       }
     );
-    const nodes: FunCityBlockNode[] = [applyNode(variableNode('fn.get'), [])];
+    const nodes: FunCityBlockNode[] = [
+      applyNode(
+        applyNode(variableNode('dot'), [
+          variableNode('fn'),
+          variableNode('get'),
+        ]),
+        []
+      ),
+    ];
 
     const warningLogs: FunCityWarningEntry[] = [];
     const variables = buildCandidateVariables({ fn });
@@ -264,6 +284,23 @@ describe('scripting reducer test', () => {
     const reduced = await runReducer(nodes, variables, warningLogs);
 
     expect(reduced).toEqual(['My Site']);
+    expect(warningLogs).toEqual([]);
+  });
+
+  it('dot function (conditional combine)', async () => {
+    // "{{foo?.bar}}"
+    const nodes: FunCityBlockNode[] = [
+      applyNode(variableNode('dot'), [
+        variableNode('foo?'),
+        variableNode('bar'),
+      ]),
+    ];
+
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    const reduced = await runReducer(nodes, variables, warningLogs);
+
+    expect(reduced).toEqual([]);
     expect(warningLogs).toEqual([]);
   });
 

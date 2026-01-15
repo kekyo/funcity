@@ -329,6 +329,7 @@ const createScopedReducerContext = (
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning: parent.appendWarning,
+      getBoundFunction: parent.getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) =>
@@ -440,6 +441,7 @@ export const createReducerContext = (
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning,
+      getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString,
       reduce: (node: FunCityExpressionNode) =>

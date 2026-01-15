@@ -179,6 +179,16 @@ export interface FunCityCloseToken extends FunCityRangedObject {
 }
 
 /**
+ * Dot (member access) token.
+ */
+export interface FunCityDotToken extends FunCityRangedObject {
+  /**
+   * Token kind.
+   */
+  readonly kind: 'dot';
+}
+
+/**
  * End of line token.
  */
 export interface FunCityEndOfLineToken extends FunCityRangedObject {
@@ -211,6 +221,7 @@ export type FunCityToken =
   | FunCityIdentityToken
   | FunCityOpenToken
   | FunCityCloseToken
+  | FunCityDotToken
   | FunCityEndOfLineToken
   | FunCityTextToken;
 
@@ -482,6 +493,13 @@ export interface FunCityFunctionContext {
    * @param warning - Warning information.
    */
   readonly appendWarning: (warning: FunCityWarningEntry) => void;
+  /**
+   * Get a bound function with caching for object receivers.
+   * @param owner - Method owner object
+   * @param fn - Original function
+   * @returns Bound function
+   */
+  readonly getBoundFunction: (owner: object, fn: Function) => Function;
   /**
    * Create new scoped context.
    * @returns New reducer context.

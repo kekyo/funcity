@@ -47,13 +47,72 @@ const parseString = (
 
 const parseIdentity = (
   cursor: ParserCursor,
-  _errors: FunCityLogEntry[]
-): FunCityVariableNode => {
+  logs: FunCityLogEntry[]
+): FunCityExpressionNode => {
   const token = cursor.takeToken() as FunCityIdentityToken;
-  return {
+  const firstNode: FunCityVariableNode = {
     kind: 'variable',
     name: token.name,
     range: token.range,
+  };
+
+  const segments: FunCityVariableNode[] = [firstNode];
+  const ranges: FunCityRange[] = [token.range];
+  let dotRange: FunCityRange | undefined;
+
+  while (true) {
+    const dotToken = cursor.peekToken();
+    if (!dotToken || dotToken.kind !== 'dot') {
+      break;
+    }
+    cursor.skipToken();
+    if (!dotRange) {
+      dotRange = dotToken.range;
+    }
+    ranges.push(dotToken.range);
+
+    const nextToken = cursor.peekToken();
+    if (!nextToken) {
+      logs.push({
+        type: 'error',
+        description: 'Could not find member identity after dot',
+        range: dotToken.range,
+      });
+      break;
+    }
+    if (nextToken.kind !== 'identity') {
+      logs.push({
+        type: 'error',
+        description: 'Required member identity after dot',
+        range: widerRange(dotToken.range, nextToken.range),
+      });
+      break;
+    }
+
+    const memberToken = cursor.takeToken() as FunCityIdentityToken;
+    const memberNode: FunCityVariableNode = {
+      kind: 'variable',
+      name: memberToken.name,
+      range: memberToken.range,
+    };
+    segments.push(memberNode);
+    ranges.push(memberToken.range);
+  }
+
+  if (segments.length === 1) {
+    return firstNode;
+  }
+
+  const funcRange = dotRange ?? token.range;
+  return {
+    kind: 'apply',
+    func: {
+      kind: 'variable',
+      name: 'dot',
+      range: funcRange,
+    },
+    args: segments,
+    range: widerRange(...ranges),
   };
 };
 
@@ -111,6 +170,15 @@ const parsePartialExpression = (
     case 'identity': {
       const node = parseIdentity(cursor, logs);
       return node;
+    }
+    case 'dot': {
+      const dotToken = cursor.takeToken()!;
+      logs.push({
+        type: 'error',
+        description: 'Invalid dot at this location',
+        range: dotToken.range,
+      });
+      return undefined;
     }
     case 'open': {
       cursor.skipToken();
