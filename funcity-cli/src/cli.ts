@@ -414,6 +414,13 @@ const runRepl = async (loadRc: boolean): Promise<void> => {
   await setPrompt(false);
   rl.prompt();
 
+  const clearInputLine = () => {
+    if (rl.line.length === 0) {
+      return;
+    }
+    rl.write(null, { ctrl: true, name: 'u' });
+  };
+
   const handleInterrupt = async () => {
     if (!abortController.signal.aborted) {
       abortController.abort();
@@ -421,6 +428,7 @@ const runRepl = async (loadRc: boolean): Promise<void> => {
     abortController = new AbortController();
     bufferedLine = '';
     process.stdout.write('\nInterrupted\n');
+    clearInputLine();
     if (!isEvaluating) {
       await setPrompt(false);
       rl.prompt();
