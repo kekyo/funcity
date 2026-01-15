@@ -5,6 +5,8 @@
 
 import {
   FunCityApplyNode,
+  FunCityBlockNode,
+  FunCityDotNode,
   FunCityExpressionNode,
   FunCityListNode,
   FunCityNumberNode,
@@ -37,6 +39,12 @@ export const variableNode = (name: string): FunCityVariableNode => ({
   range: dummyRange,
 });
 
+export const textNode = (text: string) => ({
+  kind: 'text' as const,
+  text,
+  range: dummyRange,
+});
+
 export const setNode = (name: string, expr: FunCityExpressionNode) => ({
   kind: 'apply' as const,
   func: variableNode('set'),
@@ -50,12 +58,33 @@ export const listNode = (items: FunCityExpressionNode[]): FunCityListNode => ({
   range: dummyRange,
 });
 
+export const scopeNode = (nodes: FunCityExpressionNode[]) => ({
+  kind: 'scope' as const,
+  nodes,
+  range: dummyRange,
+});
+
+export const dotNode = (
+  base: FunCityExpressionNode,
+  segments: readonly { name: string; optional?: boolean }[]
+): FunCityDotNode => ({
+  kind: 'dot' as const,
+  base,
+  segments: segments.map((segment) => ({
+    name: segment.name,
+    optional: segment.optional ?? false,
+    range: dummyRange,
+    operatorRange: dummyRange,
+  })),
+  range: dummyRange,
+});
+
 export const applyNode = (
-  name: string,
+  func: string | FunCityExpressionNode,
   args: FunCityExpressionNode[]
 ): FunCityApplyNode => ({
   kind: 'apply' as const,
-  func: variableNode(name),
+  func: typeof func === 'string' ? variableNode(func) : func,
   args,
   range: dummyRange,
 });
@@ -72,3 +101,37 @@ export const funNode = (
         : listNode(names.map((name) => variableNode(name)));
   return applyNode('fun', [nameNode, body]);
 };
+
+export const ifNode = (
+  condition: FunCityExpressionNode,
+  thenNodes: FunCityBlockNode[],
+  elseNodes: FunCityBlockNode[]
+) => ({
+  kind: 'if' as const,
+  condition,
+  then: thenNodes,
+  else: elseNodes,
+  range: dummyRange,
+});
+
+export const whileNode = (
+  condition: FunCityExpressionNode,
+  repeat: FunCityBlockNode[]
+) => ({
+  kind: 'while' as const,
+  condition,
+  repeat,
+  range: dummyRange,
+});
+
+export const forNode = (
+  bind: string,
+  iterable: FunCityExpressionNode,
+  repeat: FunCityBlockNode[]
+) => ({
+  kind: 'for' as const,
+  bind: variableNode(bind),
+  iterable,
+  repeat,
+  range: dummyRange,
+});

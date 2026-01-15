@@ -416,7 +416,7 @@ const results = await runReducer(nodes, variables, logs);
 | `gt` | 第1引数が第2引数より大きい場合に真を返します。 |
 | `le` | 第1引数が第2引数以下の場合に真を返します。 |
 | `ge` | 第1引数が第2引数以上の場合に真を返します。 |
-| `now` | 現在時刻のUNIXミリ秒を返します。 |
+| `now` | 現在日時を示す`Date`を返します。 |
 | `concat` | 引数群の文字列や`Iterable`を順に連結します。 |
 | `join` | 第1引数を区切り文字として、第2引数以降の文字列を結合します。 |
 | `trim` | 第1引数の文字列の前後の空白を削除します。 |
@@ -443,7 +443,6 @@ const results = await runReducer(nodes, variables, logs);
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
 | `delay` | 指定ミリ秒後に解決します。 |
-| `math` | `Math` オブジェクト |
 
 ### typeof
 
@@ -610,15 +609,36 @@ const results = await runReducer(nodes, variables, logs);
 {{delay 200}}
 ```
 
-### math
+### objectVariables
 
-JavaScriptのMathオブジェクトです:
+`objectVariables` は、JavaScript の組み込みオブジェクトをバインドするための変数群です:
 
-```funcity
-{{math.sqrt 2}}
+| オブジェクト | 説明 |
+| :--- | :--- |
+| `Object` | `Object` オブジェクト |
+| `Function` | `Function` オブジェクト |
+| `Array` | `Array` オブジェクト |
+| `String` | `String` オブジェクト |
+| `Number` | `Number` オブジェクト |
+| `Math` | `Math` オブジェクト |
+| `Date` | `Date` オブジェクト |
+
+```typescript
+import { buildCandidateVariables, objectVariables } from 'funcity';
+
+const variables = buildCandidateVariables(objectVariables);
 ```
 
-### fetch,fetchText,fetchJson,fetchBlob
+例えば、以下のように使用できます:
+
+```funcity
+{{Math.sqrt 2}}
+{{Date '2025/2/23'}}
+```
+
+CLI は `objectVariables` を既定で含みます。
+
+### fetchVariables
 
 `fetchVariables` は、JavaScript `fetch` APIをバインド用に公開します:
 
@@ -647,40 +667,7 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLIは `fetchVariables` を既定で含みます。
 
-### require (Node.js)
-
-`createRequireFunction` は、指定ディレクトリを基点に解決する
-Node.js の `require` 関数を生成します。Node.js を使わないプロジェクトに
-影響しないよう、`funcity/node` から import します:
-
-```typescript
-import { buildCandidateVariables } from 'funcity';
-import { createRequireFunction } from 'funcity/node';
-
-const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
-// const require = createRequireFunction(); // 未指定時は process.cwd()
-
-const variables = buildCandidateVariables({ require });
-
-// ...
-```
-
-例えば、以下のように使用します:
-
-```funcity
-{{set fs (require 'fs')}}
-{{fs.readFile './data.txt' 'utf-8'}}
-```
-
-`acceptModules` を指定すると、指定したモジュール名のみ利用できます。
-`lodash/fp` や `fs/promises` のようなサブパスは、基点のモジュール名を
-許可していれば利用可能です。相対パスや絶対パスを許可したい場合は、
-その指定子を明示的に含めてください。
-
-CLIは `require` を既定で含みます。スクリプト実行時はスクリプトの
-ディレクトリ、REPLはカレントディレクトリを基点に解決されます。
-
-### Node.js 変数
+### nodeJsVariables
 
 `nodeJsVariables` は、標準入力から1行読み取る `readline` 関数を公開します
 （プロンプト引数は任意）。Node.js を使わないプロジェクトに影響しないよう、
@@ -735,6 +722,34 @@ set fs (require 'fs/promises')
 fs.readFile '/foo/bar/text' 'utf-8'
 }}
 ```
+
+`createRequireFunction` は、指定ディレクトリを基点に解決する
+Node.js の `require` 関数を生成します。Node.js を使わないプロジェクトに
+影響しないよう、`funcity/node` から import します:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
+// const require = createRequireFunction(); // 未指定時は process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+例えば、以下のように使用します:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+`acceptModules` を指定すると、指定したモジュール名のみ利用できます。
+`lodash/fp` や `fs/promises` のようなサブパスは、基点のモジュール名を
+許可していれば利用可能です。相対パスや絶対パスを許可したい場合は、
+その指定子を明示的に含めてください。
 
 CLIは `readline` と `require` を既定で含みます。
 

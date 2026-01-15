@@ -105,6 +105,39 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('optional variable token', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{foo?}}', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'foo?',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 6 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 1, column: 7 },
+          end: { line: 1, column: 8 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('code token without block braces', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runCodeTokenizer("foo 123 'bar'", logs);
@@ -252,9 +285,25 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'identity',
-        name: 'foo.bar',
+        name: 'foo',
         range: {
           start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        optional: false,
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 6 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'bar',
+        range: {
+          start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
       },
@@ -264,6 +313,104 @@ describe('scripting tokenize test', () => {
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('optional member access variable token', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{foo?.bar}}', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        optional: true,
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 7 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'bar',
+        range: {
+          start: { line: 1, column: 8 },
+          end: { line: 1, column: 10 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 1, column: 11 },
+          end: { line: 1, column: 12 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('optional member access with postfix token', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{foo?.bar?}}', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        optional: true,
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 7 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'bar?',
+        range: {
+          start: { line: 1, column: 8 },
+          end: { line: 1, column: 11 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 1, column: 12 },
+          end: { line: 1, column: 13 },
         },
       },
     ]);

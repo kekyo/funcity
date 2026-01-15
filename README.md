@@ -424,7 +424,7 @@ The following are the standard functions:
 | `gt` | Returns true if the first argument is greater than the second. |
 | `le` | Returns true if the first argument is less than or equal to the second. |
 | `ge` | Returns true if the first argument is greater than or equal to the second. |
-| `now` | Returns current UNIX time in milliseconds. |
+| `now` | Returns current date time in `Date` object. |
 | `concat` | Concatenates strings and `Iterable` arguments in order. |
 | `join` | Uses the first argument as a separator and joins strings from the second argument onward. |
 | `trim` | Trims whitespace at both ends of the first argument. |
@@ -455,7 +455,6 @@ The following are the standard functions:
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
 | `delay` | Resolves after the specified milliseconds. |
-| `math` | `Math` object. |
 
 ### typeof
 
@@ -622,15 +621,36 @@ Resolves after the specified milliseconds (optional second argument is returned)
 {{delay 200}}
 ```
 
-### math
+### objectVariables
 
-JavaScript's Math object:
+`objectVariables` exposes JavaScript built-in objects for binding:
 
-```funcity
-{{math.sqrt 2}}
+| Object | Description |
+| :--- | :--- |
+| `Object` | `Object` object. |
+| `Array` | `Array` object. |
+| `String` | `String` object. |
+| `Number` | `Number` object. |
+| `Function` | `Function` object. |
+| `Math` | `Math` object. |
+| `Date` | `Date` object. |
+
+```typescript
+import { buildCandidateVariables, objectVariables } from 'funcity';
+
+const variables = buildCandidateVariables(objectVariables);
 ```
 
-### fetch,fetchText,fetchJson
+For example:
+
+```funcity
+{{Math.sqrt 2}}
+{{Date '2025/2/23'}}
+```
+
+CLI includes `objectVariables` by default.
+
+### fetchVariables
 
 `fetchVariables` exposes the JavaScript `fetch` API for binding:
 
@@ -659,40 +679,7 @@ const variables = buildCandidateVariables(fetchVariables);
 
 CLI includes `fetchVariables` by default.
 
-### require (Node.js)
-
-`createRequireFunction` creates a Node.js `require` function bound to a base
-directory. Import it from the Node-only entry to avoid pulling Node built-ins
-into projects that do not use them:
-
-```typescript
-import { buildCandidateVariables } from 'funcity';
-import { createRequireFunction } from 'funcity/node';
-
-const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
-// const require = createRequireFunction(); // defaults to process.cwd()
-
-const variables = buildCandidateVariables({ require });
-
-// ...
-```
-
-For example:
-
-```funcity
-{{set fs (require 'fs')}}
-{{fs.readFile './data.txt' 'utf-8'}}
-```
-
-When `acceptModules` is provided, only the listed module names are allowed.
-Package subpaths (such as `lodash/fp` or `fs/promises`) are permitted when the
-base module name is listed. Relative or absolute specifiers must be listed
-explicitly if you want to allow them.
-
-CLI includes `require` by default. Script execution resolves modules from the
-script directory, while REPL uses the current working directory.
-
-### readline (Node.js)
+### nodeJsVariables
 
 `nodeJsVariables` exposes a `readline` function for reading a single line from
 stdin (optional prompt). Import it from the Node-only entry to avoid pulling
@@ -743,6 +730,34 @@ set fs (require 'fs/promises')
 fs.readFile '/foo/bar/text' 'utf-8'
 }}
 ```
+
+`createRequireFunction` creates a Node.js `require` function bound to a base
+directory. Import it from the Node-only entry to avoid pulling Node built-ins
+into projects that do not use them:
+
+```typescript
+import { buildCandidateVariables } from 'funcity';
+import { createRequireFunction } from 'funcity/node';
+
+const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
+// const require = createRequireFunction(); // defaults to process.cwd()
+
+const variables = buildCandidateVariables({ require });
+
+// ...
+```
+
+For example:
+
+```funcity
+{{set fs (require 'fs')}}
+{{fs.readFile './data.txt' 'utf-8'}}
+```
+
+When `acceptModules` is provided, only the listed module names are allowed.
+Package subpaths (such as `lodash/fp` or `fs/promises`) are permitted when the
+base module name is listed. Relative or absolute specifiers must be listed
+explicitly if you want to allow them.
 
 CLI includes both `readline` and `require` by default.
 

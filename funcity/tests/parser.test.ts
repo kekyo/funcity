@@ -203,9 +203,25 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'identity',
-        name: 'foo.bar',
+        name: 'foo',
         range: {
           start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        optional: false,
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 6 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'bar',
+        range: {
+          start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
       },
@@ -225,11 +241,198 @@ describe('scripting parser test', () => {
     // "{{foo.bar}}"
     expect(nodes).toEqual([
       {
-        kind: 'variable',
-        name: 'foo.bar',
+        kind: 'dot',
+        base: {
+          kind: 'variable',
+          name: 'foo',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        segments: [
+          {
+            name: 'bar',
+            optional: false,
+            range: {
+              start: { line: 1, column: 7 },
+              end: { line: 1, column: 9 },
+            },
+            operatorRange: {
+              start: { line: 1, column: 6 },
+              end: { line: 1, column: 6 },
+            },
+          },
+        ],
         range: {
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('optional member access variable token', () => {
+    // "{{foo?.bar}}"
+    const token: FunCityToken[] = [
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 7 },
+        },
+        optional: true,
+      },
+      {
+        kind: 'identity',
+        name: 'bar',
+        range: {
+          start: { line: 1, column: 8 },
+          end: { line: 1, column: 10 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 1, column: 11 },
+          end: { line: 1, column: 12 },
+        },
+      },
+    ];
+    const logs: FunCityLogEntry[] = [];
+
+    const nodes = runParser(token, logs);
+
+    // "{{foo?.bar}}"
+    expect(nodes).toEqual([
+      {
+        kind: 'dot',
+        base: {
+          kind: 'variable',
+          name: 'foo',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        segments: [
+          {
+            name: 'bar',
+            optional: true,
+            range: {
+              start: { line: 1, column: 8 },
+              end: { line: 1, column: 10 },
+            },
+            operatorRange: {
+              start: { line: 1, column: 6 },
+              end: { line: 1, column: 7 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 10 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('optional member access with postfix variable token', () => {
+    // "{{foo?.bar?}}"
+    const token: FunCityToken[] = [
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 5 },
+        },
+      },
+      {
+        kind: 'dot',
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 7 },
+        },
+        optional: true,
+      },
+      {
+        kind: 'identity',
+        name: 'bar?',
+        range: {
+          start: { line: 1, column: 8 },
+          end: { line: 1, column: 11 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 1, column: 12 },
+          end: { line: 1, column: 13 },
+        },
+      },
+    ];
+    const logs: FunCityLogEntry[] = [];
+
+    const nodes = runParser(token, logs);
+
+    // "{{foo?.bar?}}"
+    expect(nodes).toEqual([
+      {
+        kind: 'dot',
+        base: {
+          kind: 'variable',
+          name: 'foo',
+          range: {
+            start: { line: 1, column: 3 },
+            end: { line: 1, column: 5 },
+          },
+        },
+        segments: [
+          {
+            name: 'bar?',
+            optional: true,
+            range: {
+              start: { line: 1, column: 8 },
+              end: { line: 1, column: 11 },
+            },
+            operatorRange: {
+              start: { line: 1, column: 6 },
+              end: { line: 1, column: 7 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 11 },
         },
       },
     ]);

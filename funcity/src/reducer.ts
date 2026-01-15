@@ -12,6 +12,7 @@ import {
   type FunCityReducerContextValueResult,
   type FunCityFunctionContext,
   type FunCityApplyNode,
+  type FunCityDotNode,
   type FunCityRange,
   FunCityReducerError,
   FunCityWarningEntry,
@@ -65,42 +66,68 @@ const deconstructConditionalCombine = (
   };
 };
 
-// Traverse variable with dot-notation.
-// ex: `foo`             --> foo or cause error
-// ex: `foo?`            --> foo or undefined
-// ex: `foo.bar.baz`     --> traverse to baz or cause error
-// ex: `foo?.bar?.baz`   --> traverse to baz may undefined incompletion or cause error (at the tail baz)
-const traverseVariable = (
+// Resolve variable with conditional combine syntax.
+// ex: `foo`  --> foo or cause error
+// ex: `foo?` --> foo or undefined
+const resolveVariable = (
   context: FunCityReducerContext,
   name: FunCityVariableNode,
   signal: AbortSignal | undefined
 ) => {
-  const names = name.name.split('.');
-  const n0 = names[0]!;
-  const n0r = deconstructConditionalCombine(n0);
-  const result0 = context.getValue(n0r.name, signal);
-  if (!result0.isFound) {
-    if (!n0r.canIgnore) {
+  const result = deconstructConditionalCombine(name.name);
+  const valueResult = context.getValue(result.name, signal);
+  if (!valueResult.isFound) {
+    if (!result.canIgnore) {
       throwError({
-        description: `variable is not bound: ${names[0]}`,
+        description: `variable is not bound: ${result.name}`,
         range: name.range,
       });
     }
     return undefined;
   }
-  let value = result0.value;
-  let parent: object | undefined;
-  for (const n of names.slice(1)) {
-    const nr = deconstructConditionalCombine(n);
-    if (value !== null && typeof value === 'object') {
-      const r = value as Record<string, unknown>;
-      parent = value as object;
-      value = r[nr.name];
-    } else {
-      if (!nr.canIgnore) {
+  return valueResult.value;
+};
+
+const resolveDotNode = async (
+  context: FunCityReducerContext,
+  node: FunCityDotNode,
+  signal: AbortSignal | undefined
+) => {
+  signal?.throwIfAborted();
+  const firstSegmentOptional = node.segments[0]?.optional ?? false;
+  let value: unknown;
+  if (node.base.kind === 'variable') {
+    const baseResult = deconstructConditionalCombine(node.base.name);
+    const valueResult = context.getValue(baseResult.name, signal);
+    if (!valueResult.isFound) {
+      if (!baseResult.canIgnore && !firstSegmentOptional) {
         throwError({
-          description: `variable is not bound: ${n}`,
-          range: name.range,
+          description: `variable is not bound: ${baseResult.name}`,
+          range: node.base.range,
+        });
+      }
+      return undefined;
+    }
+    value = valueResult.value;
+  } else {
+    value = await reduceExpressionNode(context, node.base, signal);
+  }
+  let parent: object | undefined;
+  for (const segment of node.segments) {
+    const result = deconstructConditionalCombine(segment.name);
+    const isOptional = segment.optional || result.canIgnore;
+    if (
+      value !== null &&
+      (typeof value === 'object' || typeof value === 'function')
+    ) {
+      const record = value as Record<string, unknown>;
+      parent = value as object;
+      value = record[result.name];
+    } else {
+      if (!isOptional) {
+        throwError({
+          description: `variable is not bound: ${result.name}`,
+          range: segment.range,
         });
       }
       return undefined;
@@ -126,7 +153,8 @@ const applyFunction = async (
     });
     return undefined;
   }
-  const args = isFunCityFunction(func)
+  const isSpecial = isFunCityFunction(func);
+  const args = isSpecial
     ? node.args // Passing directly node objects
     : await Promise.all(
         node.args.map(async (argNode) => {
@@ -134,11 +162,13 @@ const applyFunction = async (
           return arg;
         })
       );
-  const thisProxy = context.createFunctionContext(node, signal);
+  const shouldConstruct = !isSpecial && context.isConstructable(func);
   try {
-    // Call the function
-    const value = await func.call(thisProxy, ...args);
-    return value;
+    if (shouldConstruct) {
+      return Reflect.construct(func, args);
+    }
+    const thisProxy = context.createFunctionContext(node, signal);
+    return await func.call(thisProxy, ...args);
   } catch (e: unknown) {
     if (e instanceof FunCityReducerError) {
       throw e;
@@ -173,7 +203,10 @@ export const reduceExpressionNode = async (
       return node.value;
     }
     case 'variable': {
-      return traverseVariable(context, node, signal);
+      return resolveVariable(context, node, signal);
+    }
+    case 'dot': {
+      return await resolveDotNode(context, node, signal);
     }
     case 'apply': {
       return await applyFunction(context, node, signal);
@@ -313,8 +346,6 @@ const createScopedReducerContext = (
     thisVars.set(name, value);
   };
 
-  const getBoundFunction = parent.getBoundFunction;
-
   const createFunctionContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
@@ -325,6 +356,7 @@ const createScopedReducerContext = (
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning: parent.appendWarning,
+      getBoundFunction: parent.getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) =>
@@ -335,11 +367,12 @@ const createScopedReducerContext = (
   thisContext = {
     getValue,
     setValue,
-    getBoundFunction,
+    getBoundFunction: parent.getBoundFunction,
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString: parent.convertToString,
+    isConstructable: parent.isConstructable,
     createFunctionContext,
   };
   return thisContext;
@@ -357,24 +390,23 @@ export const createReducerContext = (
   let thisVars: Map<string, unknown> | undefined;
   let thisContext: FunCityReducerContext;
 
-  const createBoundFunctionResolver = () => {
-    const cache = new WeakMap<object, WeakMap<Function, Function>>();
-    return (owner: object, fn: Function): Function => {
-      let ownerCache = cache.get(owner);
-      if (!ownerCache) {
-        ownerCache = new WeakMap();
-        cache.set(owner, ownerCache);
-      }
-      const cached = ownerCache.get(fn);
-      if (cached) {
-        return cached;
-      }
-      const bound = fn.bind(owner);
-      ownerCache.set(fn, bound);
-      return bound;
-    };
+  const boundFunctionCache = new WeakMap<object, WeakMap<Function, Function>>();
+  const getBoundFunction = (owner: object, fn: Function): Function => {
+    let ownerCache = boundFunctionCache.get(owner);
+    if (!ownerCache) {
+      ownerCache = new WeakMap();
+      boundFunctionCache.set(owner, ownerCache);
+    }
+    const cached = ownerCache.get(fn);
+    if (cached) {
+      return cached;
+    }
+    const bound = fn.bind(owner);
+    ownerCache.set(fn, bound);
+    return bound;
   };
-  const getBoundFunction = createBoundFunctionResolver();
+
+  const constructorCache = new WeakMap<Function, boolean>();
 
   const getValue = (
     name: string,
@@ -406,6 +438,21 @@ export const createReducerContext = (
     warningLogs.push(warning);
   };
 
+  const isConstructable = (fn: Function): boolean => {
+    if (constructorCache.has(fn)) {
+      return constructorCache.get(fn)!;
+    }
+    let result = false;
+    try {
+      Reflect.construct(Object, [], fn);
+      result = true;
+    } catch {
+      result = false;
+    }
+    constructorCache.set(fn, result);
+    return result;
+  };
+
   const getFuncId = internalCreateFunctionIdGenerator();
   const convertToString = (v: unknown): string => {
     return internalConvertToString(v, getFuncId);
@@ -421,6 +468,7 @@ export const createReducerContext = (
       getValue: (name: string) => getValue(name, signal),
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning,
+      getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal),
       convertToString,
       reduce: (node: FunCityExpressionNode) =>
@@ -436,6 +484,7 @@ export const createReducerContext = (
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal),
     convertToString,
+    isConstructable,
     createFunctionContext,
   };
   return thisContext;

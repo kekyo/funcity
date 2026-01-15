@@ -9,6 +9,7 @@ export * from './parser';
 export * from './reducer';
 export * from './scripting';
 export * from './variables/standard-variables';
+export * from './variables/object-variables';
 export * from './variables/fetch-variables';
 
 export {

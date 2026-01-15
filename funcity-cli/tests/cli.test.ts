@@ -37,6 +37,13 @@ describe('funcity-cli run', () => {
     expect(result.output).toBe('Hello 3');
   });
 
+  it('exposes object variables', async () => {
+    const iso = '2025-11-23T00:00:00.000Z';
+    const result = await runScriptToText(`{{Date '${iso}'}}`);
+    expect(result.logs).toEqual([]);
+    expect(result.output).toBe(iso);
+  });
+
   it('executes script that uses require', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'funcity-cli-'));
     try {

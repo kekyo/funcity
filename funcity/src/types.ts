@@ -179,6 +179,20 @@ export interface FunCityCloseToken extends FunCityRangedObject {
 }
 
 /**
+ * Dot (member access) token.
+ */
+export interface FunCityDotToken extends FunCityRangedObject {
+  /**
+   * Token kind.
+   */
+  readonly kind: 'dot';
+  /**
+   * Is this optional dot token?
+   */
+  readonly optional: boolean;
+}
+
+/**
  * End of line token.
  */
 export interface FunCityEndOfLineToken extends FunCityRangedObject {
@@ -211,6 +225,7 @@ export type FunCityToken =
   | FunCityIdentityToken
   | FunCityOpenToken
   | FunCityCloseToken
+  | FunCityDotToken
   | FunCityEndOfLineToken
   | FunCityTextToken;
 
@@ -256,6 +271,46 @@ export interface FunCityVariableNode extends FunCityRangedObject {
    * Variable name.
    */
   readonly name: string;
+}
+
+/**
+ * Dot (member access) segment node.
+ */
+export interface FunCityDotSegment {
+  /**
+   * Segment name.
+   */
+  readonly name: string;
+  /**
+   * Segment is optional access.
+   */
+  readonly optional: boolean;
+  /**
+   * Segment name range.
+   */
+  readonly range: FunCityRange;
+  /**
+   * Operator range (dot or optional dot).
+   */
+  readonly operatorRange: FunCityRange;
+}
+
+/**
+ * Dot (member access) expression node.
+ */
+export interface FunCityDotNode extends FunCityRangedObject {
+  /**
+   * Node kind.
+   */
+  readonly kind: 'dot';
+  /**
+   * Base expression node.
+   */
+  readonly base: FunCityExpressionNode;
+  /**
+   * Member access segments.
+   */
+  readonly segments: readonly FunCityDotSegment[];
 }
 
 /**
@@ -312,6 +367,7 @@ export type FunCityExpressionNode =
   | FunCityNumberNode
   | FunCityStringNode
   | FunCityVariableNode
+  | FunCityDotNode
   | FunCityApplyNode
   | FunCityListNode
   | FunCityScopeNode;
@@ -483,6 +539,13 @@ export interface FunCityFunctionContext {
    */
   readonly appendWarning: (warning: FunCityWarningEntry) => void;
   /**
+   * Get a bound function with caching for object receivers.
+   * @param owner - Method owner object
+   * @param fn - Original function
+   * @returns Bound function
+   */
+  readonly getBoundFunction: (owner: object, fn: Function) => Function;
+  /**
    * Create new scoped context.
    * @returns New reducer context.
    */
@@ -550,6 +613,12 @@ export interface FunCityReducerContext {
    * @returns String
    */
   readonly convertToString: (v: unknown) => string;
+  /**
+   * Check whether a function is constructable.
+   * @param fn - Target function
+   * @returns True when constructable.
+   */
+  readonly isConstructable: (fn: Function) => boolean;
   /**
    * Create native function context proxy.
    * @param thisNode Current node (Indicating the current application is expected)
