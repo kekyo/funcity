@@ -15,11 +15,11 @@ import screwUp from 'screw-up';
  */
 export default defineConfig({
   plugins: [
-    dts({
-      insertTypesEntry: true,
-    }),
     prettierMax(),
     screwUp(),
+    dts({
+      rollupTypes: true,
+    }),
   ],
   build: {
     lib: {
