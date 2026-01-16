@@ -628,12 +628,26 @@ Resolves after the specified milliseconds (optional second argument is returned)
 | Object | Description |
 | :--- | :--- |
 | `Object` | `Object` object. |
+| `Function` | `Function` object. |
 | `Array` | `Array` object. |
 | `String` | `String` object. |
 | `Number` | `Number` object. |
-| `Function` | `Function` object. |
+| `BigInt` | `BigInt` object. |
+| `Boolean` | `Boolean` object. |
+| `Symbol` | `Symbol` object. |
 | `Math` | `Math` object. |
+| `ArrayBuffer` | `ArrayBuffer` object. |
 | `Date` | `Date` object. |
+| `Intl` | `Intl` object. |
+| `JSON` | `JSON` object. |
+| `Map` | `Map` object. |
+| `Set` | `Set` object. |
+| `Promise` | `Promise` object. |
+| `RegExp` | `RegExp` object. |
+| `WeakMap` | `WeakMap` object. |
+| `WeakSet` | `WeakSet` object. |
+| `DaReflectte` | `Reflect` object. |
+| `Error` | `Error` object. |
 
 ```typescript
 import { buildCandidateVariables, objectVariables } from 'funcity';
@@ -647,6 +661,10 @@ For example:
 {{Math.sqrt 2}}
 {{Date '2025/2/23'}}
 ```
+
+Note: As an important restriction of funcity, if an object has a constructor, you cannot call the object as a function object.
+For example, the following expressions distinguished in JavaScript: `new Date(‘2025/2/23’)`, `Date(‘2025/2/23’)`,
+are always interpreted as `new Date(‘2025/2/23’)` when written as `Date ‘2025/2/23’` in funcity syntax.
 
 CLI includes `objectVariables` by default.
 

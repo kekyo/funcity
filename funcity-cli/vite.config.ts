@@ -6,7 +6,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import dts from 'vite-plugin-dts';
+
 import prettierMax from 'prettier-max';
 import screwUp from 'screw-up';
 
@@ -15,9 +15,6 @@ import screwUp from 'screw-up';
  */
 export default defineConfig({
   plugins: [
-    dts({
-      insertTypesEntry: true,
-    }),
     prettierMax(),
     screwUp({
       outputMetadataFile: true,
