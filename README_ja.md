@@ -620,8 +620,22 @@ const results = await runReducer(nodes, variables, logs);
 | `Array` | `Array` オブジェクト |
 | `String` | `String` オブジェクト |
 | `Number` | `Number` オブジェクト |
+| `BigInt` | `BigInt` オブジェクト |
+| `Boolean` | `Boolean` オブジェクト |
+| `Symbol` | `Symbol` オブジェクト |
 | `Math` | `Math` オブジェクト |
+| `ArrayBuffer` | `ArrayBuffer` オブジェクト |
 | `Date` | `Date` オブジェクト |
+| `Intl` | `Intl` オブジェクト |
+| `JSON` | `JSON` オブジェクト |
+| `Map` | `Map` オブジェクト |
+| `Set` | `Set` オブジェクト |
+| `Promise` | `Promise` オブジェクト |
+| `RegExp` | `RegExp` オブジェクト |
+| `WeakMap` | `WeakMap` オブジェクト |
+| `WeakSet` | `WeakSet` オブジェクト |
+| `Reflect` | `Reflect` オブジェクト |
+| `Error` | `Error` オブジェクト |
 
 ```typescript
 import { buildCandidateVariables, objectVariables } from 'funcity';
@@ -635,6 +649,10 @@ const variables = buildCandidateVariables(objectVariables);
 {{Math.sqrt 2}}
 {{Date '2025/2/23'}}
 ```
+
+注意: funcityの重要な制約として、オブジェクトにコンストラクタが存在する場合は、オブジェクトを関数オブジェクトとして呼び出すことはできません。
+例えば、JavaScriptで区別される次の式: `new Date('2025/2/23')`, `Date('2025/2/23')` は、
+funcityで `Date '2025/2/23'` と記述すると常に `new Date('2025/2/23')`と解釈されます。
 
 CLI は `objectVariables` を既定で含みます。
 
