@@ -155,13 +155,15 @@ const readRcScript = async (): Promise<{
 const reduceAndCollectResults = async (
   context: FunCityReducerContext,
   nodes: readonly FunCityBlockNode[],
-  signal: AbortSignal
+  signal: AbortSignal,
+  onResult?: (result: unknown) => void
 ): Promise<unknown[]> => {
   const resultList: unknown[] = [];
   for (const node of nodes) {
     const results = await reduceNode(context, node, signal);
     for (const result of results) {
       if (result !== undefined) {
+        onResult?.(result);
         resultList.push(result);
       }
     }
@@ -202,7 +204,8 @@ const runScriptWithContext = async (
   context: FunCityReducerContext,
   warningLogs: FunCityWarningEntry[],
   script: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onOutput?: (chunk: string) => void
 ): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
   const logs: FunCityLogEntry[] = [];
   const tokens = runTokenizer(script, logs);
@@ -213,10 +216,13 @@ const runScriptWithContext = async (
 
   try {
     warningLogs.length = 0;
-    const results = await reduceAndCollectResults(context, nodes, signal);
-    const output = results
-      .map((result) => context.convertToString(result))
-      .join('');
+    const outputChunks: string[] = [];
+    await reduceAndCollectResults(context, nodes, signal, (result) => {
+      const chunk = context.convertToString(result);
+      outputChunks.push(chunk);
+      onOutput?.(chunk);
+    });
+    const output = outputChunks.join('');
     return { output, logs: [...warningLogs] };
   } catch (error: unknown) {
     if (error instanceof FunCityReducerError) {
@@ -500,6 +506,32 @@ export const runScriptToText = async (script: string, basePath?: string) => {
   return { output, logs };
 };
 
+export const runScriptToTextStreaming = async (
+  script: string,
+  basePath?: string,
+  onOutput?: (chunk: string) => void
+) => {
+  const require = createRequireFunction(basePath);
+  const variables = buildCandidateVariables(
+    objectVariables,
+    fetchVariables,
+    nodeJsVariables,
+    {
+      require,
+    }
+  );
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
+  const { output, logs } = await runScriptWithContext(
+    reducerContext,
+    warningLogs,
+    script,
+    new AbortController().signal,
+    onOutput
+  );
+  return { output, logs };
+};
+
 const loadRcForContext = async (
   context: FunCityReducerContext,
   warningLogs: FunCityWarningEntry[]
@@ -551,20 +583,19 @@ const runScript = async (input: string, loadRc: boolean): Promise<void> => {
     createRequireFunction(basePath),
     undefined
   );
-  const { output, logs } = await runScriptWithContext(
+  const result = await runScriptWithContext(
     reducerContext,
     warningLogs,
     script,
-    new AbortController().signal
+    new AbortController().signal,
+    (chunk) => {
+      process.stdout.write(chunk);
+    }
   );
 
-  const hasError = outputErrors(source, logs, console);
+  const hasError = outputErrors(source, result.logs, console);
   if (hasError) {
     process.exitCode = 1;
-  }
-
-  if (output) {
-    process.stdout.write(output);
   }
 };
 
