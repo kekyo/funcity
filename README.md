@@ -209,6 +209,233 @@ Hello 3
 
 ## funcity Script Syntax
 
+funcity uses a script syntax that extends the functional language with procedural constructs for text formatting.
+This section focuses on how to write scripts that interleave text and expressions.
+
+### Basic expressions and text formatting
+
+Here is the shortest possible example:
+
+```funcity
+The city is {{'Lisbon'}}.
+```
+
+Running it with funcity produces:
+
+```bash
+$ echo "The city is {{'Lisbon'}}." | funcity run
+The city is Lisbon.
+```
+
+Inside the double braces `{{...}}`, you can write a statement or expression.
+Besides strings, you can also insert numbers:
+
+```bash
+$ echo "This format appeared in {{1965}}." | funcity run
+This format appeared in 1965.
+```
+
+Because numbers are allowed, you can also compute them:
+
+```bash
+$ echo "This format appeared in {{add 1960 5}}." | funcity run
+This format appeared in 1965.
+```
+
+`add` is one of the standard funcity functions. See the standard functions section for more details.
+You can also call JavaScript's `Math` object:
+
+```bash
+$ echo "The diagonal of a 1cm square is {{Math.sqrt 2}}cm." | funcity run
+The diagonal of a 1cm square is 1.4142135623730951cm.
+```
+
+Functions are not limited to numbers. You can pass strings as well:
+
+```bash
+$ echo "Because it is a {{concat 'sun' 'flower'}}, it is bright." | funcity run
+Because it is a sunflower, it is bright.
+```
+
+Some functions take multiple arguments. Since arguments are space-separated, nested expressions should use parentheses to avoid ambiguity:
+
+```bash
+$ echo "We counted about {{add (mul 4 10) 2}} birds." | funcity run
+We counted about 42 birds.
+```
+
+### Basic statements and text formatting
+
+funcity also has a somewhat procedural syntax.
+If you know other text processors, you will quickly see how it works:
+
+```bash
+$ echo "The label is {{if true}}valid{{else}}invalid{{end}}." | funcity run
+The label is valid.
+```
+
+The `if` statement evaluates its argument. If the value is not `false`, it outputs everything up to `else`.
+Otherwise it outputs everything between `else` and `end`.
+Try replacing `true` with `false` and confirm the behavior.
+
+Since that example hardcodes `true`, it is not very interesting.
+Let's look at `for` next:
+
+```bash
+$ echo "We named them {{for i (range 1 5)}}[cat{{i}}]{{end}}." | funcity run
+We named them [cat1][cat2][cat3][cat4][cat5].
+```
+
+The `range` function returns a list of numbers from 1 to 5.
+`for` iterates that list, assigns each value to `i`, and repeats the body until `end`.
+
+Now nest an `if` inside the `for`:
+
+```bash
+$ echo "Odd labels: {{for i (range 1 5)}}{{if (mod i 2)}}[cat{{i}}]{{end}}{{end}}" | funcity run
+Odd labels: [cat1][cat3][cat5]
+```
+
+You can nest `for` and `if` as needed.
+
+funcity lets you define variables with arbitrary names:
+
+```funcity
+Pi is long, so define a variable named pi.
+{{
+set pi 3.14159265
+}}
+Now pi is reusable. A circle with radius 10cm has circumference {{mul 2 pi 10}}cm.
+```
+
+When writing multi-line code, save it to a file (for example, `sample.fc`) and pass it to funcity:
+
+```bash
+$ funcity run -i sample.fc
+Pi is long, so define a variable named pi.
+
+Now pi is reusable. A circle with radius 10cm has circumference 62.831853cm.
+```
+
+Because a newline is emitted at the point where the braces close, you may see blank lines like the one above.
+If that is a problem for your output, pay attention to where you break lines.
+
+Memo: variables can be overwritten later with `set`. In programming terms, they are "mutable", which is not always favored in functional languages.
+
+With these pieces, you can implement the usual fizz-buzz:
+
+```funcity
+{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{else}}{{if (eq (mod i 3) 0)}}Fizz{{else}}{{if (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}{{end}}{{end}}
+{{end}}
+```
+
+The line is long only to keep the output layout correct. Executing it yields:
+
+```bash
+$ funcity run -i sample.fc
+1
+2
+Fizz
+4
+Buzz
+Fizz
+7
+8
+Fizz
+Buzz
+11
+Fizz
+13
+14
+FizzBuzz
+```
+
+`while` is also supported:
+
+```funcity
+Let's eat!
+{{
+set abort true
+while abort
+set eat (readline 'Do you want BBQ? [y/n]:')
+set abort (not (or (eq eat 'y') (eq eat 'Y')))
+end
+}}
+All full.
+```
+
+`readline` outputs the argument string as a prompt and waits for input.
+The resulting input string is returned and assigned to the `eat` variable.
+
+`abort` stores an abort flag, and based on the input obtained via `readline`, it implements the behavior of “exiting after eating the BBQ.”
+
+Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regular expression function `match` allows for more flexible checks.
+
+### Functional language
+
+So far you can already handle most text formatting tasks.
+Here we focus on funcity as a functional language.
+
+You can define anonymous functions using lambda syntax:
+
+```bash
+$ echo "Define a function that doubles a number: {{fun x (add x x)}}" | funcity run
+Define a function that doubles a number: fun<#1>
+```
+
+This only creates the function object. To apply it, call it:
+
+```bash
+$ echo "Define and apply a doubling function: {{(fun x (add x x)) 21}}" | funcity run
+Define and apply a doubling function: 42
+```
+
+Inline expressions like this can feel unusual. Instead, bind the function to a variable:
+
+```funcity
+{{
+set mul2 (fun x (add x x))
+}}
+Define and apply a doubling function: {{mul2 21}}
+```
+
+You can define functions with multiple arguments:
+
+```funcity
+{{
+set ellipse (fun [a b] (mul Math.PI (mul a b)))
+}}
+Ellipse area: {{ellipse 2 3}}
+```
+
+```bash
+$ funcity run -i sample.fc
+
+Ellipse area: 18.84955592153876
+```
+
+Define an argument list with `[...]`. The example above uses JavaScript's `Math.PI` to turn the ellipse area formula `pi * a * b` into a function.
+
+Finally, recursion. You can call a bound function from within itself.
+The Fibonacci example below binds `fib`, and `fib` refers to itself:
+
+```funcity
+{{
+set fib (fun n \
+  (cond (le n 1) \
+    n \
+    (add (fib (sub n 1)) (fib (sub n 2)))))
+}}
+Fibonacci (10) = {{fib 10}}
+```
+
+To break long expressions across lines, put `\` at the end of the line.
+Because funcity variables are mutable, you can read them freely from inside functions. If a variable is undefined, a runtime error occurs.
+
+Currently, funcity does not perform tail-call optimization, so deep recursion can overflow.
+
+### Escaping string literals
+
 TODO:
 
 ---

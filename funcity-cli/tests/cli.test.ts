@@ -7,7 +7,11 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { createReplSession, runScriptToText } from '../src/cli';
+import {
+  createReplSession,
+  runScriptToText,
+  runScriptToTextStreaming,
+} from '../src/cli';
 
 describe('funcity-cli repl', () => {
   it('evaluates code and keeps bindings', async () => {
@@ -68,5 +72,20 @@ describe('funcity-cli run', () => {
 
     expect(result.logs).toEqual([]);
     expect(result.output?.trim()).toBe('Fibonacci (10) = 55');
+  });
+
+  it('streams output before reducer errors', async () => {
+    const chunks: string[] = [];
+    const result = await runScriptToTextStreaming(
+      'Hello{{set 1 2}}',
+      undefined,
+      (chunk) => {
+        chunks.push(chunk);
+      }
+    );
+
+    expect(chunks.join('')).toBe('Hello');
+    expect(result.output).toBeUndefined();
+    expect(result.logs.length).toBeGreaterThan(0);
   });
 });
