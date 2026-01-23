@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "pack": "echo \"funcity-it does not have pack rule.\""
   },
   "dependencies": {
     "@codemirror/language": ">=6.0.0",
