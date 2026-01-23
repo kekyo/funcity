@@ -15,7 +15,15 @@ type FuncityStreamState = {
   inExpression: boolean;
 };
 
-const reservedKeywords = new Set(['fun', 'set', 'if', 'while', 'for']);
+const reservedKeywords = new Set([
+  'fun',
+  'set',
+  'if',
+  'else',
+  'while',
+  'for',
+  'end',
+]);
 const builtinNames = new Set<string>();
 const builtinAtoms = new Set<string>();
 
@@ -44,7 +52,7 @@ candidateVariables.forEach((value, key) => {
   builtinNames.add(key);
 });
 
-const funcityParser: StreamParser<FuncityStreamState> = {
+export const funcityStreamParser: StreamParser<FuncityStreamState> = {
   startState() {
     return { inExpression: false };
   },
@@ -71,6 +79,11 @@ const funcityParser: StreamParser<FuncityStreamState> = {
 
     if (stream.eatSpace()) {
       return null;
+    }
+
+    if (stream.match('//')) {
+      stream.skipToEnd();
+      return 'comment';
     }
 
     const next = stream.peek();
@@ -114,4 +127,4 @@ const funcityParser: StreamParser<FuncityStreamState> = {
   },
 };
 
-export const funcityLanguage = StreamLanguage.define(funcityParser);
+export const funcityLanguage = StreamLanguage.define(funcityStreamParser);

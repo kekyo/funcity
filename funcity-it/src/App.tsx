@@ -93,7 +93,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
                 alt="funcity icon"
                 sx={{ width: 33, height: 32 }}
               />
-              <Box component="span">funcity-it [{version}]</Box>
+              <Box component="span">funcity Play ground [{version}]</Box>
             </Link>
           </Typography>
           <Box flexGrow={1} />
