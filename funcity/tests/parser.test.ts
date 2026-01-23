@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FunCityLogEntry, FunCityToken } from '../src/types';
+import { runTokenizer } from '../src/tokenizer';
 import { parseExpressions, runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -918,6 +919,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
@@ -996,6 +998,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
@@ -1370,6 +1373,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
@@ -1385,6 +1389,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 8 },
           end: { line: 2, column: 8 },
@@ -1959,6 +1964,51 @@ describe('scripting parser test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('bracket tokens with semicolon error', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{[foo;bar]}}', logs);
+
+    const nodes = runParser(tokens, logs);
+
+    expect(nodes).toEqual([
+      {
+        kind: 'list',
+        items: [
+          {
+            kind: 'variable',
+            name: 'foo',
+            range: {
+              start: { line: 1, column: 4 },
+              end: { line: 1, column: 6 },
+            },
+          },
+          {
+            kind: 'variable',
+            name: 'bar',
+            range: {
+              start: { line: 1, column: 8 },
+              end: { line: 1, column: 10 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 11 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([
+      {
+        type: 'error',
+        description: 'Semicolon is not allowed in list expression',
+        range: {
+          start: { line: 1, column: 7 },
+          end: { line: 1, column: 7 },
+        },
+      },
+    ]);
+  });
+
   it('nested bracket multiple tokens', () => {
     // "{{foo [123 [bar 'hello'] 456] baz}}"
     const token: FunCityToken[] = [
@@ -2173,6 +2223,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -2188,6 +2239,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
@@ -2275,6 +2327,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -2298,6 +2351,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 8 },
           end: { line: 2, column: 8 },
@@ -2402,6 +2456,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -2417,6 +2472,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
@@ -2432,6 +2488,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
@@ -2536,6 +2593,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -2551,6 +2609,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
@@ -2566,6 +2625,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 3, column: 5 },
           end: { line: 3, column: 5 },
@@ -2581,6 +2641,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
@@ -2822,6 +2883,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -2845,6 +2907,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
@@ -2860,6 +2923,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
@@ -2875,6 +2939,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
@@ -2980,6 +3045,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
@@ -3003,6 +3069,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
@@ -3018,6 +3085,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
@@ -3033,6 +3101,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
@@ -3048,6 +3117,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 5, column: 4 },
           end: { line: 5, column: 4 },
@@ -3063,6 +3133,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 6, column: 4 },
           end: { line: 6, column: 4 },
@@ -3078,6 +3149,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 7, column: 4 },
           end: { line: 7, column: 4 },
@@ -3093,6 +3165,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 8, column: 4 },
           end: { line: 8, column: 4 },
@@ -3216,6 +3289,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
@@ -3231,6 +3305,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
@@ -3325,6 +3400,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
@@ -3340,6 +3416,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
@@ -3442,6 +3519,7 @@ describe('scripting parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 14 },
           end: { line: 1, column: 14 },
@@ -4199,6 +4277,7 @@ describe('code parser test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 2 },
           end: { line: 1, column: 2 },

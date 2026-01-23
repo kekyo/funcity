@@ -193,6 +193,11 @@ export interface FunCityDotToken extends FunCityRangedObject {
 }
 
 /**
+ * End of line source.
+ */
+export type FunCityEndOfLineSource = 'newline' | 'semicolon';
+
+/**
  * End of line token.
  */
 export interface FunCityEndOfLineToken extends FunCityRangedObject {
@@ -200,6 +205,10 @@ export interface FunCityEndOfLineToken extends FunCityRangedObject {
    * Token kind.
    */
   readonly kind: 'eol';
+  /**
+   * End of line source.
+   */
+  readonly source: FunCityEndOfLineSource;
 }
 
 /**
