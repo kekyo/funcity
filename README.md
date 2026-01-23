@@ -371,6 +371,64 @@ The resulting input string is returned and assigned to the `eat` variable.
 
 Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regular expression function `match` allows for more flexible checks.
 
+### Escaping string literals
+
+String literals in funcity are wrapped in single quotes `'`. The empty string is `''`.
+To use `'` or `\` inside a string, escape them with a backslash.
+
+Supported escape sequences:
+
+- `\n` newline
+- `\t` tab
+- `\r` carriage return
+- `\v` vertical tab
+- `\f` form feed
+- `\0` NUL
+- `\'` single quote
+- `\\` backslash
+
+Undefined escape sequences are treated as errors.
+
+Examples:
+
+```bash
+$ echo "Newline: {{'A\\nB'}}" | funcity run
+Newline: A
+B
+```
+
+```bash
+$ echo "Quote: {{'I\\'m \\\\ ok'}}" | funcity run
+Quote: I'm \ ok
+```
+
+### Lists and iteration
+
+In funcity, lists (arrays) are defined with `[...]`. Elements are separated by spaces.
+Passing a list as the second argument to `for` lets you iterate each element:
+
+```bash
+$ echo "Iriomote cat IDs: {{for i [1 2 3 4 5]}}[cat{{i}}]{{end}}" | funcity run
+Iriomote cat IDs: [cat1][cat2][cat3][cat4][cat5]
+```
+
+You can also use `map` and `filter` to transform a list and return a new one.
+`map` applies a function to each element, while `filter` keeps only elements that match a condition:
+
+```bash
+$ echo "x10: {{map (fun [x] (mul x 10)) [1 2 3 4]}}" | funcity run
+x10: [10 20 30 40]
+```
+
+```bash
+$ echo "Odd only: {{filter (fun [x] (mod x 2)) [1 2 3 4 5]}}" | funcity run
+Odd only: [1 3 5]
+```
+
+Other higher-order functions include `flatMap` and `reduce`.
+Combined with `range`, or `first`, `last`, `at`, `sort`, `collect`, and `reverse`,
+you can implement common set-like operations easily.
+
 ### Expression separators and comments
 
 You can separate multiple expressions in three ways:
@@ -481,38 +539,7 @@ Fibonacci (10) = {{fib 10}}
 To break long expressions across lines, put `\` at the end of the line.
 Because funcity variables are mutable, you can read them freely from inside functions. If a variable is undefined, a runtime error occurs.
 
-Currently, funcity does not perform tail-call optimization, so deep recursion can overflow.
-
-### Escaping string literals
-
-String literals in funcity are wrapped in single quotes `'`. The empty string is `''`.
-To use `'` or `\` inside a string, escape them with a backslash.
-
-Supported escape sequences:
-
-- `\n` newline
-- `\t` tab
-- `\r` carriage return
-- `\v` vertical tab
-- `\f` form feed
-- `\0` NUL
-- `\'` single quote
-- `\\` backslash
-
-Undefined escape sequences are treated as errors.
-
-Examples:
-
-```bash
-$ echo "Newline: {{'A\\nB'}}" | funcity run
-Newline: A
-B
-```
-
-```bash
-$ echo "Quote: {{'I\\'m \\\\ ok'}}" | funcity run
-Quote: I'm \ ok
-```
+Currently, funcity does not perform [tail-call optimization](https://en.wikipedia.org/wiki/Tail_call), so deep recursion can overflow.
 
 ---
 
