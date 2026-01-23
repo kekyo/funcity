@@ -371,6 +371,55 @@ The resulting input string is returned and assigned to the `eat` variable.
 
 Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regular expression function `match` allows for more flexible checks.
 
+### Expression separators and comments
+
+You can separate multiple expressions in three ways:
+
+- Split blocks: `{{...}}{{...}}`
+- Newline inside a block: `{{...\n...}}`
+- Semicolon inside a block: `{{...;...}}`
+
+Examples:
+
+```funcity
+{{set a 1}}{{set b 2}}
+Sum: {{add a b}}
+```
+
+```funcity
+{{
+set a 1
+set b 2
+}}
+Sum: {{add a b}}
+```
+
+```funcity
+{{set a 1; set b 2}}
+Sum: {{add a b}}
+```
+
+Note: `;` is treated as an expression separator, but it is not allowed inside list expressions (`[...]`).
+
+Conversely, to break a line within an expression, place `\` at the end of the line:
+
+```funcity
+{{
+set abort (not \
+  (or (eq eat 'y') \
+  (eq eat 'Y')))
+}}
+```
+
+Comments are recognized as starting with `//` and continuing to the end of the line:
+
+```funcity
+{{
+// Save the display string
+set label (concat name 'is cool')
+}}
+```
+
 ### Functional language
 
 So far you can already handle most text formatting tasks.
@@ -682,6 +731,15 @@ The following are the standard functions:
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
 | `delay` | Resolves after the specified milliseconds. |
+
+Additionally, while not strictly functions, the following symbol names are also included as standard functions:
+
+| Symbol name | Description |
+| :--- | :--- |
+| `true` | JavaScript `true` value |
+| `false` | JavaScript `false` value |
+| `undefined` | JavaScript `undefined` value |
+| `null` | JavaScript `null` value |
 
 ### typeof
 
