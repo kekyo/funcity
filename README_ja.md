@@ -1002,6 +1002,22 @@ const variables = buildCandidateVariables({ require });
 
 CLIは `readline` と `require` を既定で含みます。
 
+### その他
+
+ここまで理解できれば、以下のコードがブラウザ上で何を実現するのかも理解できるでしょう。
+したがって、以下のような機能の公開は慎重に行ってください。
+同時に、funcityがどのようにスクリプトからホスト環境を守ることができるのかが分かると思います。
+単純に、危険な定義を参照可能にしなければ良いのです。
+
+```typescript
+const candidateVariables = buildCandidateVariables(
+  {
+    window,
+    document,
+  }
+);
+```
+
 ---
 
 ## 備考

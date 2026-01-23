@@ -1,0 +1,26 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f4f6f9;
+}
+
+.funcity-cm {
+  width: 100%;
+  font-family: 'Inconsolata', 'Consolas', 'Courier New', monospace;
+}
+
+.funcity-cm .cm-editor {
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.funcity-cm--editor .cm-editor {
+  min-height: 320px;
+}
+
+.funcity-cm--log .cm-editor {
+  min-height: 120px;
+}

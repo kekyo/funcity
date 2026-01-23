@@ -1006,12 +1006,27 @@ explicitly if you want to allow them.
 
 CLI includes both `readline` and `require` by default.
 
+### Other
+
+If you understand this far, you should also understand what the following code achieves in the browser.
+Therefore, please exercise caution when exposing functionality like the following.
+At the same time, you should see how funcity protects the host environment from scripts.
+Simply put, you just need to prevent dangerous definitions from being accessible.
+
+```typescript
+const candidateVariables = buildCandidateVariables(
+  {
+    window,
+    document,
+  }
+);
+```
+
 ---
 
 ## TODO
 
 - LSP server.
-- `let` immutable binding.
 - Dynamic (runime inlined) code generator.
 
 ## Note
