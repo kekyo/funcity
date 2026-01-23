@@ -14,7 +14,10 @@ export const createAppTheme = (mode: PaletteMode) =>
         main: '#925e5e',
       },
       secondary: {
-        main: '#108710',
+        main: 'rgb(42, 150, 62)',
+      },
+      info: {
+        main: 'rgb(47, 120, 175)',
       },
       background: {
         default: mode === 'dark' ? '#313131' : '#f9f4f4',
@@ -22,14 +25,10 @@ export const createAppTheme = (mode: PaletteMode) =>
       },
     },
     typography: {
-      fontFamily: ['"Space Grotesk"', '"Segoe UI"', 'sans-serif'].join(','),
       h6: {
         fontWeight: 700,
         letterSpacing: '0.04em',
         textTransform: 'none',
       },
-    },
-    shape: {
-      borderRadius: 12,
     },
   });

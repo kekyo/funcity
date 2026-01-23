@@ -11,7 +11,7 @@ import {
   objectVariables,
 } from 'funcity';
 
-type FuncityStreamState = {
+type FunCityStreamState = {
   inExpression: boolean;
   inString: boolean;
 };
@@ -32,8 +32,6 @@ export const candidateVariables = buildCandidateVariables(
   objectVariables,
   fetchVariables,
   {
-    alert: async (msg: string) => window.alert(msg),
-
     // Dummy, will be detected highlight entry.
     console,
     readline: async () => '',
@@ -59,7 +57,7 @@ candidateVariables.forEach((value, key) => {
   builtinNames.add(key);
 });
 
-export const funcityStreamParser: StreamParser<FuncityStreamState> = {
+export const funcityStreamParser: StreamParser<FunCityStreamState> = {
   startState() {
     return { inExpression: false, inString: false };
   },

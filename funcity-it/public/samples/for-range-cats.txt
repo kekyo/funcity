@@ -1,0 +1,4 @@
+---
+title: For Loop Range
+---
+We named them {{for i (range 1 5)}}[cat{{i}}]{{end}}.

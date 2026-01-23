@@ -1,0 +1,7 @@
+---
+title: Window Alert
+---
+{{
+window.alert 'Hello from FunCity!'
+}}
+Alert should be visible.

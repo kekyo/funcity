@@ -264,31 +264,39 @@ const _now = async () => {
   return new Date();
 };
 
-const concatInner = (args: Iterable<unknown>) => {
+const concatInner = (sep: string, args: Iterable<unknown>) => {
   let v = '';
+  let f = true;
   for (const arg of args) {
+    let as: string;
     if (typeof arg === 'string') {
-      v = v + arg;
+      as = arg;
     } else {
       const iterable = asIterable(arg);
       if (iterable) {
-        v = v + concatInner(iterable);
+        as = concatInner(sep, iterable);
       } else {
-        v = v + String(arg);
+        as = convertToString(arg);
       }
+    }
+    if (f) {
+      v = v + as;
+      f = false;
+    } else {
+      v = v + sep + as;
     }
   }
   return v;
 };
 
 const _concat = async (...args: unknown[]) => {
-  const r = concatInner(args);
+  const r = concatInner('', args);
   return r;
 };
 
 const _join = async (arg0: unknown, ...args: unknown[]) => {
-  const sep = String(arg0);
-  const r = args.map((v) => String(v)).join(sep);
+  const sep = convertToString(arg0);
+  const r = concatInner(sep, args);
   return r;
 };
 
@@ -528,24 +536,26 @@ const _reduce = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
 };
 
 const _match = async (arg0: unknown, arg1: unknown) => {
-  const re = arg0 instanceof RegExp ? arg0 : new RegExp(String(arg0), 'g');
-  const results = String(arg1).match(re);
+  const re =
+    arg0 instanceof RegExp ? arg0 : new RegExp(convertToString(arg0), 'g');
+  const results = convertToString(arg1).match(re);
   return results;
 };
 
 const _replace = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
-  const re = arg0 instanceof RegExp ? arg0 : new RegExp(String(arg0), 'g');
-  const replace = String(arg1);
-  const results = String(arg2).replace(re, replace);
+  const re =
+    arg0 instanceof RegExp ? arg0 : new RegExp(convertToString(arg0), 'g');
+  const replace = convertToString(arg1);
+  const results = convertToString(arg2).replace(re, replace);
   return results;
 };
 
 const _regex = async (arg0: unknown, arg1: unknown) => {
   if (arg1) {
-    const re = new RegExp(String(arg0), String(arg1));
+    const re = new RegExp(convertToString(arg0), convertToString(arg1));
     return re;
   } else {
-    const re = new RegExp(String(arg0));
+    const re = new RegExp(convertToString(arg0));
     return re;
   }
 };

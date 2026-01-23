@@ -1,0 +1,5 @@
+---
+title: Lambda and apply
+---
+{{set fc (fun words (join ' ' words))}}
+It is an application for {{fc ['a' 'function' 'with' 'multiple' 'arguments']}}.

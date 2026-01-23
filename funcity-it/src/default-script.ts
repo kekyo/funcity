@@ -3,10 +3,4 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-export const DEFAULT_SCRIPT = `{{
-set fib (fun n \\
-  (cond (le n 1) \\
-    n \\
-    (add (fib (sub n 1)) (fib (sub n 2)))))
-}}
-Fibonacci (10) = {{fib 10}}`;
+export const DEFAULT_SCRIPT = `Hello {{concat 'fun' 'city'}} World!!`;

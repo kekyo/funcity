@@ -2,7 +2,7 @@
   "name": "funcity-it",
   "version": "0.0.1",
   "private": true,
-  "description": "Funcity in-browser runner",
+  "description": "funcity in-browser runner",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,12 +11,13 @@
     "test": "npm run build && vitest run"
   },
   "dependencies": {
-    "@emotion/react": ">=11.11.0",
-    "@emotion/styled": ">=11.11.0",
     "@codemirror/language": ">=6.0.0",
     "@codemirror/state": ">=6.0.0",
     "@codemirror/view": ">=6.0.0",
+    "@emotion/react": ">=11.11.0",
+    "@emotion/styled": ">=11.11.0",
     "@lezer/highlight": ">=1.0.0",
+    "@mui/icons-material": ">=7.3.0",
     "@mui/material": ">=5.15.0",
     "@uiw/react-codemirror": ">=4.0.0",
     "funcity": "*",
@@ -24,14 +25,15 @@
     "react-dom": ">=18.2.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": ">=6.0.0",
+    "@testing-library/react": ">=14.0.0",
     "@types/react": ">=18.2.0",
     "@types/react-dom": ">=18.2.0",
     "@vitejs/plugin-react": ">=4.0.0",
-    "@testing-library/jest-dom": ">=6.0.0",
-    "@testing-library/react": ">=14.0.0",
+    "dir4json": ">=1.0.0",
+    "jsdom": ">=22.0.0",
     "prettier-max": ">=1.13.0",
     "screw-up": ">=1.26.0",
-    "jsdom": ">=22.0.0",
     "typescript": ">=5.0.0",
     "vite": ">=5.0.0",
     "vitest": ">=1.0.0"

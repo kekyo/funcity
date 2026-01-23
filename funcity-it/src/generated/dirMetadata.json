@@ -1,0 +1,54 @@
+{
+  "public/": {
+    "samples/": {
+      "arithmetic-ops.txt": {
+        "size": 119
+      },
+      "boolean-logic.txt": {
+        "size": 99
+      },
+      "conditional-label.txt": {
+        "size": 82
+      },
+      "console-output.txt": {
+        "size": 207
+      },
+      "current-time.txt": {
+        "size": 44
+      },
+      "delay-demo.txt": {
+        "size": 63
+      },
+      "fetch-text.txt": {
+        "size": 56
+      },
+      "fibonacci.txt": {
+        "size": 156
+      },
+      "fizzbuzz.txt": {
+        "size": 191
+      },
+      "for-range-cats.txt": {
+        "size": 84
+      },
+      "lambda-and-apply.txt": {
+        "size": 152
+      },
+      "match-replace.txt": {
+        "size": 137
+      },
+      "pi-variable.txt": {
+        "size": 177
+      },
+      "readline-prompt.txt": {
+        "size": 98
+      },
+      "reduce-sum.txt": {
+        "size": 89
+      },
+      "window-alert.txt": {
+        "size": 94
+      }
+    }
+  }
+}

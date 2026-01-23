@@ -1,0 +1,5 @@
+---
+title: Match and Replace
+---
+Matches: {{match (regex '[A-Z]+' 'g') 'Hello FunCity'}}
+Replaced: {{replace 'cat' 'dog' 'cat and cat'}}

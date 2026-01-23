@@ -87,7 +87,7 @@ const text = await runScriptOnceToText(script, variables, logs);
 console.log(text);
 ```
 
-In other words, Funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
+In other words, funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
 
 ### Features
 
@@ -613,8 +613,8 @@ That it actually converts `results` to text using `convertToString()`.
 
 ### Executing Only Functional Language Syntax
 
-The previous section demonstrated how to execute Funcity scripts directly. However, you can also parse and execute only the functional language syntax within Funcity.
-This allows you to use Funcity purely as a functional language processor when text processing is not required.
+The previous section demonstrated how to execute funcity scripts directly. However, you can also parse and execute only the functional language syntax within funcity.
+This allows you to use funcity purely as a functional language processor when text processing is not required.
 This corresponds to the CLI's REPL mode:
 
 ```typescript

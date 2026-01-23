@@ -1,0 +1,8 @@
+---
+title: Arithmetic Ops
+---
+Add: {{add 10 5}}
+Sub: {{sub 10 5}}
+Mul: {{mul 6 7}}
+Div: {{div 22 7}}
+Mod: {{mod 22 7}}

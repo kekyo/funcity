@@ -25,28 +25,28 @@ body {
   min-height: 120px;
 }
 
-.funcity-cm--output .cm-console-marker {
+.funcity-cm--log .cm-console-marker {
   display: none;
 }
 
-.funcity-cm--output .cm-line.cm-console-line {
+.funcity-cm--log .cm-line.cm-console-line {
   border-radius: 4px;
   padding-left: 4px;
   padding-right: 4px;
 }
 
-.funcity-cm--output .cm-line.cm-console-line--log {
+.funcity-cm--log .cm-line.cm-console-line--log {
   background-color: rgba(120, 120, 120, 0.2);
 }
 
-.funcity-cm--output .cm-line.cm-console-line--info {
+.funcity-cm--log .cm-line.cm-console-line--info {
   background-color: rgba(64, 164, 255, 0.25);
 }
 
-.funcity-cm--output .cm-line.cm-console-line--warn {
+.funcity-cm--log .cm-line.cm-console-line--warn {
   background-color: rgba(255, 193, 7, 0.25);
 }
 
-.funcity-cm--output .cm-line.cm-console-line--error {
+.funcity-cm--log .cm-line.cm-console-line--error {
   background-color: rgba(244, 67, 54, 0.25);
 }

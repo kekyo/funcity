@@ -9,7 +9,7 @@ import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { EditorView } from '@codemirror/view';
 
-export const createFuncityEditorTheme = (theme: Theme) =>
+export const createFunCityEditorTheme = (theme: Theme) =>
   EditorView.theme(
     {
       '&': {
@@ -58,7 +58,7 @@ export const createFuncityEditorTheme = (theme: Theme) =>
     { dark: theme.palette.mode === 'dark' }
   );
 
-export const createFuncityHighlightStyle = (theme: Theme) => {
+export const createFunCityHighlightStyle = (theme: Theme) => {
   const isDark = theme.palette.mode === 'dark';
   const pick = (color: { main: string; light?: string }) =>
     isDark ? lighten(color.main, 0.5) : color.main;

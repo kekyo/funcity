@@ -18,6 +18,17 @@ vi.mock('funcity', async () => {
   };
 });
 
+const defaultSampleText = `---
+title: Default Sample
+---
+{{add 1 2}}`;
+
+const createFetchMock = (text: string) =>
+  vi.fn().mockResolvedValue({
+    ok: true,
+    text: async () => text,
+  } as Response);
+
 const renderApp = () =>
   render(
     <ThemeProvider theme={createAppTheme('light')}>
@@ -28,6 +39,7 @@ const renderApp = () =>
 describe('funcity-it App', () => {
   beforeEach(() => {
     runScriptOnceToTextMock.mockReset();
+    globalThis.fetch = createFetchMock(defaultSampleText) as typeof fetch;
   });
 
   it('renders three CodeMirror editors with line numbers', async () => {
@@ -74,7 +86,20 @@ describe('funcity-it App', () => {
     expect(roundedCount).toBe(0);
   });
 
-  it('captures console output into Result', async () => {
+  it('aligns app title contents with flex centering', async () => {
+    const { getByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    const titleLink = getByRole('link', { name: /funcity play ground/i });
+
+    expect(titleLink).toHaveStyle({ display: 'flex' });
+    expect(titleLink).toHaveStyle({ alignItems: 'center' });
+  });
+
+  it('captures console output into Logs', async () => {
     runScriptOnceToTextMock.mockImplementation(async () => {
       console.log('console output');
       return 'script output';
@@ -88,10 +113,13 @@ describe('funcity-it App', () => {
       expect(runScriptOnceToTextMock).toHaveBeenCalled();
       const editors = container.querySelectorAll('.funcity-cm');
       const outputEditor = editors[1];
+      const logEditor = container.querySelector('.funcity-cm--log');
       const outputText =
         outputEditor?.querySelector('.cm-content')?.textContent ?? '';
+      const logText =
+        logEditor?.querySelector('.cm-content')?.textContent ?? '';
       expect(outputText).toContain('script output');
-      expect(outputText).toContain('console output');
+      expect(logText).toContain('console output');
     });
   });
 
@@ -109,27 +137,27 @@ describe('funcity-it App', () => {
     fireEvent.click(getByRole('button', { name: 'Run' }));
 
     await waitFor(() => {
-      const outputEditor = container.querySelector('.funcity-cm--output');
-      const outputText =
-        outputEditor?.querySelector('.cm-content')?.textContent ?? '';
+      const logEditor = container.querySelector('.funcity-cm--log');
+      const logText =
+        logEditor?.querySelector('.cm-content')?.textContent ?? '';
 
-      expect(outputText).toContain('info: info output');
-      expect(outputText).toContain('warn: warn output');
-      expect(outputText).toContain('error: error output');
-      expect(outputText).toContain('log output');
-      expect(outputText).not.toContain('log:');
+      expect(logText).toContain('info: info output');
+      expect(logText).toContain('warn: warn output');
+      expect(logText).toContain('error: error output');
+      expect(logText).toContain('log output');
+      expect(logText).not.toContain('log:');
 
       expect(
-        outputEditor?.querySelectorAll('.cm-line.cm-console-line--info').length
+        logEditor?.querySelectorAll('.cm-line.cm-console-line--info').length
       ).toBeGreaterThan(0);
       expect(
-        outputEditor?.querySelectorAll('.cm-line.cm-console-line--warn').length
+        logEditor?.querySelectorAll('.cm-line.cm-console-line--warn').length
       ).toBeGreaterThan(0);
       expect(
-        outputEditor?.querySelectorAll('.cm-line.cm-console-line--error').length
+        logEditor?.querySelectorAll('.cm-line.cm-console-line--error').length
       ).toBeGreaterThan(0);
       expect(
-        outputEditor?.querySelectorAll('.cm-line.cm-console-line--log').length
+        logEditor?.querySelectorAll('.cm-line.cm-console-line--log').length
       ).toBeGreaterThan(0);
     });
   });
@@ -169,6 +197,85 @@ describe('funcity-it App', () => {
       const outputText =
         outputEditor?.querySelector('.cm-content')?.textContent ?? '';
       expect(outputText).toContain('Hello Alice');
+    });
+  });
+
+  it('aborts running script when Abort is clicked', async () => {
+    let capturedSignal: AbortSignal | undefined;
+
+    runScriptOnceToTextMock.mockImplementation(
+      async (_script, _props, signal) => {
+        capturedSignal = signal;
+        return await new Promise<string>((_resolve, reject) => {
+          if (!signal) {
+            reject(new Error('Missing AbortSignal'));
+            return;
+          }
+          if (signal.aborted) {
+            const error = new Error('Aborted');
+            (error as { name?: string }).name = 'AbortError';
+            reject(error);
+            return;
+          }
+          signal.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted');
+              (error as { name?: string }).name = 'AbortError';
+              reject(error);
+            },
+            { once: true }
+          );
+        });
+      }
+    );
+
+    const { getByRole, findByRole } = renderApp();
+
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    const abortButton = await findByRole('button', { name: 'Abort' });
+    expect(abortButton).toBeEnabled();
+
+    fireEvent.click(abortButton);
+
+    await waitFor(() => {
+      expect(capturedSignal).toBeDefined();
+      expect(capturedSignal?.aborted).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(getByRole('button', { name: 'Run' })).toBeEnabled();
+    });
+  });
+
+  it('loads sample scripts from the menu and replaces the input', async () => {
+    const sampleText = `---
+title: Sample Title
+---
+{{add 10 32}}`;
+    const fetchMock = createFetchMock(sampleText);
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const { container, getByRole, findAllByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    fireEvent.click(getByRole('button', { name: 'Samples' }));
+
+    const menuItems = await findAllByRole('menuitem', {
+      name: 'Sample Title',
+    });
+    fireEvent.click(menuItems[0]);
+
+    await waitFor(() => {
+      const editors = container.querySelectorAll('.funcity-cm');
+      const inputEditor = editors[0];
+      const inputText =
+        inputEditor?.querySelector('.cm-content')?.textContent ?? '';
+      expect(inputText).toContain('{{add 10 32}}');
     });
   });
 });

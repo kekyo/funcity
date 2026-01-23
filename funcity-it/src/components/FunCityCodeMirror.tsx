@@ -11,11 +11,11 @@ import { EditorView } from '@codemirror/view';
 import { syntaxHighlighting } from '@codemirror/language';
 import { funcityLanguage } from '../editor/funcity-language';
 import {
-  createFuncityEditorTheme,
-  createFuncityHighlightStyle,
+  createFunCityEditorTheme,
+  createFunCityHighlightStyle,
 } from '../editor/funcity-theme';
 
-type FuncityCodeMirrorProps = {
+type FunCityCodeMirrorProps = {
   value: string;
   onChange?: (value: string) => void;
   readOnly?: boolean;
@@ -25,7 +25,7 @@ type FuncityCodeMirrorProps = {
   extraExtensions?: Extension[];
 };
 
-const FuncityCodeMirror = ({
+export const FunCityCodeMirror = ({
   value,
   onChange,
   readOnly = false,
@@ -33,12 +33,12 @@ const FuncityCodeMirror = ({
   className,
   language = 'funcity',
   extraExtensions,
-}: FuncityCodeMirrorProps) => {
+}: FunCityCodeMirrorProps) => {
   const theme = useTheme();
 
   const extensions = useMemo(() => {
     const items = [
-      syntaxHighlighting(createFuncityHighlightStyle(theme)),
+      syntaxHighlighting(createFunCityHighlightStyle(theme)),
       EditorView.lineWrapping,
     ];
 
@@ -54,7 +54,7 @@ const FuncityCodeMirror = ({
       items.push(...extraExtensions);
     }
 
-    items.push(createFuncityEditorTheme(theme));
+    items.push(createFunCityEditorTheme(theme));
 
     return items;
   }, [theme, language, readOnly, extraExtensions]);
@@ -71,5 +71,3 @@ const FuncityCodeMirror = ({
     />
   );
 };
-
-export default FuncityCodeMirror;

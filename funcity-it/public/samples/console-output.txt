@@ -1,0 +1,10 @@
+---
+title: Console Output
+---
+{{
+console.log 'Hello from console'
+console.info 'This is information'
+console.warn 'Something to watch'
+console.error 'Something went wrong'
+}}
+Check Result for console lines.

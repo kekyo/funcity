@@ -1,0 +1,8 @@
+---
+title: Readline Prompt
+---
+Let's chat.
+{{
+set name (readline 'Your name?')
+}}
+Hello {{name}}!
