@@ -1,0 +1,2 @@
+This is sample data for fetchText.
+Line two: FunCity demo.

@@ -1,0 +1,4 @@
+---
+title: Reduce Sum
+---
+Sum (1..5): {{reduce 0 (fun [acc v] (add acc v)) [1 2 3 4 5]}}

@@ -87,7 +87,7 @@ const text = await runScriptOnceToText(script, variables, logs);
 console.log(text);
 ```
 
-In other words, Funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
+In other words, funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
 
 ### Features
 
@@ -371,6 +371,113 @@ The resulting input string is returned and assigned to the `eat` variable.
 
 Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regular expression function `match` allows for more flexible checks.
 
+### Escaping string literals
+
+String literals in funcity are wrapped in single quotes `'`. The empty string is `''`.
+To use `'` or `\` inside a string, escape them with a backslash.
+
+Supported escape sequences:
+
+- `\n` newline
+- `\t` tab
+- `\r` carriage return
+- `\v` vertical tab
+- `\f` form feed
+- `\0` NUL
+- `\'` single quote
+- `\\` backslash
+
+Undefined escape sequences are treated as errors.
+
+Examples:
+
+```bash
+$ echo "Newline: {{'A\\nB'}}" | funcity run
+Newline: A
+B
+```
+
+```bash
+$ echo "Quote: {{'I\\'m \\\\ ok'}}" | funcity run
+Quote: I'm \ ok
+```
+
+### Lists and iteration
+
+In funcity, lists (arrays) are defined with `[...]`. Elements are separated by spaces.
+Passing a list as the second argument to `for` lets you iterate each element:
+
+```bash
+$ echo "Iriomote cat IDs: {{for i [1 2 3 4 5]}}[cat{{i}}]{{end}}" | funcity run
+Iriomote cat IDs: [cat1][cat2][cat3][cat4][cat5]
+```
+
+You can also use `map` and `filter` to transform a list and return a new one.
+`map` applies a function to each element, while `filter` keeps only elements that match a condition:
+
+```bash
+$ echo "x10: {{map (fun [x] (mul x 10)) [1 2 3 4]}}" | funcity run
+x10: [10 20 30 40]
+```
+
+```bash
+$ echo "Odd only: {{filter (fun [x] (mod x 2)) [1 2 3 4 5]}}" | funcity run
+Odd only: [1 3 5]
+```
+
+Other higher-order functions include `flatMap` and `reduce`.
+Combined with `range`, or `first`, `last`, `at`, `sort`, `collect`, and `reverse`,
+you can implement common set-like operations easily.
+
+### Expression separators and comments
+
+You can separate multiple expressions in three ways:
+
+- Split blocks: `{{...}}{{...}}`
+- Newline inside a block: `{{...\n...}}`
+- Semicolon inside a block: `{{...;...}}`
+
+Examples:
+
+```funcity
+{{set a 1}}{{set b 2}}
+Sum: {{add a b}}
+```
+
+```funcity
+{{
+set a 1
+set b 2
+}}
+Sum: {{add a b}}
+```
+
+```funcity
+{{set a 1; set b 2}}
+Sum: {{add a b}}
+```
+
+Note: `;` is treated as an expression separator, but it is not allowed inside list expressions (`[...]`).
+
+Conversely, to break a line within an expression, place `\` at the end of the line:
+
+```funcity
+{{
+set abort (not \
+  (or (eq eat 'y') \
+  (eq eat 'Y')))
+}}
+```
+
+Comments are recognized as starting with `//` and continuing to the end of the line:
+
+```funcity
+{{
+// Save the display string
+set label (concat name 'is cool')
+}}
+```
+
 ### Functional language
 
 So far you can already handle most text formatting tasks.
@@ -432,11 +539,7 @@ Fibonacci (10) = {{fib 10}}
 To break long expressions across lines, put `\` at the end of the line.
 Because funcity variables are mutable, you can read them freely from inside functions. If a variable is undefined, a runtime error occurs.
 
-Currently, funcity does not perform tail-call optimization, so deep recursion can overflow.
-
-### Escaping string literals
-
-TODO:
+Currently, funcity does not perform [tail-call optimization](https://en.wikipedia.org/wiki/Tail_call), so deep recursion can overflow.
 
 ---
 
@@ -510,8 +613,8 @@ That it actually converts `results` to text using `convertToString()`.
 
 ### Executing Only Functional Language Syntax
 
-The previous section demonstrated how to execute Funcity scripts directly. However, you can also parse and execute only the functional language syntax within Funcity.
-This allows you to use Funcity purely as a functional language processor when text processing is not required.
+The previous section demonstrated how to execute funcity scripts directly. However, you can also parse and execute only the functional language syntax within funcity.
+This allows you to use funcity purely as a functional language processor when text processing is not required.
 This corresponds to the CLI's REPL mode:
 
 ```typescript
@@ -682,6 +785,15 @@ The following are the standard functions:
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
 | `delay` | Resolves after the specified milliseconds. |
+
+Additionally, while not strictly functions, the following symbol names are also included as standard functions:
+
+| Symbol name | Description |
+| :--- | :--- |
+| `true` | JavaScript `true` value |
+| `false` | JavaScript `false` value |
+| `undefined` | JavaScript `undefined` value |
+| `null` | JavaScript `null` value |
 
 ### typeof
 
@@ -1006,12 +1118,27 @@ explicitly if you want to allow them.
 
 CLI includes both `readline` and `require` by default.
 
+### Other
+
+If you understand this far, you should also understand what the following code achieves in the browser.
+Therefore, please exercise caution when exposing functionality like the following.
+At the same time, you should see how funcity protects the host environment from scripts.
+Simply put, you just need to prevent dangerous definitions from being accessible.
+
+```typescript
+const candidateVariables = buildCandidateVariables(
+  {
+    window,
+    document,
+  }
+);
+```
+
 ---
 
 ## TODO
 
 - LSP server.
-- `let` immutable binding.
 - Dynamic (runime inlined) code generator.
 
 ## Note

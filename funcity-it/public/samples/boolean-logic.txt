@@ -1,0 +1,6 @@
+---
+title: Boolean Logic
+---
+and: {{and true (not false)}}
+or: {{or false true}}
+not: {{not true}}

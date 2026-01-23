@@ -1,0 +1,4 @@
+---
+title: Fetch Text
+---
+{{fetchText 'demodata.txt'}}

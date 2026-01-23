@@ -253,6 +253,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
@@ -264,6 +265,39 @@ describe('scripting tokenize test', () => {
         range: {
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('code token with semicolon', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runCodeTokenizer('foo;bar', logs);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'identity',
+        name: 'foo',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'semicolon',
+        range: {
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 4 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'bar',
+        range: {
+          start: { line: 1, column: 5 },
+          end: { line: 1, column: 7 },
         },
       },
     ]);
@@ -555,6 +589,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
@@ -603,6 +638,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
@@ -618,6 +654,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 2, column: 6 },
           end: { line: 2, column: 6 },
@@ -666,6 +703,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 12 },
           end: { line: 1, column: 12 },
@@ -714,6 +752,7 @@ describe('scripting tokenize test', () => {
       },
       {
         kind: 'eol',
+        source: 'newline',
         range: {
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },

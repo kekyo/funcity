@@ -391,7 +391,14 @@ const parseListExpression = (
 
     switch (token.kind) {
       case 'eol': {
-        // Ignore in the list
+        cursor.skipToken();
+        if (token.source === 'semicolon') {
+          logs.push({
+            type: 'error',
+            description: 'Semicolon is not allowed in list expression',
+            range: token.range,
+          });
+        }
         continue;
       }
     }

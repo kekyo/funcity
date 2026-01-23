@@ -1,0 +1,8 @@
+---
+title: Pi Variable
+---
+Pi is long, so define a variable named pi.
+{{
+set pi 3.14159265
+}}
+Now pi is reusable. A circle with radius 10cm has circumference {{mul 2 pi 10}}cm.

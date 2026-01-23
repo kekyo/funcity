@@ -414,6 +414,18 @@ const tokenizeCodeTokens = (
       const location = context.cursor.location('start');
       tokens.push({
         kind: 'eol',
+        source: 'newline',
+        range: { start: location, end: location },
+      });
+      context.cursor.skip(1);
+    }
+    // End of line (semicolon)
+    else if (ch === ';') {
+      finalizeUnknown();
+      const location = context.cursor.location('start');
+      tokens.push({
+        kind: 'eol',
+        source: 'semicolon',
         range: { start: location, end: location },
       });
       context.cursor.skip(1);

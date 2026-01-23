@@ -68,7 +68,7 @@ const text = await runScriptOnceToText(script, variables, logs);
 console.log(text);
 ```
 
-In other words, Funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
+In other words, funcity is a processing system that brings the power of functional programming to text template processors, enabling seamless integration into applications!
 
 ### Features
 
