@@ -32,6 +32,12 @@ export const candidateVariables = buildCandidateVariables(
   objectVariables,
   fetchVariables,
   {
+    alert: async (msg: string) => window.alert(msg),
+
+    // Dummy, will be detected highlight entry.
+    console,
+    readline: async () => '',
+
     // Inject browser globals.
     // This is a definition for learning purposes.
     // If you don't understand what it achieves, you should not apply it to your project.

@@ -672,6 +672,7 @@ export const standardVariables = Object.freeze({
   bind: _bind,
   url: _url,
   delay: _delay,
+  console: console,
 } as const);
 
 /**

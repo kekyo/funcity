@@ -6,7 +6,7 @@
 import { useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { useTheme } from '@mui/material/styles';
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { syntaxHighlighting } from '@codemirror/language';
 import { funcityLanguage } from '../editor/funcity-language';
@@ -22,6 +22,7 @@ type FuncityCodeMirrorProps = {
   placeholder?: string;
   className?: string;
   language?: 'funcity' | 'plain';
+  extraExtensions?: Extension[];
 };
 
 const FuncityCodeMirror = ({
@@ -31,6 +32,7 @@ const FuncityCodeMirror = ({
   placeholder,
   className,
   language = 'funcity',
+  extraExtensions,
 }: FuncityCodeMirrorProps) => {
   const theme = useTheme();
 
@@ -48,10 +50,14 @@ const FuncityCodeMirror = ({
       items.push(EditorState.readOnly.of(true), EditorView.editable.of(false));
     }
 
+    if (extraExtensions && extraExtensions.length > 0) {
+      items.push(...extraExtensions);
+    }
+
     items.push(createFuncityEditorTheme(theme));
 
     return items;
-  }, [theme, language, readOnly]);
+  }, [theme, language, readOnly, extraExtensions]);
 
   return (
     <CodeMirror
