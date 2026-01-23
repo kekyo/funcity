@@ -84,6 +84,10 @@ export const createFuncityHighlightStyle = (theme: Theme) => {
       color: pick(theme.palette.success),
     },
     {
+      tag: tags.escape,
+      color: pick(theme.palette.warning),
+    },
+    {
       tag: tags.number,
       color: pick(theme.palette.info),
     },

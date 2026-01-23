@@ -8,7 +8,7 @@ import { StringStream } from '@codemirror/language';
 import { funcityStreamParser } from '../src/editor/funcity-language';
 
 const tokenizeStyles = (line: string, inExpression: boolean) => {
-  const state = { inExpression };
+  const state = { inExpression, inString: false };
   const stream = new StringStream(line, 2, 2);
   const styles: Array<string | null> = [];
 
@@ -34,5 +34,11 @@ describe('funcity stream parser', () => {
   it('does not treat line comments outside expression as comment tokens', () => {
     const styles = tokenizeStyles('// comment', false);
     expect(styles).not.toContain('comment');
+  });
+
+  it('highlights escape sequences inside strings', () => {
+    const styles = tokenizeStyles("'a\\n\\t'", true);
+    const escapes = styles.filter((style) => style === 'escape');
+    expect(escapes).toHaveLength(2);
   });
 });

@@ -13,6 +13,7 @@ import {
 
 type FuncityStreamState = {
   inExpression: boolean;
+  inString: boolean;
 };
 
 const reservedKeywords = new Set([
@@ -54,7 +55,7 @@ candidateVariables.forEach((value, key) => {
 
 export const funcityStreamParser: StreamParser<FuncityStreamState> = {
   startState() {
-    return { inExpression: false };
+    return { inExpression: false, inString: false };
   },
   token(stream, state) {
     if (!state.inExpression) {
@@ -70,6 +71,23 @@ export const funcityStreamParser: StreamParser<FuncityStreamState> = {
         stream.pos = nextExpr;
       }
       return null;
+    }
+
+    if (state.inString) {
+      if (stream.peek() === "'") {
+        stream.next();
+        state.inString = false;
+        return 'string';
+      }
+      if (stream.peek() === '\\') {
+        stream.next();
+        if (!stream.eol()) {
+          stream.next();
+        }
+        return 'escape';
+      }
+      stream.eatWhile((ch) => ch !== "'" && ch !== '\\');
+      return 'string';
     }
 
     if (stream.match('}}')) {
@@ -88,15 +106,8 @@ export const funcityStreamParser: StreamParser<FuncityStreamState> = {
 
     const next = stream.peek();
     if (next === "'") {
+      state.inString = true;
       stream.next();
-      let escaped = false;
-      while (!stream.eol()) {
-        const ch = stream.next();
-        if (ch === "'" && !escaped) {
-          break;
-        }
-        escaped = ch === '\\' && !escaped;
-      }
       return 'string';
     }
 
