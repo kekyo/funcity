@@ -1,4 +1,4 @@
 ---
 title: Fetch Text
 ---
-{{fetchText '/demodata.txt'}}
+{{fetchText 'demodata.txt'}}

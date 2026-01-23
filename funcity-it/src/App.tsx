@@ -34,6 +34,7 @@ import { candidateVariables } from './editor/funcity-language';
 import { consoleOutputExtensions } from './editor/console-output';
 import dirMetadata from './generated/dirMetadata.json';
 import { version } from './generated/packageMetadata';
+import { resolveBasePath } from './paths';
 
 type AppProps = {
   mode: PaletteMode;
@@ -176,9 +177,12 @@ const App = ({ mode, onToggleMode }: AppProps) => {
       try {
         const entries = await Promise.all(
           sampleFileNames.map(async (fileName) => {
-            const response = await fetch(`/samples/${fileName}`, {
-              signal: controller.signal,
-            });
+            const response = await fetch(
+              resolveBasePath(`samples/${fileName}`),
+              {
+                signal: controller.signal,
+              }
+            );
             if (!response.ok) {
               throw new Error(`Failed to load ${fileName}`);
             }
@@ -513,7 +517,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
             >
               <Box
                 component="img"
-                src="/images/funcity.120.png"
+                src={resolveBasePath('images/funcity.120.png')}
                 alt="funcity icon"
                 sx={{ width: 33, height: 32 }}
               />
