@@ -485,7 +485,34 @@ Currently, funcity does not perform tail-call optimization, so deep recursion ca
 
 ### Escaping string literals
 
-TODO:
+String literals in funcity are wrapped in single quotes `'`. The empty string is `''`.
+To use `'` or `\` inside a string, escape them with a backslash.
+
+Supported escape sequences:
+
+- `\n` newline
+- `\t` tab
+- `\r` carriage return
+- `\v` vertical tab
+- `\f` form feed
+- `\0` NUL
+- `\'` single quote
+- `\\` backslash
+
+Undefined escape sequences are treated as errors.
+
+Examples:
+
+```bash
+$ echo "Newline: {{'A\\nB'}}" | funcity run
+Newline: A
+B
+```
+
+```bash
+$ echo "Quote: {{'I\\'m \\\\ ok'}}" | funcity run
+Quote: I'm \ ok
+```
 
 ---
 
