@@ -4,7 +4,7 @@ A functional language interpreter with text processing, easy embeddable!
 
 ![funcity](./images/funcity.120.png)
 
-[![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 |Package|npm|
@@ -539,7 +539,6 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-To break long expressions across lines, put `\` at the end of the line.
 Because funcity variables are mutable, you can read them freely from inside functions. If a variable is undefined, a runtime error occurs.
 
 Currently, funcity does not perform [tail-call optimization](https://en.wikipedia.org/wiki/Tail_call), so deep recursion can overflow.
@@ -587,7 +586,10 @@ const run = async (
 
   // Run the reducer
   const variables: FunCityVariables = buildCandidateVariables();
-  const results: unknown[] = await runReducer(nodes, variables, logs);
+  const warningLogs: FunCityWarningLogEntry[] = [];
+  const results: unknown[] = await runReducer(nodes, variables, warningLogs);
+
+  logs.push(...warningLogs);
 
   // Concatenate all results as text
   const text: string = results.join('');
@@ -602,12 +604,11 @@ const run = async (
   Therefore, these are concatenated as strings to produce the final output text.
 - If a script does not change once loaded and you want to run only the reducer many times,
   you can run the tokenizer and parser up front, then execute only the reducer for efficient processing.
-- Errors and warnings are added to `logs`.
-  If you want to terminate early due to logs or warnings, you can check whether `logs` contains any entries after each operation completes.
-- Even if logs and/or warnings exist, processing can continue to the interpreter.
-  The location where the error occurred may have been replaced with an appropriate token node,
-  and executing the interpreter using that information will likely not function correctly.
-  However, since some structure is preserved, parsing the tokens and nodes may allow for the generation of more appropriate logs.
+- Tokenizer and parser errors and warnings are added to `logs`.
+  If you want to terminate early due to errors or warnings, you can check whether there are entries in `logs` after each processing step completes.
+- Processing can continue to the interpreter even if errors or warnings exist.
+  However, locations where errors occurred may have been replaced with appropriate token nodes. Using this information to run the interpreter will likely cause it to behave incorrectly.
+- Interpreter errors are notified via exceptions. Only warnings are logged to the `warningLogs` argument.
 - Depending on the script's content, reducer processing may not finish (e.g., due to infinite loops).
   Passing an `AbortSignal` as an argument to `runReducer()` allows external interruption of execution.
 
@@ -723,6 +724,9 @@ const results = await runReducer(nodes, variables, logs);
   If you return a meaningful value, evaluation continues using that value
   (processing usually continues even if logs are recorded).
 
+Several functions in the standard library are also implemented using funcity functions.
+While `cond`, `and`, and `or` are funcity functions, `fun` and `set` are also implemented as funcity functions.
+
 ---
 
 ## Standard Functions
@@ -741,7 +745,7 @@ The following are the standard functions:
 | Function/Object | Description |
 | :--- | :--- |
 | `typeof` | Returns the type name. |
-| `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third. |
+| `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third (funcity function) |
 | `toString` | Converts the arguments to a string. |
 | `toBoolean` | Converts the first argument to a boolean. |
 | `toNumber` | Converts the first argument to a number. |
@@ -764,8 +768,8 @@ The following are the standard functions:
 | `toUpper` | Uppercases the first argument. |
 | `toLower` | Lowercases the first argument. |
 | `length` | Returns the length of the string/array/`Iterable` in the first argument. |
-| `and` | ANDs arguments as booleans. |
-| `or` | ORs arguments as booleans. |
+| `and` | ANDs arguments as booleans (funcity function) |
+| `or` | ORs arguments as booleans (funcity function) |
 | `not` | Returns the negation of the first argument as a boolean. |
 | `at` | Uses the first argument as an index to fetch an element from the array/`Iterable` in the second argument. |
 | `first` | Returns the first element of the array/`Iterable` in the first argument. |
@@ -788,15 +792,20 @@ The following are the standard functions:
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
 | `delay` | Resolves after the specified milliseconds. |
+| `console` | Console output object. |
 
-Additionally, while not strictly functions, the following symbol names are also included as standard functions:
+Additionally, while not strictly functions, the following elements are also included in the standard functions.
+These are the minimum definitions required for functionality in funcity,
+and the reducer can operate even without access to them, though practical code would be nearly impossible to write:
 
-| Symbol name | Description |
+| Element | Description |
 | :--- | :--- |
 | `true` | JavaScript `true` value |
 | `false` | JavaScript `false` value |
 | `undefined` | JavaScript `undefined` value |
 | `null` | JavaScript `null` value |
+| `fun` | Anonymous function defined function (funcity function) |
+| `set` | Variable binding function (funcity function)  |
 
 ### typeof
 
@@ -1091,34 +1100,6 @@ fs.readFile '/foo/bar/text' 'utf-8'
 }}
 ```
 
-`createRequireFunction` creates a Node.js `require` function bound to a base
-directory. Import it from the Node-only entry to avoid pulling Node built-ins
-into projects that do not use them:
-
-```typescript
-import { buildCandidateVariables } from 'funcity';
-import { createRequireFunction } from 'funcity/node';
-
-const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
-// const require = createRequireFunction(); // defaults to process.cwd()
-
-const variables = buildCandidateVariables({ require });
-
-// ...
-```
-
-For example:
-
-```funcity
-{{set fs (require 'fs')}}
-{{fs.readFile './data.txt' 'utf-8'}}
-```
-
-When `acceptModules` is provided, only the listed module names are allowed.
-Package subpaths (such as `lodash/fp` or `fs/promises`) are permitted when the
-base module name is listed. Relative or absolute specifiers must be listed
-explicitly if you want to allow them.
-
 CLI includes both `readline` and `require` by default.
 
 ### Other
@@ -1131,6 +1112,7 @@ Simply put, you just need to prevent dangerous definitions from being accessible
 ```typescript
 const candidateVariables = buildCandidateVariables(
   {
+    // Endless expansion and perilous adventures
     window,
     document,
   }
@@ -1138,11 +1120,6 @@ const candidateVariables = buildCandidateVariables(
 ```
 
 ---
-
-## TODO
-
-- LSP server.
-- Dynamic (runime inlined) code generator.
 
 ## Note
 

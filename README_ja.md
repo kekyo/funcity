@@ -4,7 +4,7 @@
 
 ![funcity](./images/funcity.120.png)
 
-[![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 |Package|npm|
@@ -492,7 +492,7 @@ $ echo "数値を2倍にする関数を定義する: {{fun x (add x x)}}" | func
 数値を2倍にする関数を定義する: fun<#1>
 ```
 
-関数は定義できるのですが、そのままでは関数そのもの（JavaScriptで言うところの関数オブジェクト）が定義できるだけのため、この関数を呼び出す（関数適用）必要があります:
+関数は定義できるのですが、そのままでは関数そのもの（JavaScriptで言うところの関数オブジェクト）が定義できるだけなので、この関数を呼び出す（関数適用）必要があります:
 
 ```bash
 $ echo "数値を2倍にする関数を定義して実行する: {{(fun x (add x x)) 21}}" | funcity run
@@ -541,7 +541,6 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-式の途中で見やすさの為に改行したい場合は、 `\` を行末に付けてください。
 funcityの変数はミュータブルなので、関数内からも自由に参照できます。もちろん参照した際に未定義であると、実行時エラーが発生することに注意してください。
 
 残念ながら、現在のfuncityは [末尾再帰最適化](https://ja.wikipedia.org/wiki/%E6%9C%AB%E5%B0%BE%E5%86%8D%E5%B8%B0) を行っていません。
@@ -589,7 +588,10 @@ const run = async (
 
   // インタープリタの実行
   const variables: FunCityVariables = buildCandidateVariables();
-  const results: unknown[] = await runReducer(nodes, variables, logs);
+  const warningLogs: FunCityWarningLogEntry[] = [];
+  const results: unknown[] = await runReducer(nodes, variables, warningLogs);
+
+  logs.push(...warningLogs);
 
   // すべての結果をテキストとして結合
   const text: string = results.join('');
@@ -602,11 +604,11 @@ const run = async (
 - インタープリタの出力は、生の計算結果です。また、複数の結果が得られる可能性があります。したがって、これらを文字列として結合して、最終的な出力テキストを得ます。
 - スクリプトが一度読み込んだら変更されず、何度もインタープリタ実行だけを行いたい場合は、
   トークナイザーとパーサーの実行までを事前に行っておき、インタープリタだけ実行するようにすれば、効率よく処理できます。
-- エラーやウォーニングは、 `logs` に追加されます。
+- トークナイザーとパーサーのエラーやウォーニングは、 `logs` に追加されます。
   もし、エラーやウォーニングで早期に停止させたいなら、各処理が終了した時点で `logs` に記録があるかどうかを調べることができます。
-- エラーがウォーニングが存在しても、インタープリタまで処理を続行できます。
-  エラーが存在した箇所は、適当なトークン・ノードに置き換えられている可能性があり、それらの情報を使用してインタープリタを実行すると、正しく動作しない可能性が高いです。
-  しかし、ある程度の構造が維持されるので、トークンやノードを解析して、より適切なエラーを生成出来るかもしれません。
+- エラーやウォーニングが存在しても、インタープリタまで処理を続行できます。
+  但し、エラーが存在した箇所は、適当なトークン・ノードに置き換えられている可能性があり、それらの情報を使用してインタープリタを実行すると、正しく動作しない可能性が高いです。
+- インタープリタのエラーは、例外で通知されます。ウォーニングだけが、引数 `warningLogs` に記録されます。
 - スクリプトの内容によっては、インタープリタの処理が完了しない可能性があります（例えば、無限ループなど）。
   `runReducer()` の引数に、`AbortSignal`を渡すことで、外部から実行を中断させることができます。
 
@@ -720,6 +722,9 @@ const results = await runReducer(nodes, variables, logs);
   意味のある値を返した場合は、その値を使用して引き続き計算が行われます
   （通常、エラーが記録されても処理は継続します）。
 
+標準関数群にも、funcity関数を使用して実装されている関数がいくつか存在します。
+`cond`, `and`, `or`関数がfuncity関数ですが、実は `fun`や`set`もfuncity関数として実装されています。
+
 ---
 
 ## 標準関数
@@ -738,7 +743,7 @@ const results = await runReducer(nodes, variables, logs);
 | 関数/オブジェクト | 説明 |
 | :--- | :--- |
 | `typeof` | 第1引数に指定されたインスタンスの型名を返します。 |
-| `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します。 |
+| `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します (funcity関数) |
 | `toString` | 引数群を文字列に変換します。 |
 | `toBoolean` | 第1引数を真偽値に変換します。 |
 | `toNumber` | 第1引数を数値に変換します。 |
@@ -761,8 +766,8 @@ const results = await runReducer(nodes, variables, logs);
 | `toUpper` | 第1引数の文字列を大文字化します。 |
 | `toLower` | 第1引数の文字列を小文字化します。 |
 | `length` | 第1引数の文字列/配列/`Iterable`の長さを返します。 |
-| `and` | 引数群を真偽値としてANDします。 |
-| `or` | 引数群を真偽値としてORします。 |
+| `and` | 引数群を真偽値としてANDします (funcity関数) |
+| `or` | 引数群を真偽値としてORします (funcity関数) |
 | `not` | 第1引数を真偽値として否定を返します。 |
 | `at` | 第1引数のインデックスで、第2引数の配列/`Iterable`から要素を取得します。 |
 | `first` | 第1引数の配列/`Iterable`の先頭要素を返します。 |
@@ -781,15 +786,20 @@ const results = await runReducer(nodes, variables, logs);
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
 | `delay` | 指定ミリ秒後に解決します。 |
+| `console` | コンソール出力オブジェクト。 |
 
-また、厳密には関数ではありませんが、以下のシンボル名も標準関数に含まれます:
+また、厳密には関数ではありませんが、以下の要素も標準関数に含まれます。
+これらは特にfuncityで最低限必要となる定義であり、
+インタープリタがこれらの定義にアクセスできなくても動作しますが、実用的なコードはまず記述出来ないでしょう:
 
-| シンボル名 | 説明 |
+| 要素名 | 説明 |
 | :--- | :--- |
 | `true` | JavaScript `true`値 |
 | `false` | JavaScript `false`値 |
 | `undefined` | JavaScript `undefined`値 |
 | `null` | JavaScript `null`値 |
+| `fun` | 匿名関数定義関数 (funcity関数) |
+| `set` | 変数束縛関数 (funcity関数) |
 
 ### typeof
 
@@ -1088,34 +1098,6 @@ fs.readFile '/foo/bar/text' 'utf-8'
 }}
 ```
 
-`createRequireFunction` は、指定ディレクトリを基点に解決する
-Node.js の `require` 関数を生成します。Node.js を使わないプロジェクトに
-影響しないよう、`funcity/node` から import します:
-
-```typescript
-import { buildCandidateVariables } from 'funcity';
-import { createRequireFunction } from 'funcity/node';
-
-const require = createRequireFunction('/path/to/script/dir', ['fs', 'lodash']);
-// const require = createRequireFunction(); // 未指定時は process.cwd()
-
-const variables = buildCandidateVariables({ require });
-
-// ...
-```
-
-例えば、以下のように使用します:
-
-```funcity
-{{set fs (require 'fs')}}
-{{fs.readFile './data.txt' 'utf-8'}}
-```
-
-`acceptModules` を指定すると、指定したモジュール名のみ利用できます。
-`lodash/fp` や `fs/promises` のようなサブパスは、基点のモジュール名を
-許可していれば利用可能です。相対パスや絶対パスを許可したい場合は、
-その指定子を明示的に含めてください。
-
 CLIは `readline` と `require` を既定で含みます。
 
 ### その他
@@ -1128,6 +1110,7 @@ CLIは `readline` と `require` を既定で含みます。
 ```typescript
 const candidateVariables = buildCandidateVariables(
   {
+    // 果てしない拡張性と危険なる冒険の旅
     window,
     document,
   }
