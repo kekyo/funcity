@@ -70,6 +70,10 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
+今すぐ試したい場合は、[Play groundページ](https://kekyo.github.io/funcity/) をどうぞ！
+
+[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
+
 更に、このインタープリタを、あなたのアプリケーションに簡単に組み込むことが出来ます:
 
 ```typescript

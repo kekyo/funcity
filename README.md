@@ -71,6 +71,9 @@ set fib (fun n \
 }}
 Fibonacci (10) = {{fib 10}}
 ```
+If you want to try it right now, use [Play ground page](https://kekyo.github.io/funcity/)!
+
+[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
 
 Furthermore, you can easily integrate this interpreter into your application:
 
