@@ -27,7 +27,8 @@ Evaluates the value of the `weather` variable manually bound to the core engine 
 Today is bad weather.
 ```
 
-The `if ... else ... end` statements in the text indicate that the script is being executed.
+The `if ... elseif ... else ... end` statements in the text indicate that the script is being executed.
+You can chain additional conditions using `elseif`.
 So, you might ask, what makes this a "Functional language"?
 Or how is it different from existing text processors?
 

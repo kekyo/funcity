@@ -16,6 +16,7 @@ import type {
   FunCityVariableNode,
   FunCityExpressionNode,
   FunCityBlockNode,
+  FunCityIfNode,
   FunCityDotSegment,
   ParserCursor,
 } from './types';
@@ -503,9 +504,15 @@ interface IfStatementState {
   readonly kind: 'if';
   readonly startRange: FunCityRange;
   readonly condition: FunCityExpressionNode;
+  readonly elseIfs: {
+    readonly startRange: FunCityRange;
+    readonly condition: FunCityExpressionNode;
+    readonly then: BranchState;
+  }[];
   readonly then: BranchState;
   readonly else: BranchState;
-  currentBlock: 'then' | 'else';
+  currentBlock: 'then' | 'elseif' | 'else';
+  currentElseIfIndex?: number;
 }
 
 interface WhileStatementState {
@@ -535,9 +542,19 @@ const getBranchState = (statementState: LogicalStatementState): BranchState => {
       return statementState.branch;
     }
     case 'if': {
-      return statementState.currentBlock === 'then'
-        ? statementState.then
-        : statementState.else;
+      switch (statementState.currentBlock) {
+        case 'then': {
+          return statementState.then;
+        }
+        case 'else': {
+          return statementState.else;
+        }
+        case 'elseif': {
+          const elseIf =
+            statementState.elseIfs[statementState.currentElseIfIndex ?? -1];
+          return elseIf ? elseIf.then : statementState.else;
+        }
+      }
     }
     case 'while':
     case 'for': {
@@ -576,6 +593,7 @@ const flushStatementState = (statementState: LogicalStatementState) => {
     case 'if': {
       flushExpressions(statementState.then);
       flushExpressions(statementState.else);
+      statementState.elseIfs.forEach((elseIf) => flushExpressions(elseIf.then));
       break;
     }
     case 'while':
@@ -772,6 +790,7 @@ const parseBlockCore = (
               kind: 'if',
               startRange: token.range,
               condition: conditionNode,
+              elseIfs: [],
               then: createBranchState(),
               else: createBranchState(),
               currentBlock: 'then',
@@ -816,8 +835,60 @@ const parseBlockCore = (
               });
               break;
             }
-            flushExpressions(lastState.then);
+            flushExpressions(getBranchState(lastState));
             lastState.currentBlock = 'else';
+            lastState.currentElseIfIndex = undefined;
+            break;
+          }
+          case 'elseif': {
+            cursor.skipToken();
+            const args = parseStatementArguments(cursor, logs);
+            if (args.length !== 1) {
+              logs.push({
+                type: 'error',
+                description: 'Required `elseif` condition',
+                range: widerRange(
+                  token.range,
+                  ...args.map((node) => node.range)
+                ),
+              });
+              break;
+            }
+            if (statementStates.length <= 1) {
+              logs.push({
+                type: 'error',
+                description: 'Cound not find pair of `if` statement',
+                range: token.range,
+              });
+              break;
+            }
+            const lastState = statementStates[statementStates.length - 1]!;
+            if (lastState.kind !== 'if') {
+              logs.push({
+                type: 'error',
+                description: 'Cound not find pair of `if` statement',
+                range: token.range,
+              });
+              break;
+            }
+            if (lastState.currentBlock === 'else') {
+              logs.push({
+                type: 'error',
+                description: 'Could not place `elseif` after `else` statement',
+                range: token.range,
+              });
+              break;
+            }
+            flushExpressions(getBranchState(lastState));
+            const conditionNode = args[0]!;
+            const elseIfIndex = lastState.elseIfs.length;
+            lastState.elseIfs.push({
+              startRange: token.range,
+              condition: conditionNode,
+              then: createBranchState(),
+            });
+            lastState.currentBlock = 'elseif';
+            lastState.currentElseIfIndex = elseIfIndex;
             break;
           }
           case 'while': {
@@ -903,16 +974,38 @@ const parseBlockCore = (
             flushStatementState(lastState);
             switch (lastState.kind) {
               case 'if': {
+                let elseBlocks = lastState.else.blocks;
+                for (
+                  let index = lastState.elseIfs.length - 1;
+                  index >= 0;
+                  index--
+                ) {
+                  const elseIf = lastState.elseIfs[index]!;
+                  const elseIfNode: FunCityIfNode = {
+                    kind: 'if',
+                    condition: elseIf.condition,
+                    then: elseIf.then.blocks,
+                    else: elseBlocks,
+                    range: widerRange(
+                      elseIf.startRange,
+                      elseIf.condition.range,
+                      ...elseIf.then.blocks.map((node) => node.range),
+                      ...elseBlocks.map((node) => node.range),
+                      token.range
+                    ),
+                  };
+                  elseBlocks = [elseIfNode];
+                }
                 pushNode(statementStates, {
                   kind: 'if',
                   condition: lastState.condition,
                   then: lastState.then.blocks,
-                  else: lastState.else.blocks,
+                  else: elseBlocks,
                   range: widerRange(
                     lastState.startRange,
                     lastState.condition.range,
                     ...lastState.then.blocks.map((node) => node.range),
-                    ...lastState.else.blocks.map((node) => node.range),
+                    ...elseBlocks.map((node) => node.range),
                     token.range
                   ),
                 });

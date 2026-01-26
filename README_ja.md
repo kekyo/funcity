@@ -279,7 +279,13 @@ $ echo "イリオモテヤマネコは、{{if true}}猫{{else}}犬{{end}}であ�
 ```
 
 `if`文は、引数の値を評価して、`false`でない値なら、`else`までの記述を、それ以外では`else`から`end`までの記述を出力します。
+`elseif`を使うと、`if`と`else`の間に条件分岐を追加できます。
 試しに上記の`true`を`false`に変えて、期待通りになるかどうかを確かめてください。
+
+```bash
+$ echo "イリオモテヤマネコは、{{if false}}猿{{elseif true}}猫{{else}}犬{{end}}である。" | funcity run
+イリオモテヤマネコは、猫である。
+```
 
 でもまあ、この例は`true`と手で記述しているので、あまり意味がありません。
 
@@ -329,7 +335,7 @@ MEMO: 変数は後から`set`で上書きできます。専門用語では「ミ
 ここまでの例で、いわゆるfizz-buzzが実現できることがわかるでしょう:
 
 ```funcity
-{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{else}}{{if (eq (mod i 3) 0)}}Fizz{{else}}{{if (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}{{end}}{{end}}
+{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{elseif (eq (mod i 3) 0)}}Fizz{{elseif (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}
 {{end}}
 ```
 

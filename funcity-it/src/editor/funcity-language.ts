@@ -21,6 +21,7 @@ const reservedKeywords = new Set([
   'set',
   'if',
   'else',
+  'elseif',
   'while',
   'for',
   'end',

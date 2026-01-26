@@ -52,4 +52,9 @@ describe('funcity stream parser', () => {
     const styles = tokenizeStyles('`a`', true);
     expect(styles).toContain('string');
   });
+
+  it('highlights elseif as keyword', () => {
+    const styles = tokenizeStyles('elseif true', true);
+    expect(styles).toContain('keyword');
+  });
 });

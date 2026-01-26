@@ -1,5 +1,5 @@
 ---
 title: FizzBuzz
 ---
-{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{else}}{{if (eq (mod i 3) 0)}}Fizz{{else}}{{if (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}{{end}}{{end}}
+{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{elseif (eq (mod i 3) 0)}}Fizz{{elseif (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}
 {{end}}

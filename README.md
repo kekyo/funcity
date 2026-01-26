@@ -279,7 +279,13 @@ The label is valid.
 
 The `if` statement evaluates its argument. If the value is not `false`, it outputs everything up to `else`.
 Otherwise it outputs everything between `else` and `end`.
+Use `elseif` to add additional conditions between `if` and `else`.
 Try replacing `true` with `false` and confirm the behavior.
+
+```bash
+$ echo "Branch: {{if false}}A{{elseif true}}B{{else}}C{{end}}" | funcity run
+Branch: B
+```
 
 Since that example hardcodes `true`, it is not very interesting.
 Let's look at `for` next:
@@ -328,7 +334,7 @@ Memo: variables can be overwritten later with `set`. In programming terms, they 
 With these pieces, you can implement the usual fizz-buzz:
 
 ```funcity
-{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{else}}{{if (eq (mod i 3) 0)}}Fizz{{else}}{{if (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}{{end}}{{end}}
+{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{elseif (eq (mod i 3) 0)}}Fizz{{elseif (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}
 {{end}}
 ```
 
