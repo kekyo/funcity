@@ -811,6 +811,39 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('string token with double quotes', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{"hello"}}', logs);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: 'hello',
+    });
+    expect(logs).toEqual([]);
+  });
+
+  it('string token with backticks', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{`hello`}}', logs);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: 'hello',
+    });
+    expect(logs).toEqual([]);
+  });
+
+  it('string token allows other quotes unescaped', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{"a\'b`c"}}', logs);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: "a'b`c",
+    });
+    expect(logs).toEqual([]);
+  });
+
   it('empty string token', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runTokenizer("{{''}}", logs);
@@ -851,6 +884,17 @@ describe('scripting tokenize test', () => {
     expect(tokens[1]).toMatchObject({
       kind: 'string',
       value: "a\n\t\r\v\f\0\\'b",
+    });
+    expect(logs).toEqual([]);
+  });
+
+  it('string token with quote escapes', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{"a\\\'b\\"c\\`d"}}', logs);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: 'a\'b"c`d',
     });
     expect(logs).toEqual([]);
   });

@@ -88,6 +88,25 @@ In other words, funcity is a processing system that brings the power of function
   it is possible to completely ignore the (somewhat incongruous) syntax of text processing.
 - Allows pre-binding of useful standard function implementations.
 
+### String literals
+
+String literals can be wrapped in single quotes `'`, double quotes `"`, or backticks `` ` ``.
+The opening and closing quote must match. Other quote characters can be used inside a string without escaping.
+To use the same quote as the opener (or `\`) inside a string, escape it with a backslash.
+
+Supported escape sequences:
+
+- `\n` newline
+- `\t` tab
+- `\r` carriage return
+- `\v` vertical tab
+- `\f` form feed
+- `\0` NUL
+- `\'` single quote
+- `\"` double quote
+- ``\``` backtick
+- `\\` backslash
+
 ---
 
 ## Installation (CLI)

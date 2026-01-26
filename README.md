@@ -376,8 +376,10 @@ Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regul
 
 ### Escaping string literals
 
-String literals in funcity are wrapped in single quotes `'`. The empty string is `''`.
-To use `'` or `\` inside a string, escape them with a backslash.
+String literals in funcity can be wrapped in single quotes `'`, double quotes `"`, or backticks `` ` ``.
+The opening and closing quote must match. The empty string can be written as `''`, `""`, or an empty backtick literal.
+Other quote characters can be used inside a string without escaping.
+To use the same quote as the opener (or `\`) inside a string, escape it with a backslash.
 
 Supported escape sequences:
 
@@ -388,6 +390,8 @@ Supported escape sequences:
 - `\f` form feed
 - `\0` NUL
 - `\'` single quote
+- `\"` double quote
+- ``\``` backtick
 - `\\` backslash
 
 Undefined escape sequences are treated as errors.
