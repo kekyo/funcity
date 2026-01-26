@@ -156,14 +156,20 @@ const reduceAndCollectResults = async (
   context: FunCityReducerContext,
   nodes: readonly FunCityBlockNode[],
   signal: AbortSignal,
-  onResult?: (result: unknown) => void
+  options: {
+    onResult?: (result: unknown) => void;
+    includeUndefined?: boolean;
+  } = {}
 ): Promise<unknown[]> => {
   const resultList: unknown[] = [];
+  const includeUndefined = options.includeUndefined ?? false;
   for (const node of nodes) {
     const results = await reduceNode(context, node, signal);
     for (const result of results) {
-      if (result !== undefined) {
-        onResult?.(result);
+      if (result !== undefined || includeUndefined) {
+        if (result !== undefined) {
+          options.onResult?.(result);
+        }
         resultList.push(result);
       }
     }
@@ -217,10 +223,12 @@ const runScriptWithContext = async (
   try {
     warningLogs.length = 0;
     const outputChunks: string[] = [];
-    await reduceAndCollectResults(context, nodes, signal, (result) => {
-      const chunk = context.convertToString(result);
-      outputChunks.push(chunk);
-      onOutput?.(chunk);
+    await reduceAndCollectResults(context, nodes, signal, {
+      onResult: (result) => {
+        const chunk = context.convertToString(result);
+        outputChunks.push(chunk);
+        onOutput?.(chunk);
+      },
     });
     const output = outputChunks.join('');
     return { output, logs: [...warningLogs] };
@@ -243,7 +251,10 @@ export interface ReplEvaluationResult {
 export interface ReplSession {
   evaluateLine: (
     line: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options?: {
+      emitIt?: boolean;
+    }
   ) => Promise<ReplEvaluationResult>;
   getPrompt: () => Promise<string>;
   setVariable: (name: string, value: unknown) => void;
@@ -270,7 +281,10 @@ export const createReplSession = (): ReplSession => {
 
   const evaluateLine = async (
     line: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options?: {
+      emitIt?: boolean;
+    }
   ): Promise<ReplEvaluationResult> => {
     // Tokenize and parse step
     const logs: FunCityLogEntry[] = [];
@@ -290,14 +304,26 @@ export const createReplSession = (): ReplSession => {
       const results = await reduceAndCollectResults(
         reducerContext,
         nodes,
-        signal
+        signal,
+        { includeUndefined: true }
       );
       const shouldExit = results.some((result) => result === exitSymbol);
-      const outputResults = results.filter((result) => result !== exitSymbol);
-      const output =
-        outputResults.length > 0
-          ? outputResults.map((result) => convertToString(result)).join('\n')
-          : '';
+      const evaluatableResults = results.filter(
+        (result) => result !== exitSymbol
+      );
+      const emitIt = options?.emitIt ?? true;
+      let output = '';
+      if (evaluatableResults.length > 0) {
+        const itValue = evaluatableResults[evaluatableResults.length - 1];
+        const itsValue = evaluatableResults.filter(
+          (result) => result !== undefined
+        );
+        reducerContext.setValue('it', itValue, signal);
+        reducerContext.setValue('its', itsValue, signal);
+        if (emitIt) {
+          output = `it: ${convertToString(itValue)}`;
+        }
+      }
       return {
         output,
         logs: [...warningLogs],
@@ -350,7 +376,8 @@ const loadRcForRepl = async (session: ReplSession): Promise<void> => {
   session.setVariable('require', createRequireFunction(os.homedir()));
   const { output, logs } = await session.evaluateLine(
     script,
-    new AbortController().signal
+    new AbortController().signal,
+    { emitIt: false }
   );
   if (logs.length > 0) {
     outputErrors(rcPath, logs, console);

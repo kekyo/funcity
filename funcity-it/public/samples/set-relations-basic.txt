@@ -1,0 +1,9 @@
+---
+title: Set Relations: Basic
+---
+Subset (true): {{isSubsetOf [1 2] [1 2 3]}}
+Subset (false): {{isSubsetOf [1 4] [1 2 3]}}
+Superset (true): {{isSupersetOf [1 2 3] [2 3]}}
+Superset (false): {{isSupersetOf [1 2] [2 3]}}
+Disjoint (true): {{isDisjointFrom [1 2] [3 4]}}
+Disjoint (false): {{isDisjointFrom [1 2] [2 3]}}

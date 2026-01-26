@@ -1,4 +1,0 @@
----
-title: If/Else Label
----
-The label is {{if true}}valid{{else}}invalid{{end}}.

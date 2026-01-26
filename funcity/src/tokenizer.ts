@@ -101,10 +101,15 @@ const stringEscapeMap: Readonly<Record<string, string>> = {
   v: '\v',
   '0': '\0',
   "'": "'",
+  '"': '"',
+  '`': '`',
   '\\': '\\',
 };
 
-const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
+const tokenizeString = (
+  context: TokenizerContext,
+  quote: string
+): FunCityStringToken => {
   const start = context.cursor.location('start');
 
   // Skip open quote
@@ -114,7 +119,7 @@ const tokenizeString = (context: TokenizerContext): FunCityStringToken => {
   let closed = false;
   while (!context.cursor.eot()) {
     const ch = context.cursor.getChar();
-    if (ch === "'") {
+    if (ch === quote) {
       context.cursor.skip(1); // Skip close quote
       closed = true;
       break;
@@ -328,9 +333,9 @@ const tokenizeCodeTokens = (
     }
 
     // Read string
-    if (ch === "'") {
+    if (ch === "'" || ch === '"' || ch === '`') {
       finalizeUnknown();
-      tokens.push(tokenizeString(context));
+      tokens.push(tokenizeString(context, ch));
     }
     // Read number
     else if (firstNumericChars.indexOf(ch) >= 0) {

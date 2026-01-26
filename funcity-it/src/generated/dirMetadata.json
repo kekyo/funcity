@@ -7,8 +7,8 @@
       "boolean-logic.txt": {
         "size": 99
       },
-      "conditional-label.txt": {
-        "size": 82
+      "conditional-branch.txt": {
+        "size": 140
       },
       "console-output.txt": {
         "size": 207
@@ -26,7 +26,7 @@
         "size": 156
       },
       "fizzbuzz.txt": {
-        "size": 191
+        "size": 169
       },
       "for-range-cats.txt": {
         "size": 84
@@ -45,6 +45,21 @@
       },
       "reduce-sum.txt": {
         "size": 89
+      },
+      "set-ops-basic.txt": {
+        "size": 211
+      },
+      "set-ops-by.txt": {
+        "size": 343
+      },
+      "set-ops-distinct.txt": {
+        "size": 135
+      },
+      "set-relations-basic.txt": {
+        "size": 317
+      },
+      "set-relations-by.txt": {
+        "size": 507
       },
       "window-alert.txt": {
         "size": 94

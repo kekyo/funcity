@@ -1,0 +1,9 @@
+---
+title: Set Relations: By Selector
+---
+Subset by mod 2 (true): {{isSubsetOfBy (fun [x] (mod x 2)) [1 3] [2 4 5]}}
+Subset by mod 2 (false): {{isSubsetOfBy (fun [x] (mod x 2)) [1 2] [4 6]}}
+Superset by mod 2 (true): {{isSupersetOfBy (fun [x] (mod x 2)) [1 3 5] [7 9]}}
+Superset by mod 2 (false): {{isSupersetOfBy (fun [x] (mod x 2)) [2 4 6] [1 3]}}
+Disjoint by mod 2 (true): {{isDisjointFromBy (fun [x] (mod x 2)) [1 3] [2 4]}}
+Disjoint by mod 2 (false): {{isDisjointFromBy (fun [x] (mod x 2)) [1 3] [5]}}

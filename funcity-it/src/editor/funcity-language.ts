@@ -13,7 +13,7 @@ import {
 
 type FunCityStreamState = {
   inExpression: boolean;
-  inString: boolean;
+  stringQuote: string | null;
 };
 
 const reservedKeywords = new Set([
@@ -21,6 +21,7 @@ const reservedKeywords = new Set([
   'set',
   'if',
   'else',
+  'elseif',
   'while',
   'for',
   'end',
@@ -59,7 +60,7 @@ candidateVariables.forEach((value, key) => {
 
 export const funcityStreamParser: StreamParser<FunCityStreamState> = {
   startState() {
-    return { inExpression: false, inString: false };
+    return { inExpression: false, stringQuote: null };
   },
   token(stream, state) {
     if (!state.inExpression) {
@@ -77,10 +78,10 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
       return null;
     }
 
-    if (state.inString) {
-      if (stream.peek() === "'") {
+    if (state.stringQuote) {
+      if (stream.peek() === state.stringQuote) {
         stream.next();
-        state.inString = false;
+        state.stringQuote = null;
         return 'string';
       }
       if (stream.peek() === '\\') {
@@ -90,7 +91,7 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
         }
         return 'escape';
       }
-      stream.eatWhile((ch) => ch !== "'" && ch !== '\\');
+      stream.eatWhile((ch) => ch !== state.stringQuote && ch !== '\\');
       return 'string';
     }
 
@@ -109,8 +110,8 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
     }
 
     const next = stream.peek();
-    if (next === "'") {
-      state.inString = true;
+    if (next === "'" || next === '"' || next === '`') {
+      state.stringQuote = next;
       stream.next();
       return 'string';
     }

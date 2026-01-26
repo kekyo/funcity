@@ -2709,6 +2709,218 @@ describe('scripting parser test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('conditional token (if-elseif-else)', () => {
+    // "{{if 1\n123\nelseif 0\n456\nelse\n789\nend}}"
+    const token: FunCityToken[] = [
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'if',
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 4 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 1,
+        range: {
+          start: { line: 1, column: 6 },
+          end: { line: 1, column: 6 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 1, column: 7 },
+          end: { line: 1, column: 7 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 123,
+        range: {
+          start: { line: 2, column: 1 },
+          end: { line: 2, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 2, column: 4 },
+          end: { line: 2, column: 4 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'elseif',
+        range: {
+          start: { line: 3, column: 1 },
+          end: { line: 3, column: 6 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 0,
+        range: {
+          start: { line: 3, column: 8 },
+          end: { line: 3, column: 8 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 3, column: 9 },
+          end: { line: 3, column: 9 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 456,
+        range: {
+          start: { line: 4, column: 1 },
+          end: { line: 4, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 4, column: 4 },
+          end: { line: 4, column: 4 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'else',
+        range: {
+          start: { line: 5, column: 1 },
+          end: { line: 5, column: 4 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 5, column: 5 },
+          end: { line: 5, column: 5 },
+        },
+      },
+      {
+        kind: 'number',
+        value: 789,
+        range: {
+          start: { line: 6, column: 1 },
+          end: { line: 6, column: 3 },
+        },
+      },
+      {
+        kind: 'eol',
+        source: 'newline',
+        range: {
+          start: { line: 6, column: 4 },
+          end: { line: 6, column: 4 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'end',
+        range: {
+          start: { line: 7, column: 1 },
+          end: { line: 7, column: 3 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          start: { line: 7, column: 4 },
+          end: { line: 7, column: 5 },
+        },
+      },
+    ];
+    const logs: FunCityLogEntry[] = [];
+
+    const nodes = runParser(token, logs);
+
+    // "{{if 1\n123\nelseif 0\n456\nelse\n789\nend}}"
+    expect(nodes).toEqual([
+      {
+        kind: 'if',
+        condition: {
+          kind: 'number',
+          value: 1,
+          range: {
+            start: { line: 1, column: 6 },
+            end: { line: 1, column: 6 },
+          },
+        },
+        then: [
+          {
+            kind: 'number',
+            value: 123,
+            range: {
+              start: { line: 2, column: 1 },
+              end: { line: 2, column: 3 },
+            },
+          },
+        ],
+        else: [
+          {
+            kind: 'if',
+            condition: {
+              kind: 'number',
+              value: 0,
+              range: {
+                start: { line: 3, column: 8 },
+                end: { line: 3, column: 8 },
+              },
+            },
+            then: [
+              {
+                kind: 'number',
+                value: 456,
+                range: {
+                  start: { line: 4, column: 1 },
+                  end: { line: 4, column: 3 },
+                },
+              },
+            ],
+            else: [
+              {
+                kind: 'number',
+                value: 789,
+                range: {
+                  start: { line: 6, column: 1 },
+                  end: { line: 6, column: 3 },
+                },
+              },
+            ],
+            range: {
+              start: { line: 3, column: 1 },
+              end: { line: 7, column: 3 },
+            },
+          },
+        ],
+        range: {
+          start: { line: 1, column: 3 },
+          end: { line: 7, column: 3 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('conditional token (if-else across blocks)', () => {
     // "{{if flag?}}THEN{{else}}ELSE{{end}}"
     const token: FunCityToken[] = [

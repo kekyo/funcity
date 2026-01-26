@@ -30,6 +30,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "npm run build",
+    "repl": "npm run build",
     "test": "npm run build && vitest run",
     "pack": "npm run build && screw-up pack --pack-destination ../artifacts/"
   },

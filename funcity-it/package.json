@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "repl": "echo \"funcity-it does not have repl rule.\"",
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run build && vitest run",

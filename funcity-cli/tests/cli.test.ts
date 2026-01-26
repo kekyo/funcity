@@ -16,21 +16,56 @@ import {
 describe('funcity-cli repl', () => {
   it('evaluates code and keeps bindings', async () => {
     const session = createReplSession();
+    const signal = new AbortController().signal;
 
-    const first = await session.evaluateLine('set x 10');
+    const first = await session.evaluateLine('set x 10', signal);
     expect(first.logs).toEqual([]);
-    expect(first.output).toBe('');
+    expect(first.output).toBe('it: (undefined)');
 
-    const second = await session.evaluateLine('add x 5');
+    const second = await session.evaluateLine('add x 5', signal);
     expect(second.logs).toEqual([]);
-    expect(second.output).toBe('15');
+    expect(second.output).toBe('it: 15');
+  });
+
+  it('binds it and its in repl', async () => {
+    const session = createReplSession();
+    const signal = new AbortController().signal;
+
+    const result = await session.evaluateLine(
+      'for i [1 undefined 2]; i; end',
+      signal
+    );
+    expect(result.logs).toEqual([]);
+    expect(result.output).toBe('it: 2');
+
+    const itsLength = await session.evaluateLine('length its', signal);
+    expect(itsLength.logs).toEqual([]);
+    expect(itsLength.output).toBe('it: 2');
   });
 
   it('returns parse logs without throwing', async () => {
     const session = createReplSession();
 
-    const result = await session.evaluateLine('set fib (fun n');
+    const result = await session.evaluateLine(
+      'set fib (fun n',
+      new AbortController().signal
+    );
     expect(result.logs.length).toBeGreaterThan(0);
+  });
+
+  it('can suppress it output', async () => {
+    const session = createReplSession();
+    const signal = new AbortController().signal;
+
+    const silent = await session.evaluateLine('add 1 2', signal, {
+      emitIt: false,
+    });
+    expect(silent.logs).toEqual([]);
+    expect(silent.output).toBe('');
+
+    const next = await session.evaluateLine('add it 1', signal);
+    expect(next.logs).toEqual([]);
+    expect(next.output).toBe('it: 4');
   });
 });
 

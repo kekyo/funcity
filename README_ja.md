@@ -161,19 +161,32 @@ REPLはコード式専用で動作し、テキストブロックは無視され�
 ```bash
 $ funcity
 funcity> add 1 2
-3
+it: 3
 funcity> set x 10
+it: (undefined)
 funcity> add x 5
-15
+it: 15
 ```
 
-終了するには `Ctrl+D` を入力します。
+終了するには `exit` または `Ctrl+D` を入力します。
+
+REPLは直前の結果を `it` に自動的に束縛します。
+また、直前の評価で得られた `undefined` 以外の結果を配列として `its` に束縛します。
+この機能を使用して、電卓のように連続した計算が出来ます:
+
+```bash
+funcity> add 1 2
+it: 3
+funcity> mul it 10
+it: 30
+```
 
 REPLには特殊な変数、 `prompt` が存在します。この値は初期状態で `'funcity> '` と定義されていて、これがREPLのプロンプトとして出力されます。
 聡明なユーザーはお気づきと思われますが、 `set` を使ってプロンプトを変更できます:
 
 ```funcity
 funcity> set prompt 'number42> '
+it: (undefined)
 number42> 
 ```
 
@@ -279,7 +292,13 @@ $ echo "イリオモテヤマネコは、{{if true}}猫{{else}}犬{{end}}であ�
 ```
 
 `if`文は、引数の値を評価して、`false`でない値なら、`else`までの記述を、それ以外では`else`から`end`までの記述を出力します。
+`elseif`を使うと、`if`と`else`の間に条件分岐を追加できます。
 試しに上記の`true`を`false`に変えて、期待通りになるかどうかを確かめてください。
+
+```bash
+$ echo "イリオモテヤマネコは、{{if false}}猿{{elseif true}}猫{{else}}犬{{end}}である。" | funcity run
+イリオモテヤマネコは、猫である。
+```
 
 でもまあ、この例は`true`と手で記述しているので、あまり意味がありません。
 
@@ -329,7 +348,7 @@ MEMO: 変数は後から`set`で上書きできます。専門用語では「ミ
 ここまでの例で、いわゆるfizz-buzzが実現できることがわかるでしょう:
 
 ```funcity
-{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{else}}{{if (eq (mod i 3) 0)}}Fizz{{else}}{{if (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}{{end}}{{end}}
+{{for i (range 1 15)}}{{if (eq (mod i 15) 0)}}FizzBuzz{{elseif (eq (mod i 3) 0)}}Fizz{{elseif (eq (mod i 5) 0)}}Buzz{{else}}{{i}}{{end}}
 {{end}}
 ```
 
@@ -377,8 +396,10 @@ end
 
 ### 文字列リテラルのエスケープ
 
-funcityの文字列リテラルは、シングルクォート `'` で囲みます。空文字列は `''` です。
-文字列内で `'` や `\` を使いたい場合は、バックスラッシュでエスケープします。
+funcityの文字列リテラルは、シングルクォート `'`、ダブルクォート `"`、バッククォート `` ` `` で囲めます。
+開始と終了のクォート種別は一致させる必要があります。空文字列は `''`、`""`、またはバッククォートで空にした表記で書けます。
+開始と異なるクォートはエスケープなしで使えます。
+開始と同じクォート（または`\`）を文字列内で使いたい場合は、バックスラッシュでエスケープします。
 
 利用できるエスケープシーケンスは以下です:
 
@@ -389,6 +410,8 @@ funcityの文字列リテラルは、シングルクォート `'` で囲みま�
 - `\f` フォームフィード
 - `\0` NUL
 - `\'` シングルクォート
+- `\"` ダブルクォート
+- ``\``` バッククォート
 - `\\` バックスラッシュ
 
 未定義のエスケープシーケンスはエラーになります。
@@ -773,12 +796,29 @@ const results = await runReducer(nodes, variables, logs);
 | `first` | 第1引数の配列/`Iterable`の先頭要素を返します。 |
 | `last` | 第1引数の配列/`Iterable`の末尾要素を返します。 |
 | `range` | 第1引数の数値から、第2引数個の連番配列を作ります。 |
+| `slice` | 配列/`Iterable`または文字列をスライスします。 |
 | `sort` | `Iterable`を配列化し、既定順序でソートします。 |
 | `reverse` | `Iterable`を逆順の配列にします。 |
 | `map` | 第1引数の関数を、各要素に適用して配列を返します。 |
 | `flatMap` | 第1引数の関数の結果を展開して結合します。 |
 | `filter` | 第1引数の関数の結果が真の要素だけ返します。 |
 | `collect` | 第1引数の関数の結果が`null`/`undefined`の場合を除外して配列化します。 |
+| `distinct` | 配列/`Iterable`から重複を除いて返します。 |
+| `distinctBy` | 第1引数のキー関数で重複を判定して返します。 |
+| `union` | 2つの配列/`Iterable`の和集合を返します。 |
+| `unionBy` | キー関数で判定した和集合を返します。 |
+| `intersection` | 2つの配列/`Iterable`の積集合を返します。 |
+| `intersectionBy` | キー関数で判定した積集合を返します。 |
+| `difference` | 2つの配列/`Iterable`の差集合（`a \\ b`）を返します。 |
+| `differenceBy` | キー関数で判定した差集合を返します。 |
+| `symmetricDifference` | 2つの配列/`Iterable`の対称差を返します。 |
+| `symmetricDifferenceBy` | キー関数で判定した対称差を返します。 |
+| `isSubsetOf` | 第1引数が第2引数の部分集合なら真を返します。 |
+| `isSubsetOfBy` | 第1引数のキーが第2引数に含まれるなら真を返します。 |
+| `isSupersetOf` | 第2引数が第1引数の部分集合なら真を返します。 |
+| `isSupersetOfBy` | 第2引数のキーが第1引数に含まれるなら真を返します。 |
+| `isDisjointFrom` | 2つの配列/`Iterable`に共通要素がなければ真を返します。 |
+| `isDisjointFromBy` | 2つの配列/`Iterable`に共通キーがなければ真を返します。 |
 | `reduce` | 第1引数の初期値と、第2引数の関数で畳み込みます。 |
 | `match` | 第2引数について、第1引数の正規表現でマッチした結果を配列で返します。 |
 | `replace` | 第3引数について、第1引数の正規表現でマッチした結果を第2引数で置換します。 |
@@ -872,6 +912,22 @@ const results = await runReducer(nodes, variables, logs);
 
 結果は、 `[3 4 5 6 7]` のような配列です。
 
+### slice
+
+配列/`Iterable`または文字列をスライスします:
+
+```funcity
+{{slice 1 3 [10 11 12 13]}}
+{{slice -2 [10 11 12 13]}}
+{{slice 1 3 'ABCDE'}}
+```
+
+結果は、 `[11 12]`、`[12 13]`、`'BC'` になります。
+
+最後の引数が文字列の場合は`String.prototype.slice`と同じ挙動で文字列を返します。
+それ以外は最後の引数を`Iterable`として配列化し、スライスした配列を返します。
+`end`引数は省略できます。
+
 ### map,flatMap,filter
 
 第1引数に、引数を一つ受け取る関数を渡します。ラムダ式でもバインドされた変数でも構いません。
@@ -892,6 +948,43 @@ const results = await runReducer(nodes, variables, logs);
 ```
 
 結果は、 `[1 3 4]` のような配列です。
+
+### distinct,distinctBy
+
+重複を除きつつ、最初の出現順を維持して返します:
+
+```funcity
+{{distinct [1 2 2 3]}}
+{{distinctBy (fun [x] (mod x 2)) [2 4 1 3]}}
+```
+
+`distinctBy`は第1引数のキー関数で重複判定します。
+
+### union,intersection,difference,symmetricDifference
+
+2つの配列/`Iterable`の集合演算を行います:
+
+```funcity
+{{union [1 2 2 3] [3 4 1]}}
+{{intersection [1 2 3] [2 3 4]}}
+{{difference [1 2 3] [2]}}
+{{symmetricDifference [1 2 3] [3 4]}}
+```
+
+各演算は重複のない配列を返します。
+`*By`版は第1引数のキー関数で判定します。
+
+### isSubsetOf,isSupersetOf,isDisjointFrom
+
+2つの配列/`Iterable`の関係を判定します:
+
+```funcity
+{{isSubsetOf [1 2] [1 2 3]}}
+{{isSupersetOf [1 2 3] [2 3]}}
+{{isDisjointFrom [1 2] [3 4]}}
+```
+
+`*By`版はキー関数の結果で比較します。
 
 ### reduce
 
