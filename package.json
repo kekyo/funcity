@@ -22,6 +22,7 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "dev": "npm run dev --workspaces",
+    "repl": "npm run repl --workspaces",
     "test": "npm run test --workspaces",
     "pack": "npm run pack --workspaces"
   },

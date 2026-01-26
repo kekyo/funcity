@@ -32,6 +32,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "echo \"funcity-cli does not have dev rule.\"",
+    "repl": "npm run build && node ./dist/index.cjs repl",
     "test": "npm run build && vitest run",
     "pack": "npm run build && screw-up pack --pack-destination ../artifacts/"
   },

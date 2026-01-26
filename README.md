@@ -163,19 +163,32 @@ Example using the `add` function and `set` for variable binding:
 ```bash
 $ funcity
 funcity> add 1 2
-3
+it: 3
 funcity> set x 10
+it: (undefined)
 funcity> add x 5
-15
+it: 15
 ```
 
-Press `Ctrl+D` to exit.
+Type `exit` or press `Ctrl+D` to exit.
+
+The REPL automatically binds the last result to `it`.
+It also binds `its` to an array of non-`undefined` results from the last evaluation.
+Use this feature to perform consecutive calculations like a calculator:
+
+```bash
+funcity> add 1 2
+it: 3
+funcity> mul it 10
+it: 30
+```
 
 The REPL has a special variable, `prompt`. Its initial value is defined as `'funcity> '`, which is output as the REPL prompt.
 As astute users may have noticed, you can change the prompt using `set`:
 
 ```funcity
 funcity> set prompt 'number42> '
+it: (undefined)
 number42> 
 ```
 
