@@ -1,0 +1,7 @@
+---
+title: Set Ops: Basic
+---
+Union: {{union [1 2 2 3] [3 4 1]}}
+Intersection: {{intersection [1 2 3] [2 3 4]}}
+Difference: {{difference [1 2 3] [2]}}
+Symmetric difference: {{symmetricDifference [1 2 3] [3 4]}}

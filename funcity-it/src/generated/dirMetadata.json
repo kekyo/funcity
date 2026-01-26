@@ -46,6 +46,21 @@
       "reduce-sum.txt": {
         "size": 89
       },
+      "set-ops-basic.txt": {
+        "size": 211
+      },
+      "set-ops-by.txt": {
+        "size": 343
+      },
+      "set-ops-distinct.txt": {
+        "size": 135
+      },
+      "set-relations-basic.txt": {
+        "size": 317
+      },
+      "set-relations-by.txt": {
+        "size": 507
+      },
       "window-alert.txt": {
         "size": 94
       }
