@@ -773,12 +773,29 @@ const results = await runReducer(nodes, variables, logs);
 | `first` | 第1引数の配列/`Iterable`の先頭要素を返します。 |
 | `last` | 第1引数の配列/`Iterable`の末尾要素を返します。 |
 | `range` | 第1引数の数値から、第2引数個の連番配列を作ります。 |
+| `slice` | 配列/`Iterable`または文字列をスライスします。 |
 | `sort` | `Iterable`を配列化し、既定順序でソートします。 |
 | `reverse` | `Iterable`を逆順の配列にします。 |
 | `map` | 第1引数の関数を、各要素に適用して配列を返します。 |
 | `flatMap` | 第1引数の関数の結果を展開して結合します。 |
 | `filter` | 第1引数の関数の結果が真の要素だけ返します。 |
 | `collect` | 第1引数の関数の結果が`null`/`undefined`の場合を除外して配列化します。 |
+| `distinct` | 配列/`Iterable`から重複を除いて返します。 |
+| `distinctBy` | 第1引数のキー関数で重複を判定して返します。 |
+| `union` | 2つの配列/`Iterable`の和集合を返します。 |
+| `unionBy` | キー関数で判定した和集合を返します。 |
+| `intersection` | 2つの配列/`Iterable`の積集合を返します。 |
+| `intersectionBy` | キー関数で判定した積集合を返します。 |
+| `difference` | 2つの配列/`Iterable`の差集合（`a \\ b`）を返します。 |
+| `differenceBy` | キー関数で判定した差集合を返します。 |
+| `symmetricDifference` | 2つの配列/`Iterable`の対称差を返します。 |
+| `symmetricDifferenceBy` | キー関数で判定した対称差を返します。 |
+| `isSubsetOf` | 第1引数が第2引数の部分集合なら真を返します。 |
+| `isSubsetOfBy` | 第1引数のキーが第2引数に含まれるなら真を返します。 |
+| `isSupersetOf` | 第2引数が第1引数の部分集合なら真を返します。 |
+| `isSupersetOfBy` | 第2引数のキーが第1引数に含まれるなら真を返します。 |
+| `isDisjointFrom` | 2つの配列/`Iterable`に共通要素がなければ真を返します。 |
+| `isDisjointFromBy` | 2つの配列/`Iterable`に共通キーがなければ真を返します。 |
 | `reduce` | 第1引数の初期値と、第2引数の関数で畳み込みます。 |
 | `match` | 第2引数について、第1引数の正規表現でマッチした結果を配列で返します。 |
 | `replace` | 第3引数について、第1引数の正規表現でマッチした結果を第2引数で置換します。 |
@@ -872,6 +889,22 @@ const results = await runReducer(nodes, variables, logs);
 
 結果は、 `[3 4 5 6 7]` のような配列です。
 
+### slice
+
+配列/`Iterable`または文字列をスライスします:
+
+```funcity
+{{slice 1 3 [10 11 12 13]}}
+{{slice -2 [10 11 12 13]}}
+{{slice 1 3 'ABCDE'}}
+```
+
+結果は、 `[11 12]`、`[12 13]`、`'BC'` になります。
+
+最後の引数が文字列の場合は`String.prototype.slice`と同じ挙動で文字列を返します。
+それ以外は最後の引数を`Iterable`として配列化し、スライスした配列を返します。
+`end`引数は省略できます。
+
 ### map,flatMap,filter
 
 第1引数に、引数を一つ受け取る関数を渡します。ラムダ式でもバインドされた変数でも構いません。
@@ -892,6 +925,43 @@ const results = await runReducer(nodes, variables, logs);
 ```
 
 結果は、 `[1 3 4]` のような配列です。
+
+### distinct,distinctBy
+
+重複を除きつつ、最初の出現順を維持して返します:
+
+```funcity
+{{distinct [1 2 2 3]}}
+{{distinctBy (fun [x] (mod x 2)) [2 4 1 3]}}
+```
+
+`distinctBy`は第1引数のキー関数で重複判定します。
+
+### union,intersection,difference,symmetricDifference
+
+2つの配列/`Iterable`の集合演算を行います:
+
+```funcity
+{{union [1 2 2 3] [3 4 1]}}
+{{intersection [1 2 3] [2 3 4]}}
+{{difference [1 2 3] [2]}}
+{{symmetricDifference [1 2 3] [3 4]}}
+```
+
+各演算は重複のない配列を返します。
+`*By`版は第1引数のキー関数で判定します。
+
+### isSubsetOf,isSupersetOf,isDisjointFrom
+
+2つの配列/`Iterable`の関係を判定します:
+
+```funcity
+{{isSubsetOf [1 2] [1 2 3]}}
+{{isSupersetOf [1 2 3] [2 3]}}
+{{isDisjointFrom [1 2] [3 4]}}
+```
+
+`*By`版はキー関数の結果で比較します。
 
 ### reduce
 

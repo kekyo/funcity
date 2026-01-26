@@ -461,6 +461,33 @@ const _range = async (arg0: unknown, arg1: unknown) => {
   return resultList;
 };
 
+const sliceIterable = (
+  iter: Iterable<unknown>,
+  start: number | undefined,
+  end: number | undefined
+) => {
+  const resultList: unknown[] = [];
+  for (const item of iter) {
+    resultList.push(item);
+  }
+  return resultList.slice(start, end);
+};
+
+const _slice = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const start = arg0 === undefined ? undefined : Number(arg0);
+  if (arg2 === undefined) {
+    if (typeof arg1 === 'string') {
+      return arg1.slice(start);
+    }
+    return sliceIterable(arg1 as Iterable<unknown>, start, undefined);
+  }
+  const end = arg1 === undefined ? undefined : Number(arg1);
+  if (typeof arg2 === 'string') {
+    return arg2.slice(start, end);
+  }
+  return sliceIterable(arg2 as Iterable<unknown>, start, end);
+};
+
 const _reverse = async (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   let resultList: unknown[] = [];
@@ -523,6 +550,390 @@ const _collect = async (arg0: unknown) => {
     }
   }
   return resultList;
+};
+
+const _distinct = async (arg0: unknown) => {
+  const iter = arg0 as Iterable<unknown>;
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iter) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _distinctBy = async (arg0: unknown, arg1: unknown) => {
+  const selector = arg0 as Function;
+  const iter = arg1 as Iterable<unknown>;
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iter) {
+    const key = await selector(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _union = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const union = (
+      arg0 as Set<unknown> & { union?: (s: Set<unknown>) => Set<unknown> }
+    ).union;
+    if (typeof union === 'function') {
+      return Array.from(union.call(arg0, arg1));
+    }
+  }
+  const resultList: unknown[] = [];
+  const seen = new Set<unknown>();
+  for (const item of arg0 as Iterable<unknown>) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      resultList.push(item);
+    }
+  }
+  for (const item of arg1 as Iterable<unknown>) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _unionBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const resultList: unknown[] = [];
+  const seen = new Set<unknown>();
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      resultList.push(item);
+    }
+  }
+  for (const item of iterB) {
+    const key = await selector(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _intersection = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const intersection = (
+      arg0 as Set<unknown> & {
+        intersection?: (s: Set<unknown>) => Set<unknown>;
+      }
+    ).intersection;
+    if (typeof intersection === 'function') {
+      return Array.from(intersection.call(arg0, arg1));
+    }
+  }
+  const iterA = arg0 as Iterable<unknown>;
+  const setB = new Set<unknown>(arg1 as Iterable<unknown>);
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iterA) {
+    if (!seen.has(item) && setB.has(item)) {
+      seen.add(item);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _intersectionBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysB = new Set<unknown>();
+  for (const item of iterB) {
+    const key = await selector(item);
+    keysB.add(key);
+  }
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (!seen.has(key) && keysB.has(key)) {
+      seen.add(key);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _difference = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const difference = (
+      arg0 as Set<unknown> & {
+        difference?: (s: Set<unknown>) => Set<unknown>;
+      }
+    ).difference;
+    if (typeof difference === 'function') {
+      return Array.from(difference.call(arg0, arg1));
+    }
+  }
+  const iterA = arg0 as Iterable<unknown>;
+  const setB = new Set<unknown>(arg1 as Iterable<unknown>);
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iterA) {
+    if (!seen.has(item) && !setB.has(item)) {
+      seen.add(item);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _differenceBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysB = new Set<unknown>();
+  for (const item of iterB) {
+    const key = await selector(item);
+    keysB.add(key);
+  }
+  const seen = new Set<unknown>();
+  const resultList: unknown[] = [];
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (!seen.has(key) && !keysB.has(key)) {
+      seen.add(key);
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _symmetricDifference = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const symmetricDifference = (
+      arg0 as Set<unknown> & {
+        symmetricDifference?: (s: Set<unknown>) => Set<unknown>;
+      }
+    ).symmetricDifference;
+    if (typeof symmetricDifference === 'function') {
+      return Array.from(symmetricDifference.call(arg0, arg1));
+    }
+  }
+  const iterA = arg0 as Iterable<unknown>;
+  const iterB = arg1 as Iterable<unknown>;
+  const itemsA: unknown[] = [];
+  const itemsB: unknown[] = [];
+  const setA = new Set<unknown>();
+  const setB = new Set<unknown>();
+  for (const item of iterA) {
+    if (!setA.has(item)) {
+      setA.add(item);
+      itemsA.push(item);
+    }
+  }
+  for (const item of iterB) {
+    if (!setB.has(item)) {
+      setB.add(item);
+      itemsB.push(item);
+    }
+  }
+  const resultList: unknown[] = [];
+  for (const item of itemsA) {
+    if (!setB.has(item)) {
+      resultList.push(item);
+    }
+  }
+  for (const item of itemsB) {
+    if (!setA.has(item)) {
+      resultList.push(item);
+    }
+  }
+  return resultList;
+};
+
+const _symmetricDifferenceBy = async (
+  arg0: unknown,
+  arg1: unknown,
+  arg2: unknown
+) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysA = new Set<unknown>();
+  const keysB = new Set<unknown>();
+  const itemsA: { key: unknown; item: unknown }[] = [];
+  const itemsB: { key: unknown; item: unknown }[] = [];
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (!keysA.has(key)) {
+      keysA.add(key);
+      itemsA.push({ key, item });
+    }
+  }
+  for (const item of iterB) {
+    const key = await selector(item);
+    if (!keysB.has(key)) {
+      keysB.add(key);
+      itemsB.push({ key, item });
+    }
+  }
+  const resultList: unknown[] = [];
+  for (const entry of itemsA) {
+    if (!keysB.has(entry.key)) {
+      resultList.push(entry.item);
+    }
+  }
+  for (const entry of itemsB) {
+    if (!keysA.has(entry.key)) {
+      resultList.push(entry.item);
+    }
+  }
+  return resultList;
+};
+
+const _isSubsetOf = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const isSubsetOf = (
+      arg0 as Set<unknown> & {
+        isSubsetOf?: (s: Set<unknown>) => boolean;
+      }
+    ).isSubsetOf;
+    if (typeof isSubsetOf === 'function') {
+      return isSubsetOf.call(arg0, arg1);
+    }
+  }
+  const iterA = arg0 as Iterable<unknown>;
+  const setB = new Set<unknown>(arg1 as Iterable<unknown>);
+  const seen = new Set<unknown>();
+  for (const item of iterA) {
+    if (seen.has(item)) {
+      continue;
+    }
+    seen.add(item);
+    if (!setB.has(item)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const _isSubsetOfBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysB = new Set<unknown>();
+  for (const item of iterB) {
+    const key = await selector(item);
+    keysB.add(key);
+  }
+  const seen = new Set<unknown>();
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    if (!keysB.has(key)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const _isSupersetOf = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const isSupersetOf = (
+      arg0 as Set<unknown> & {
+        isSupersetOf?: (s: Set<unknown>) => boolean;
+      }
+    ).isSupersetOf;
+    if (typeof isSupersetOf === 'function') {
+      return isSupersetOf.call(arg0, arg1);
+    }
+  }
+  const setA = new Set<unknown>(arg0 as Iterable<unknown>);
+  for (const item of arg1 as Iterable<unknown>) {
+    if (!setA.has(item)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const _isSupersetOfBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysA = new Set<unknown>();
+  for (const item of iterA) {
+    const key = await selector(item);
+    keysA.add(key);
+  }
+  const seen = new Set<unknown>();
+  for (const item of iterB) {
+    const key = await selector(item);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    if (!keysA.has(key)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const _isDisjointFrom = async (arg0: unknown, arg1: unknown) => {
+  if (arg0 instanceof Set && arg1 instanceof Set) {
+    const isDisjointFrom = (
+      arg0 as Set<unknown> & {
+        isDisjointFrom?: (s: Set<unknown>) => boolean;
+      }
+    ).isDisjointFrom;
+    if (typeof isDisjointFrom === 'function') {
+      return isDisjointFrom.call(arg0, arg1);
+    }
+  }
+  const setB = new Set<unknown>(arg1 as Iterable<unknown>);
+  for (const item of arg0 as Iterable<unknown>) {
+    if (setB.has(item)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const _isDisjointFromBy = async (
+  arg0: unknown,
+  arg1: unknown,
+  arg2: unknown
+) => {
+  const selector = arg0 as Function;
+  const iterA = arg1 as Iterable<unknown>;
+  const iterB = arg2 as Iterable<unknown>;
+  const keysB = new Set<unknown>();
+  for (const item of iterB) {
+    const key = await selector(item);
+    keysB.add(key);
+  }
+  for (const item of iterA) {
+    const key = await selector(item);
+    if (keysB.has(key)) {
+      return false;
+    }
+  }
+  return true;
 };
 
 const _reduce = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
@@ -669,12 +1080,29 @@ export const standardVariables = Object.freeze({
   first: _first,
   last: _last,
   range: _range,
+  slice: _slice,
   sort: _sort,
   reverse: _reverse,
   map: _map,
   flatMap: _flatMap,
   filter: _filter,
   collect: _collect,
+  distinct: _distinct,
+  distinctBy: _distinctBy,
+  union: _union,
+  unionBy: _unionBy,
+  intersection: _intersection,
+  intersectionBy: _intersectionBy,
+  difference: _difference,
+  differenceBy: _differenceBy,
+  symmetricDifference: _symmetricDifference,
+  symmetricDifferenceBy: _symmetricDifferenceBy,
+  isSubsetOf: _isSubsetOf,
+  isSubsetOfBy: _isSubsetOfBy,
+  isSupersetOf: _isSupersetOf,
+  isSupersetOfBy: _isSupersetOfBy,
+  isDisjointFrom: _isDisjointFrom,
+  isDisjointFromBy: _isDisjointFromBy,
   reduce: _reduce,
   match: _match,
   replace: _replace,

@@ -775,12 +775,29 @@ The following are the standard functions:
 | `first` | Returns the first element of the array/`Iterable` in the first argument. |
 | `last` | Returns the last element of the array/`Iterable` in the first argument. |
 | `range` | Creates a sequential array of the second argument length, starting from the first argument value. |
+| `slice` | Slices an array/`Iterable`, or a string. |
 | `sort` | Converts an `Iterable` to an array and sorts with the default order. |
 | `reverse` | Reverses an `Iterable` into an array. |
 | `map` | Applies the function in the first argument to each element and returns an array. |
 | `flatMap` | Expands and concatenates results of the function in the first argument. |
 | `filter` | Returns only the elements where the result of the function in the first argument is true. |
 | `collect` | Builds an array excluding results that are `null`/`undefined` from the function in the first argument. |
+| `distinct` | Returns unique elements from an array/`Iterable`. |
+| `distinctBy` | Returns unique elements using a key selector function. |
+| `union` | Returns the union of two arrays/`Iterable`s. |
+| `unionBy` | Returns the union using a key selector function. |
+| `intersection` | Returns the intersection of two arrays/`Iterable`s. |
+| `intersectionBy` | Returns the intersection using a key selector function. |
+| `difference` | Returns the difference of two arrays/`Iterable`s (`a \\ b`). |
+| `differenceBy` | Returns the difference using a key selector function. |
+| `symmetricDifference` | Returns the symmetric difference of two arrays/`Iterable`s. |
+| `symmetricDifferenceBy` | Returns the symmetric difference using a key selector function. |
+| `isSubsetOf` | Returns true if all elements of the first argument are contained in the second. |
+| `isSubsetOfBy` | Returns true if all keys of the first argument are contained in the second. |
+| `isSupersetOf` | Returns true if all elements of the second argument are contained in the first. |
+| `isSupersetOfBy` | Returns true if all keys of the second argument are contained in the first. |
+| `isDisjointFrom` | Returns true if two arrays/`Iterable`s have no common elements. |
+| `isDisjointFromBy` | Returns true if two arrays/`Iterable`s have no common keys. |
 | `reduce` | Folds using the initial value in the first argument and the function in the second argument. |
 | `match` | For the second argument, returns an array of matches using the regex in the first argument. |
 | `replace` | For the third argument, replaces matches of the regex in the first argument with the second argument. |
@@ -878,6 +895,22 @@ Creates a sequential array with a start value and count:
 
 The result is an array like `[3 4 5 6 7]`.
 
+### slice
+
+Slices an array/`Iterable` or string:
+
+```funcity
+{{slice 1 3 [10 11 12 13]}}
+{{slice -2 [10 11 12 13]}}
+{{slice 1 3 'ABCDE'}}
+```
+
+The results are `[11 12]`, `[12 13]`, and `'BC'`.
+
+If the last argument is a string, `slice` behaves like `String.prototype.slice` and returns a string.
+Otherwise it treats the last argument as an `Iterable`, converts it to an array, and returns a sliced array.
+The `end` argument can be omitted.
+
 ### map,flatMap,filter
 
 Pass a function that takes one argument as the first argument. It can be a lambda or a bound variable.
@@ -898,6 +931,43 @@ Filters out `null`/`undefined` and returns an array:
 ```
 
 The result is an array like `[1 3 4]`.
+
+### distinct,distinctBy
+
+Returns unique elements while preserving the first occurrence order:
+
+```funcity
+{{distinct [1 2 2 3]}}
+{{distinctBy (fun [x] (mod x 2)) [2 4 1 3]}}
+```
+
+`distinctBy` uses the key selector in the first argument to determine uniqueness.
+
+### union,intersection,difference,symmetricDifference
+
+Set operations between two arrays/`Iterable`s:
+
+```funcity
+{{union [1 2 2 3] [3 4 1]}}
+{{intersection [1 2 3] [2 3 4]}}
+{{difference [1 2 3] [2]}}
+{{symmetricDifference [1 2 3] [3 4]}}
+```
+
+Each operation returns a unique array.
+The `*By` variants accept a key selector function as the first argument.
+
+### isSubsetOf,isSupersetOf,isDisjointFrom
+
+Relationship checks between two arrays/`Iterable`s:
+
+```funcity
+{{isSubsetOf [1 2] [1 2 3]}}
+{{isSupersetOf [1 2 3] [2 3]}}
+{{isDisjointFrom [1 2] [3 4]}}
+```
+
+The `*By` variants compare keys produced by the selector function.
 
 ### reduce
 

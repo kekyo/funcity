@@ -358,6 +358,264 @@ describe('standard variables test', () => {
     );
     expect(value).toStrictEqual([1, 3]);
   });
+  it('slice', async () => {
+    const arrayValue = await reduceSingle(
+      applyNode('slice', [
+        numberNode(1),
+        numberNode(3),
+        listNode([
+          numberNode(10),
+          numberNode(11),
+          numberNode(12),
+          numberNode(13),
+        ]),
+      ])
+    );
+    expect(arrayValue).toStrictEqual([11, 12]);
+
+    const arrayValue2 = await reduceSingle(
+      applyNode('slice', [
+        numberNode(-2),
+        listNode([
+          numberNode(10),
+          numberNode(11),
+          numberNode(12),
+          numberNode(13),
+        ]),
+      ])
+    );
+    expect(arrayValue2).toStrictEqual([12, 13]);
+
+    const stringValue = await reduceSingle(
+      applyNode('slice', [numberNode(1), numberNode(3), stringNode('ABCDE')])
+    );
+    expect(stringValue).toBe('BC');
+
+    const stringValue2 = await reduceSingle(
+      applyNode('slice', [numberNode(-2), stringNode('ABCDE')])
+    );
+    expect(stringValue2).toBe('DE');
+  });
+  it('distinct', async () => {
+    const value = await reduceSingle(
+      applyNode('distinct', [
+        listNode([
+          numberNode(1),
+          numberNode(2),
+          numberNode(2),
+          numberNode(3),
+          numberNode(1),
+        ]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2, 3]);
+  });
+  it('distinctBy', async () => {
+    const value = await reduceSingle(
+      applyNode('distinctBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(2), numberNode(4), numberNode(1), numberNode(3)]),
+      ])
+    );
+    expect(value).toStrictEqual([2, 1]);
+  });
+  it('union', async () => {
+    const value = await reduceSingle(
+      applyNode('union', [
+        listNode([numberNode(1), numberNode(2), numberNode(2), numberNode(3)]),
+        listNode([numberNode(3), numberNode(4), numberNode(1), numberNode(5)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2, 3, 4, 5]);
+  });
+  it('unionBy', async () => {
+    const value = await reduceSingle(
+      applyNode('unionBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(2), numberNode(4)]),
+        listNode([numberNode(1), numberNode(3), numberNode(5)]),
+      ])
+    );
+    expect(value).toStrictEqual([2, 1]);
+  });
+  it('intersection', async () => {
+    const value = await reduceSingle(
+      applyNode('intersection', [
+        listNode([numberNode(1), numberNode(2), numberNode(2), numberNode(3)]),
+        listNode([numberNode(2), numberNode(3), numberNode(4), numberNode(2)]),
+      ])
+    );
+    expect(value).toStrictEqual([2, 3]);
+  });
+  it('intersectionBy', async () => {
+    const value = await reduceSingle(
+      applyNode('intersectionBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+        listNode([numberNode(4), numberNode(6), numberNode(7)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2]);
+  });
+  it('difference', async () => {
+    const value = await reduceSingle(
+      applyNode('difference', [
+        listNode([
+          numberNode(1),
+          numberNode(2),
+          numberNode(2),
+          numberNode(3),
+          numberNode(4),
+        ]),
+        listNode([numberNode(2), numberNode(4)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 3]);
+  });
+  it('differenceBy', async () => {
+    const value = await reduceSingle(
+      applyNode('differenceBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(3)])),
+        listNode([
+          numberNode(1),
+          numberNode(2),
+          numberNode(3),
+          numberNode(4),
+          numberNode(5),
+          numberNode(6),
+        ]),
+        listNode([numberNode(2), numberNode(5)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 3]);
+  });
+  it('symmetricDifference', async () => {
+    const value = await reduceSingle(
+      applyNode('symmetricDifference', [
+        listNode([numberNode(1), numberNode(2), numberNode(2), numberNode(3)]),
+        listNode([numberNode(3), numberNode(4), numberNode(4), numberNode(5)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2, 4, 5]);
+  });
+  it('symmetricDifferenceBy', async () => {
+    const value = await reduceSingle(
+      applyNode('symmetricDifferenceBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(3)]),
+        listNode([numberNode(2), numberNode(4)]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2]);
+  });
+  it('isSubsetOf', async () => {
+    const value = await reduceSingle(
+      applyNode('isSubsetOf', [
+        listNode([numberNode(1), numberNode(2)]),
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isSubsetOf', [
+        listNode([numberNode(1), numberNode(4)]),
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
+  it('isSubsetOfBy', async () => {
+    const value = await reduceSingle(
+      applyNode('isSubsetOfBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(3)]),
+        listNode([numberNode(2), numberNode(4), numberNode(5)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isSubsetOfBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(2)]),
+        listNode([numberNode(4), numberNode(6)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
+  it('isSupersetOf', async () => {
+    const value = await reduceSingle(
+      applyNode('isSupersetOf', [
+        listNode([numberNode(1), numberNode(2), numberNode(3)]),
+        listNode([numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isSupersetOf', [
+        listNode([numberNode(1), numberNode(2)]),
+        listNode([numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
+  it('isSupersetOfBy', async () => {
+    const value = await reduceSingle(
+      applyNode('isSupersetOfBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(3), numberNode(5)]),
+        listNode([numberNode(7), numberNode(9)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isSupersetOfBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(2), numberNode(4), numberNode(6)]),
+        listNode([numberNode(1), numberNode(3)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
+  it('isDisjointFrom', async () => {
+    const value = await reduceSingle(
+      applyNode('isDisjointFrom', [
+        listNode([numberNode(1), numberNode(2)]),
+        listNode([numberNode(3), numberNode(4)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isDisjointFrom', [
+        listNode([numberNode(1), numberNode(2)]),
+        listNode([numberNode(2), numberNode(3)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
+  it('isDisjointFromBy', async () => {
+    const value = await reduceSingle(
+      applyNode('isDisjointFromBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(3)]),
+        listNode([numberNode(2), numberNode(4)]),
+      ])
+    );
+    expect(value).toBe(true);
+
+    const value2 = await reduceSingle(
+      applyNode('isDisjointFromBy', [
+        funNode(['x'], applyNode('mod', [variableNode('x'), numberNode(2)])),
+        listNode([numberNode(1), numberNode(3)]),
+        listNode([numberNode(5)]),
+      ])
+    );
+    expect(value2).toBe(false);
+  });
   it('reduce', async () => {
     const value = await reduceSingle(
       applyNode('reduce', [
