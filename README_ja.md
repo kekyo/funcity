@@ -140,12 +140,23 @@ $ funcity -i -
 # スクリプト実行モード（指定したファイルから読み取ってスクリプト実行）
 $ funcity -i script.fc
 
+# `-D` を使って事前定義変数を指定（Cプリプロセッサ風）
+$ funcity run -D env=prod -D debug -i script.fc
+
+# JSONファイルから事前定義変数を読み込み
+$ funcity run -d vars.base.json -d vars.local.json -i script.fc
+
 # スクリプト実行モード（明示的に指定。標準入力から読み取ってスクリプト実行）
 $ funcity run
 ```
 
 - コマンド `repl` / `run` を指定しない場合、オプションがなければ `repl` として扱われます。
 - `--input` または `-i` が指定されている場合は `run` として扱われます。
+- `--define` / `-D` は複数指定できます。`-D name` は `name=true`、
+  `-D name=value` は `value` を文字列として設定します。
+- `--define-json` / `-d` は複数指定できます。JSONのルートはオブジェクトである必要があり、
+  それ以外の場合はエラーになります。
+- 同じキーが `-d` と `-D` の両方に存在する場合は、`-D` が優先されます。
 - CLI起動時に `~/.funcityrc` を1回読み込み、REPL/スクリプト実行の前に実行します。
   `--no-rc` を指定すると読み込みを行いません。
 

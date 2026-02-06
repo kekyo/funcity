@@ -142,12 +142,23 @@ $ funcity -i -
 # Script execution mode (read from a file)
 $ funcity -i script.fc
 
+# Predefine variables with -D (C preprocessor style)
+$ funcity run -D env=prod -D debug -i script.fc
+
+# Load predefined variables from JSON files
+$ funcity run -d vars.base.json -d vars.local.json -i script.fc
+
 # Script execution mode (explicit, read from stdin)
 $ funcity run
 ```
 
 - If you omit `repl` / `run`, it defaults to `repl` when no options are provided.
 - If `--input` or `-i` is specified, it is treated as `run`.
+- `--define` / `-D` can be specified multiple times. `-D name` means `name=true`;
+  `-D name=value` sets `value` as a string.
+- `--define-json` / `-d` can be specified multiple times. Each JSON root must be
+  an object, otherwise an error is reported.
+- If the same key appears in both `-d` and `-D`, `-D` takes precedence.
 - On startup, the CLI loads `~/.funcityrc` once and executes it before running
   the REPL or script. Use `--no-rc` to skip loading this file.
 

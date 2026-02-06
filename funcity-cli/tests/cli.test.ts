@@ -3,12 +3,13 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import {
   createReplSession,
+  runMain,
   runScriptToText,
   runScriptToTextStreaming,
 } from '../src/cli';
@@ -122,5 +123,123 @@ describe('funcity-cli run', () => {
     expect(chunks.join('')).toBe('Hello');
     expect(result.output).toBeUndefined();
     expect(result.logs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('funcity-cli options', () => {
+  const captureStdout = async (
+    callback: () => Promise<void>
+  ): Promise<string> => {
+    const chunks: string[] = [];
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: unknown
+    ) => {
+      chunks.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+
+    try {
+      await callback();
+      return chunks.join('');
+    } finally {
+      writeSpy.mockRestore();
+    }
+  };
+
+  const withTempDir = async (
+    callback: (dir: string) => Promise<void>
+  ): Promise<void> => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'funcity-cli-main-'));
+    try {
+      await callback(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('supports repeated -d and -D, and -D takes priority', async () => {
+    await withTempDir(async (dir) => {
+      const scriptPath = path.join(dir, 'script.fc');
+      const defineAPath = path.join(dir, 'define-a.json');
+      const defineBPath = path.join(dir, 'define-b.json');
+      await fs.writeFile(
+        scriptPath,
+        '{{foo}}|{{bar}}|{{num}}|{{flag}}',
+        'utf8'
+      );
+      await fs.writeFile(
+        defineAPath,
+        JSON.stringify({ foo: 'json-a', bar: 'first' }),
+        'utf8'
+      );
+      await fs.writeFile(
+        defineBPath,
+        JSON.stringify({ bar: 'second', num: 7 }),
+        'utf8'
+      );
+
+      const output = await captureStdout(async () => {
+        await runMain([
+          'node',
+          'funcity',
+          '--no-rc',
+          '-d',
+          defineAPath,
+          '-d',
+          defineBPath,
+          '-D',
+          'foo=define',
+          '-D',
+          'flag',
+          '-i',
+          scriptPath,
+        ]);
+      });
+
+      expect(output).toBe('define|second|7|true');
+    });
+  });
+
+  it('does not treat -D value as command name', async () => {
+    await withTempDir(async (dir) => {
+      const scriptPath = path.join(dir, 'script.fc');
+      await fs.writeFile(scriptPath, '{{repl}}', 'utf8');
+
+      const output = await captureStdout(async () => {
+        await runMain([
+          'node',
+          'funcity',
+          '--no-rc',
+          '-D',
+          'repl',
+          '-i',
+          scriptPath,
+        ]);
+      });
+
+      expect(output).toBe('true');
+    });
+  });
+
+  it('fails when -d JSON root is not object', async () => {
+    await withTempDir(async (dir) => {
+      const scriptPath = path.join(dir, 'script.fc');
+      const definePath = path.join(dir, 'define.json');
+      await fs.writeFile(scriptPath, '{{foo}}', 'utf8');
+      await fs.writeFile(definePath, JSON.stringify([1, 2, 3]), 'utf8');
+
+      await expect(
+        runMain([
+          'node',
+          'funcity',
+          '--no-rc',
+          'run',
+          '-d',
+          definePath,
+          '-i',
+          scriptPath,
+        ])
+      ).rejects.toThrow('JSON root must be an object');
+    });
   });
 });
