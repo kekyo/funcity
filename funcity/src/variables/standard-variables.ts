@@ -44,6 +44,27 @@ const _cond = makeFunCityFunction(async function (
   }
 });
 
+const _defaults = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  arg1: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0 || !arg1 || rest.length !== 0) {
+    throw new FunCityReducerError({
+      type: 'error',
+      description: 'Required `defaults` value and default expression',
+      range: this.thisNode.range,
+    });
+  }
+
+  const value = await this.reduce(arg0);
+  if (value !== undefined && value !== null) {
+    return value;
+  }
+  return await this.reduce(arg1);
+});
+
 const _set = makeFunCityFunction(async function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
@@ -524,6 +545,19 @@ const _flatMap = async (arg0: unknown, arg1: unknown) => {
   for (const item of iter) {
     const results = await predicate(item);
     resultList.push(...results);
+  }
+  return resultList;
+};
+
+const _flatten = async (arg0: unknown) => {
+  const iter = arg0 as Iterable<unknown>;
+  const resultList: unknown[] = [];
+  for (const item of iter) {
+    const iterable = asIterable(item);
+    if (!iterable) {
+      throw new TypeError('flatten requires nested iterable items');
+    }
+    resultList.push(...iterable);
   }
   return resultList;
 };
@@ -1048,6 +1082,7 @@ export const standardVariables = Object.freeze({
   true: true,
   false: false,
   cond: _cond,
+  defaults: _defaults,
   set: _set,
   fun: _fun,
   toString: _toString,
@@ -1085,6 +1120,7 @@ export const standardVariables = Object.freeze({
   reverse: _reverse,
   map: _map,
   flatMap: _flatMap,
+  flatten: _flatten,
   filter: _filter,
   collect: _collect,
   distinct: _distinct,

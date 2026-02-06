@@ -261,6 +261,28 @@ describe('standard variables test', () => {
     );
     expect(value).toBe(456);
   });
+  it('defaults', async () => {
+    const value = await reduceSingle(
+      applyNode('defaults', [numberNode(0), numberNode(999)])
+    );
+    expect(value).toBe(0);
+
+    const undefinedValue = await reduceSingle(
+      applyNode('defaults', [variableNode('undefined'), numberNode(999)])
+    );
+    expect(undefinedValue).toBe(999);
+
+    const nullValue = await reduceSingle(
+      applyNode('defaults', [variableNode('null'), numberNode(999)])
+    );
+    expect(nullValue).toBe(999);
+  });
+  it('defaults short-circuit', async () => {
+    const value = await reduceSingle(
+      applyNode('defaults', [numberNode(1), variableNode('missing')])
+    );
+    expect(value).toBe(1);
+  });
   it('at array', async () => {
     const value = await reduceSingle(
       applyNode('at', [
@@ -337,6 +359,18 @@ describe('standard variables test', () => {
       ])
     );
     expect(value).toStrictEqual([120, 340, 560]);
+  });
+  it('flatten', async () => {
+    const value = await reduceSingle(
+      applyNode('flatten', [
+        listNode([
+          listNode([numberNode(1), numberNode(2)]),
+          listNode([numberNode(3)]),
+          listNode([numberNode(4), numberNode(5)]),
+        ]),
+      ])
+    );
+    expect(value).toStrictEqual([1, 2, 3, 4, 5]);
   });
   it('filter', async () => {
     const value = await reduceSingle(

@@ -42,6 +42,14 @@ const continuationPromptText = '? ';
 
 let replReadlineInterface: readline.Interface | undefined;
 
+type PredefinedVariables = Record<string, unknown>;
+
+interface RootCliOptions {
+  readonly rc: boolean;
+  readonly define: readonly string[];
+  readonly defineJson: readonly string[];
+}
+
 const createReplReadline = () => {
   const fallbackReadline = nodeJsVariables.readline as (
     this: FunCityFunctionContext,
@@ -133,6 +141,106 @@ const getErrorCode = (error: unknown): string | undefined => {
     return undefined;
   }
   return (error as { code?: string }).code;
+};
+
+const fromError = (error: unknown): string => {
+  return error instanceof Error ? error.message : String(error);
+};
+
+const isRecordObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const parseDefineOption = (
+  definition: string
+): { name: string; value: unknown } => {
+  const separatorIndex = definition.indexOf('=');
+
+  if (separatorIndex < 0) {
+    if (definition.length <= 0) {
+      throw new Error('invalid -D option: variable name is empty');
+    }
+    return {
+      name: definition,
+      value: true,
+    };
+  }
+
+  const name = definition.slice(0, separatorIndex);
+  const value = definition.slice(separatorIndex + 1);
+  if (name.length <= 0) {
+    throw new Error(
+      `invalid -D option: variable name is empty (${definition})`
+    );
+  }
+  return { name, value };
+};
+
+const readPredefinedVariablesFromJson = async (
+  filePath: string
+): Promise<Record<string, unknown>> => {
+  const absolutePath = path.resolve(filePath);
+
+  let source = '';
+  try {
+    source = await readFile(absolutePath, 'utf8');
+  } catch (error: unknown) {
+    throw new Error(
+      `failed to read JSON file: ${filePath} (${fromError(error)})`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch (error: unknown) {
+    throw new Error(
+      `failed to parse JSON file: ${filePath} (${fromError(error)})`
+    );
+  }
+
+  if (!isRecordObject(parsed)) {
+    throw new Error(
+      `JSON root must be an object: ${filePath} (actual: ${typeof parsed})`
+    );
+  }
+  return parsed;
+};
+
+const resolvePredefinedVariables = async (
+  options: Pick<RootCliOptions, 'define' | 'defineJson'>
+): Promise<PredefinedVariables> => {
+  const predefinedVariables: PredefinedVariables = {};
+
+  for (const jsonFilePath of options.defineJson) {
+    const record = await readPredefinedVariablesFromJson(jsonFilePath);
+    Object.assign(predefinedVariables, record);
+  }
+
+  for (const definition of options.define) {
+    const { name, value } = parseDefineOption(definition);
+    predefinedVariables[name] = value;
+  }
+
+  return predefinedVariables;
+};
+
+const applyPredefinedVariablesToContext = (
+  context: FunCityReducerContext,
+  predefinedVariables: PredefinedVariables
+) => {
+  Object.entries(predefinedVariables).forEach(([name, value]) => {
+    context.setValue(name, value, undefined);
+  });
+};
+
+const applyPredefinedVariablesToReplSession = (
+  session: ReplSession,
+  predefinedVariables: PredefinedVariables
+) => {
+  Object.entries(predefinedVariables).forEach(([name, value]) => {
+    session.setVariable(name, value);
+  });
 };
 
 const readRcScript = async (): Promise<{
@@ -260,7 +368,9 @@ export interface ReplSession {
   setVariable: (name: string, value: unknown) => void;
 }
 
-export const createReplSession = (): ReplSession => {
+export const createReplSession = (
+  predefinedVariables: PredefinedVariables = {}
+): ReplSession => {
   const exitSymbol = Symbol('exit');
   const replReadline = createReplReadline();
   const require = createRequireFunction();
@@ -268,6 +378,7 @@ export const createReplSession = (): ReplSession => {
     objectVariables,
     fetchVariables,
     nodeJsVariables,
+    predefinedVariables,
     {
       require,
       prompt: 'funcity> ',
@@ -387,7 +498,10 @@ const loadRcForRepl = async (session: ReplSession): Promise<void> => {
   }
 };
 
-const runRepl = async (loadRc: boolean): Promise<void> => {
+const runRepl = async (
+  loadRc: boolean,
+  predefinedVariables: PredefinedVariables
+): Promise<void> => {
   console.log(
     `${packageMetadata.name} [${packageMetadata.version}-${packageMetadata.git_commit_hash}]`
   );
@@ -396,10 +510,11 @@ const runRepl = async (loadRc: boolean): Promise<void> => {
   console.log(`Type 'exit' to exit CLI`);
   console.log('');
 
-  const session = createReplSession();
+  const session = createReplSession(predefinedVariables);
   if (loadRc) {
     await loadRcForRepl(session);
   }
+  applyPredefinedVariablesToReplSession(session, predefinedVariables);
   session.setVariable('require', createRequireFunction(process.cwd()));
 
   const rl = readline.createInterface({
@@ -583,7 +698,11 @@ const loadRcForContext = async (
   }
 };
 
-const runScript = async (input: string, loadRc: boolean): Promise<void> => {
+const runScript = async (
+  input: string,
+  loadRc: boolean,
+  predefinedVariables: PredefinedVariables
+): Promise<void> => {
   const isStdin = input === '-';
   const source = isStdin ? '<stdin>' : input;
   const script = isStdin
@@ -595,6 +714,7 @@ const runScript = async (input: string, loadRc: boolean): Promise<void> => {
     objectVariables,
     fetchVariables,
     nodeJsVariables,
+    predefinedVariables,
     {
       require: createRequireFunction(loadRc ? os.homedir() : basePath),
     }
@@ -605,6 +725,7 @@ const runScript = async (input: string, loadRc: boolean): Promise<void> => {
   if (loadRc) {
     await loadRcForContext(reducerContext, warningLogs);
   }
+  applyPredefinedVariablesToContext(reducerContext, predefinedVariables);
   reducerContext.setValue(
     'require',
     createRequireFunction(basePath),
@@ -644,7 +765,19 @@ const findExplicitCommand = (
       index += 1;
       continue;
     }
-    if (arg.startsWith('--input=')) {
+    if (arg === '-D' || arg === '--define') {
+      index += 1;
+      continue;
+    }
+    if (arg === '-d' || arg === '--define-json') {
+      index += 1;
+      continue;
+    }
+    if (
+      arg.startsWith('--input=') ||
+      arg.startsWith('--define=') ||
+      arg.startsWith('--define-json=')
+    ) {
       continue;
     }
     if (arg.startsWith('-')) {
@@ -687,6 +820,19 @@ const injectDefaultCommand = (argv: string[]): string[] => {
   return [execPath, scriptPath, command, ...args];
 };
 
+const collectOptionValues = (value: string, previous: string[]): string[] => {
+  return [...previous, value];
+};
+
+const getRootOptions = (command: Command): RootCliOptions => {
+  const options = (command.parent?.opts() ?? {}) as Partial<RootCliOptions>;
+  return {
+    rc: options.rc ?? true,
+    define: options.define ?? [],
+    defineJson: options.defineJson ?? [],
+  };
+};
+
 export const runMain = async (argv: string[] = process.argv): Promise<void> => {
   const program = new Command();
 
@@ -701,13 +847,30 @@ export const runMain = async (argv: string[] = process.argv): Promise<void> => {
   );
   program.showHelpAfterError(true);
   program.addOption(new Option('--no-rc', 'Do not load ~/.funcityrc'));
+  program.addOption(
+    new Option(
+      '-D, --define <name[=value]>',
+      'Predefine a variable. If value is omitted, it becomes true.'
+    )
+      .argParser(collectOptionValues)
+      .default([])
+  );
+  program.addOption(
+    new Option(
+      '-d, --define-json <path>',
+      'Load predefined variables from a JSON file (root must be object).'
+    )
+      .argParser(collectOptionValues)
+      .default([])
+  );
 
   program
     .command('repl')
     .summary('Start an interactive REPL session')
     .action(async (_options, command) => {
-      const { rc } = command.parent?.opts() ?? { rc: true };
-      await runRepl(rc);
+      const rootOptions = getRootOptions(command);
+      const predefinedVariables = await resolvePredefinedVariables(rootOptions);
+      await runRepl(rootOptions.rc, predefinedVariables);
     });
 
   program
@@ -720,8 +883,9 @@ export const runMain = async (argv: string[] = process.argv): Promise<void> => {
       ).default('-')
     )
     .action(async (options: { input: string }, command) => {
-      const { rc } = command.parent?.opts() ?? { rc: true };
-      await runScript(options.input, rc);
+      const rootOptions = getRootOptions(command);
+      const predefinedVariables = await resolvePredefinedVariables(rootOptions);
+      await runScript(options.input, rootOptions.rc, predefinedVariables);
     });
 
   await program.parseAsync(injectDefaultCommand(argv));

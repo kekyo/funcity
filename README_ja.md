@@ -140,12 +140,23 @@ $ funcity -i -
 # スクリプト実行モード（指定したファイルから読み取ってスクリプト実行）
 $ funcity -i script.fc
 
+# `-D` を使って事前定義変数を指定（Cプリプロセッサ風）
+$ funcity run -D env=prod -D debug -i script.fc
+
+# JSONファイルから事前定義変数を読み込み
+$ funcity run -d vars.base.json -d vars.local.json -i script.fc
+
 # スクリプト実行モード（明示的に指定。標準入力から読み取ってスクリプト実行）
 $ funcity run
 ```
 
 - コマンド `repl` / `run` を指定しない場合、オプションがなければ `repl` として扱われます。
 - `--input` または `-i` が指定されている場合は `run` として扱われます。
+- `--define` / `-D` は複数指定できます。`-D name` は `name=true`、
+  `-D name=value` は `value` を文字列として設定します。
+- `--define-json` / `-d` は複数指定できます。JSONのルートはオブジェクトである必要があり、
+  それ以外の場合はエラーになります。
+- 同じキーが `-d` と `-D` の両方に存在する場合は、`-D` が優先されます。
 - CLI起動時に `~/.funcityrc` を1回読み込み、REPL/スクリプト実行の前に実行します。
   `--no-rc` を指定すると読み込みを行いません。
 
@@ -767,6 +778,7 @@ const results = await runReducer(nodes, variables, logs);
 | :--- | :--- |
 | `typeof` | 第1引数に指定されたインスタンスの型名を返します。 |
 | `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します (funcity関数) |
+| `defaults` | 第1引数が`null`/`undefined`以外ならそのまま返し、`null`/`undefined`なら第2引数を返します (funcity関数) |
 | `toString` | 引数群を文字列に変換します。 |
 | `toBoolean` | 第1引数を真偽値に変換します。 |
 | `toNumber` | 第1引数を数値に変換します。 |
@@ -801,6 +813,7 @@ const results = await runReducer(nodes, variables, logs);
 | `reverse` | `Iterable`を逆順の配列にします。 |
 | `map` | 第1引数の関数を、各要素に適用して配列を返します。 |
 | `flatMap` | 第1引数の関数の結果を展開して結合します。 |
+| `flatten` | 入れ子になった`Iterable`を1段だけ展開します。 |
 | `filter` | 第1引数の関数の結果が真の要素だけ返します。 |
 | `collect` | 第1引数の関数の結果が`null`/`undefined`の場合を除外して配列化します。 |
 | `distinct` | 配列/`Iterable`から重複を除いて返します。 |
@@ -862,6 +875,18 @@ const results = await runReducer(nodes, variables, logs);
 
 通常の関数は、引数の式がすべて評価されます。
 しかしこの関数は特殊(funcity関数)で、第2第3引数は、第1引数の結果でどちらかだけが評価されます。
+
+### defaults
+
+`defaults`は、第1引数が`null`/`undefined`以外ならその値を返し、
+`null`/`undefined`なら第2引数を返します:
+
+```funcity
+{{defaults user.nickname? 'Guest'}}
+```
+
+この関数もfuncity関数なので、第2引数は必要な時だけ評価されます。
+`0`、`false`、`''` はそのまま返されます。
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -928,7 +953,7 @@ const results = await runReducer(nodes, variables, logs);
 それ以外は最後の引数を`Iterable`として配列化し、スライスした配列を返します。
 `end`引数は省略できます。
 
-### map,flatMap,filter
+### map,flatMap,flatten,filter
 
 第1引数に、引数を一つ受け取る関数を渡します。ラムダ式でもバインドされた変数でも構いません。
 第2引数に、配列のような`Iterable`オブジェクトを渡すことで、逐次処理を実行できます:
@@ -937,6 +962,12 @@ const results = await runReducer(nodes, variables, logs);
 {{map (fun [x] (mul x 10)) [12 34 56]}}
 {{flatMap (fun [x] [(mul x 10) (add x 1)]) [1 2]}}
 {{filter (fun [x] (mod x 2)) [1 2 3 4]}}
+```
+
+`flatten`は、関数を渡さずに入れ子の`Iterable`を1段展開できます:
+
+```funcity
+{{flatten [[1 2] [3] [4 5]]}}
 ```
 
 ### collect
