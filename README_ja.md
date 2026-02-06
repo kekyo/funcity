@@ -778,6 +778,7 @@ const results = await runReducer(nodes, variables, logs);
 | :--- | :--- |
 | `typeof` | 第1引数に指定されたインスタンスの型名を返します。 |
 | `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します (funcity関数) |
+| `defaults` | 第1引数が`null`/`undefined`以外ならそのまま返し、`null`/`undefined`なら第2引数を返します (funcity関数) |
 | `toString` | 引数群を文字列に変換します。 |
 | `toBoolean` | 第1引数を真偽値に変換します。 |
 | `toNumber` | 第1引数を数値に変換します。 |
@@ -812,6 +813,7 @@ const results = await runReducer(nodes, variables, logs);
 | `reverse` | `Iterable`を逆順の配列にします。 |
 | `map` | 第1引数の関数を、各要素に適用して配列を返します。 |
 | `flatMap` | 第1引数の関数の結果を展開して結合します。 |
+| `flatten` | 入れ子になった`Iterable`を1段だけ展開します。 |
 | `filter` | 第1引数の関数の結果が真の要素だけ返します。 |
 | `collect` | 第1引数の関数の結果が`null`/`undefined`の場合を除外して配列化します。 |
 | `distinct` | 配列/`Iterable`から重複を除いて返します。 |
@@ -873,6 +875,18 @@ const results = await runReducer(nodes, variables, logs);
 
 通常の関数は、引数の式がすべて評価されます。
 しかしこの関数は特殊(funcity関数)で、第2第3引数は、第1引数の結果でどちらかだけが評価されます。
+
+### defaults
+
+`defaults`は、第1引数が`null`/`undefined`以外ならその値を返し、
+`null`/`undefined`なら第2引数を返します:
+
+```funcity
+{{defaults user.nickname? 'Guest'}}
+```
+
+この関数もfuncity関数なので、第2引数は必要な時だけ評価されます。
+`0`、`false`、`''` はそのまま返されます。
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -939,7 +953,7 @@ const results = await runReducer(nodes, variables, logs);
 それ以外は最後の引数を`Iterable`として配列化し、スライスした配列を返します。
 `end`引数は省略できます。
 
-### map,flatMap,filter
+### map,flatMap,flatten,filter
 
 第1引数に、引数を一つ受け取る関数を渡します。ラムダ式でもバインドされた変数でも構いません。
 第2引数に、配列のような`Iterable`オブジェクトを渡すことで、逐次処理を実行できます:
@@ -948,6 +962,12 @@ const results = await runReducer(nodes, variables, logs);
 {{map (fun [x] (mul x 10)) [12 34 56]}}
 {{flatMap (fun [x] [(mul x 10) (add x 1)]) [1 2]}}
 {{filter (fun [x] (mod x 2)) [1 2 3 4]}}
+```
+
+`flatten`は、関数を渡さずに入れ子の`Iterable`を1段展開できます:
+
+```funcity
+{{flatten [[1 2] [3] [4 5]]}}
 ```
 
 ### collect

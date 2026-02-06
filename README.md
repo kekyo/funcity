@@ -780,6 +780,7 @@ The following are the standard functions:
 | :--- | :--- |
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third (funcity function) |
+| `defaults` | Returns the first argument unless it is `null`/`undefined`; otherwise returns the second (funcity function). |
 | `toString` | Converts the arguments to a string. |
 | `toBoolean` | Converts the first argument to a boolean. |
 | `toNumber` | Converts the first argument to a number. |
@@ -814,6 +815,7 @@ The following are the standard functions:
 | `reverse` | Reverses an `Iterable` into an array. |
 | `map` | Applies the function in the first argument to each element and returns an array. |
 | `flatMap` | Expands and concatenates results of the function in the first argument. |
+| `flatten` | Expands one level of nested `Iterable` values. |
 | `filter` | Returns only the elements where the result of the function in the first argument is true. |
 | `collect` | Builds an array excluding results that are `null`/`undefined` from the function in the first argument. |
 | `distinct` | Returns unique elements from an array/`Iterable`. |
@@ -880,6 +882,17 @@ The `cond` function returns either the value of the second argument or the value
 In regular functions, all arguments are evaluated.
 However, this function is special ("funcity function"): only one of the second and third arguments is evaluated, depending on the result of the first argument.
 
+### defaults
+
+`defaults` returns the first argument unless it is `null`/`undefined`; otherwise it returns the second argument:
+
+```funcity
+{{defaults user.nickname? 'Guest'}}
+```
+
+This function is also a "funcity function", so the second argument is evaluated only when needed.
+Values like `0`, `false`, and `''` are kept as-is.
+
 ### toString,toBoolean,toNumber,toBigInt
 
 These functions convert the first argument to a string, boolean, number, or bigint.
@@ -945,7 +958,7 @@ If the last argument is a string, `slice` behaves like `String.prototype.slice` 
 Otherwise it treats the last argument as an `Iterable`, converts it to an array, and returns a sliced array.
 The `end` argument can be omitted.
 
-### map,flatMap,filter
+### map,flatMap,flatten,filter
 
 Pass a function that takes one argument as the first argument. It can be a lambda or a bound variable.
 By passing an array-like `Iterable` as the second argument, it runs sequential processing:
@@ -954,6 +967,12 @@ By passing an array-like `Iterable` as the second argument, it runs sequential p
 {{map (fun [x] (mul x 10)) [12 34 56]}}
 {{flatMap (fun [x] [(mul x 10) (add x 1)]) [1 2]}}
 {{filter (fun [x] (mod x 2)) [1 2 3 4]}}
+```
+
+Use `flatten` to unwrap one level of nested `Iterable` values without passing a function:
+
+```funcity
+{{flatten [[1 2] [3] [4 5]]}}
 ```
 
 ### collect
