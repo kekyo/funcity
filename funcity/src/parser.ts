@@ -72,6 +72,7 @@ type PartialParsedExpressionNode =
 
 const combineIntoScopeMultipleExpressions = (
   expressionList: readonly FunCityExpressionNode[],
+  logs: FunCityLogEntry[],
   ...outerRanges: FunCityRange[]
 ): FunCityExpressionNode | undefined => {
   switch (expressionList.length) {
@@ -87,7 +88,8 @@ const combineIntoScopeMultipleExpressions = (
         nodes: expressionList,
         range: widerRange(
           ...expressionList.map((node) => node.range),
-          ...outerRanges
+          ...outerRanges,
+          logs
         ),
       };
     }
@@ -123,7 +125,7 @@ const parseDotChain = (
       logs.push({
         type: 'error',
         description: 'Required member identity after dot',
-        range: widerRange(actualDotToken.range, nextToken.range),
+        range: widerRange(actualDotToken.range, nextToken.range, logs),
       });
       break;
     }
@@ -146,7 +148,7 @@ const parseDotChain = (
     kind: 'dot',
     base: baseNode,
     segments,
-    range: widerRange(...ranges),
+    range: widerRange(...ranges, logs),
   };
 };
 
@@ -191,14 +193,16 @@ const parsePartialExpression = (
           if (!closeToken) {
             range = widerRange(
               token.range,
-              ...innerNodes.map((node) => node.range)
+              ...innerNodes.map((node) => node.range),
+              logs
             );
             logs.push({
               type: 'error',
               description: 'Could not find close parenthesis',
               range: widerRange(
                 token.range,
-                ...innerNodes.map((node) => node.range)
+                ...innerNodes.map((node) => node.range),
+                logs
               ),
             });
           } else {
@@ -206,7 +210,8 @@ const parsePartialExpression = (
             range = widerRange(
               token.range,
               ...innerNodes.map((node) => node.range),
-              closeToken.range
+              closeToken.range,
+              logs
             );
             if (closeToken.kind !== 'close' || closeToken.symbol !== ')') {
               logs.push({
@@ -224,7 +229,11 @@ const parsePartialExpression = (
             };
           } else {
             // When multiple expressions exist, they must be grouped into a single expression within a scope.
-            const node = combineIntoScopeMultipleExpressions(innerNodes, range);
+            const node = combineIntoScopeMultipleExpressions(
+              innerNodes,
+              logs,
+              range
+            );
             return node ? parseDotChain(cursor, logs, node) : node;
           }
         }
@@ -236,7 +245,8 @@ const parsePartialExpression = (
           if (!closeToken) {
             range = widerRange(
               token.range,
-              ...itemNodes.map((node) => node.range)
+              ...itemNodes.map((node) => node.range),
+              logs
             );
             logs.push({
               type: 'error',
@@ -248,7 +258,8 @@ const parsePartialExpression = (
             range = widerRange(
               token.range,
               ...itemNodes.map((node) => node.range),
-              closeToken.range
+              closeToken.range,
+              logs
             );
             if (closeToken.kind !== 'close' || closeToken.symbol !== ']') {
               logs.push({
@@ -327,7 +338,7 @@ const finalizeApplicationException = (
       kind: 'apply',
       func: func as FunCityExpressionNode,
       args: [], // Unit application: `foobar ()`
-      range: widerRange(func.range, arg0.range),
+      range: widerRange(func.range, arg0.range, logs),
     };
   }
   const args = partialNodes
@@ -337,7 +348,7 @@ const finalizeApplicationException = (
     kind: 'apply',
     func: func as FunCityExpressionNode,
     args,
-    range: widerRange(func.range, ...args.map((node) => node.range)),
+    range: widerRange(func.range, ...args.map((node) => node.range), logs),
   };
 };
 
@@ -563,7 +574,7 @@ const getBranchState = (statementState: LogicalStatementState): BranchState => {
   }
 };
 
-const flushExpressions = (branch: BranchState) => {
+const flushExpressions = (branch: BranchState, logs: FunCityLogEntry[]) => {
   if (branch.exprBuffer.length === 0) {
     return;
   }
@@ -573,32 +584,40 @@ const flushExpressions = (branch: BranchState) => {
     branch.blocks.push({
       kind: 'scope',
       nodes: branch.exprBuffer,
-      range: widerRange(...branch.exprBuffer.map((node) => node.range)),
+      range: widerRange(...branch.exprBuffer.map((node) => node.range), logs),
     });
   }
   branch.exprBuffer = [];
 };
 
-const flushCurrentBranch = (statementStates: LogicalStatementState[]) => {
+const flushCurrentBranch = (
+  statementStates: LogicalStatementState[],
+  logs: FunCityLogEntry[]
+) => {
   const statementState = statementStates[statementStates.length - 1]!;
-  flushExpressions(getBranchState(statementState));
+  flushExpressions(getBranchState(statementState), logs);
 };
 
-const flushStatementState = (statementState: LogicalStatementState) => {
+const flushStatementState = (
+  statementState: LogicalStatementState,
+  logs: FunCityLogEntry[]
+) => {
   switch (statementState.kind) {
     case 'root': {
-      flushExpressions(statementState.branch);
+      flushExpressions(statementState.branch, logs);
       break;
     }
     case 'if': {
-      flushExpressions(statementState.then);
-      flushExpressions(statementState.else);
-      statementState.elseIfs.forEach((elseIf) => flushExpressions(elseIf.then));
+      flushExpressions(statementState.then, logs);
+      flushExpressions(statementState.else, logs);
+      statementState.elseIfs.forEach((elseIf) =>
+        flushExpressions(elseIf.then, logs)
+      );
       break;
     }
     case 'while':
     case 'for': {
-      flushExpressions(statementState.repeat);
+      flushExpressions(statementState.repeat, logs);
       break;
     }
   }
@@ -615,24 +634,26 @@ const pushExpressionNode = (
 
 const pushBlockNode = (
   statementStates: LogicalStatementState[],
-  node: FunCityBlockNode
+  node: FunCityBlockNode,
+  logs: FunCityLogEntry[]
 ) => {
   const statementState = statementStates[statementStates.length - 1]!;
   const branch = getBranchState(statementState);
-  flushExpressions(branch);
+  flushExpressions(branch, logs);
   branch.blocks.push(node);
 };
 
 const pushNode = (
   statementStates: LogicalStatementState[],
-  node: FunCityBlockNode
+  node: FunCityBlockNode,
+  logs: FunCityLogEntry[]
 ) => {
   switch (node.kind) {
     case 'text':
     case 'if':
     case 'while':
     case 'for': {
-      pushBlockNode(statementStates, node);
+      pushBlockNode(statementStates, node, logs);
       break;
     }
     default: {
@@ -705,11 +726,15 @@ const parseBlockCore = (
           });
           break;
         }
-        pushNode(statementStates, {
-          kind: 'text',
-          text: token.text,
-          range: token.range,
-        });
+        pushNode(
+          statementStates,
+          {
+            kind: 'text',
+            text: token.text,
+            range: token.range,
+          },
+          logs
+        );
         break;
       }
       case 'open': {
@@ -729,7 +754,7 @@ const parseBlockCore = (
         } else {
           const node = parseExpression(cursor, logs);
           if (node) {
-            pushNode(statementStates, node);
+            pushNode(statementStates, node, logs);
           }
         }
         break;
@@ -738,7 +763,7 @@ const parseBlockCore = (
         // Check closing.
         cursor.skipToken();
         if (token.symbol === '}}' && isCodeMode) {
-          flushCurrentBranch(statementStates);
+          flushCurrentBranch(statementStates, logs);
           break;
         }
         if (!isInExpressionBlock) {
@@ -757,7 +782,7 @@ const parseBlockCore = (
           });
           break;
         }
-        flushCurrentBranch(statementStates);
+        flushCurrentBranch(statementStates, logs);
         isInExpressionBlock = false;
         break;
       }
@@ -780,7 +805,8 @@ const parseBlockCore = (
                 description: 'Required `if` condition',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
               break;
@@ -806,7 +832,8 @@ const parseBlockCore = (
                 description: 'Could not take any arguments in `else` statement',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
             }
@@ -835,7 +862,7 @@ const parseBlockCore = (
               });
               break;
             }
-            flushExpressions(getBranchState(lastState));
+            flushExpressions(getBranchState(lastState), logs);
             lastState.currentBlock = 'else';
             lastState.currentElseIfIndex = undefined;
             break;
@@ -849,7 +876,8 @@ const parseBlockCore = (
                 description: 'Required `elseif` condition',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
               break;
@@ -879,7 +907,7 @@ const parseBlockCore = (
               });
               break;
             }
-            flushExpressions(getBranchState(lastState));
+            flushExpressions(getBranchState(lastState), logs);
             const conditionNode = args[0]!;
             const elseIfIndex = lastState.elseIfs.length;
             lastState.elseIfs.push({
@@ -900,7 +928,8 @@ const parseBlockCore = (
                 description: 'Required `while` condition',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
               break;
@@ -924,7 +953,8 @@ const parseBlockCore = (
                   'Required `for` bind identity and iterable expression',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
               break;
@@ -957,7 +987,8 @@ const parseBlockCore = (
                 description: 'Could not take any arguments in `end` statement',
                 range: widerRange(
                   token.range,
-                  ...args.map((node) => node.range)
+                  ...args.map((node) => node.range),
+                  logs
                 ),
               });
             }
@@ -971,7 +1002,7 @@ const parseBlockCore = (
               break;
             }
             const lastState = statementStates.pop()!;
-            flushStatementState(lastState);
+            flushStatementState(lastState, logs);
             switch (lastState.kind) {
               case 'if': {
                 let elseBlocks = lastState.else.blocks;
@@ -991,53 +1022,69 @@ const parseBlockCore = (
                       elseIf.condition.range,
                       ...elseIf.then.blocks.map((node) => node.range),
                       ...elseBlocks.map((node) => node.range),
-                      token.range
+                      token.range,
+                      logs
                     ),
                   };
                   elseBlocks = [elseIfNode];
                 }
-                pushNode(statementStates, {
-                  kind: 'if',
-                  condition: lastState.condition,
-                  then: lastState.then.blocks,
-                  else: elseBlocks,
-                  range: widerRange(
-                    lastState.startRange,
-                    lastState.condition.range,
-                    ...lastState.then.blocks.map((node) => node.range),
-                    ...elseBlocks.map((node) => node.range),
-                    token.range
-                  ),
-                });
+                pushNode(
+                  statementStates,
+                  {
+                    kind: 'if',
+                    condition: lastState.condition,
+                    then: lastState.then.blocks,
+                    else: elseBlocks,
+                    range: widerRange(
+                      lastState.startRange,
+                      lastState.condition.range,
+                      ...lastState.then.blocks.map((node) => node.range),
+                      ...elseBlocks.map((node) => node.range),
+                      token.range,
+                      logs
+                    ),
+                  },
+                  logs
+                );
                 break;
               }
               case 'while': {
-                pushNode(statementStates, {
-                  kind: 'while',
-                  condition: lastState.condition,
-                  repeat: lastState.repeat.blocks,
-                  range: widerRange(
-                    lastState.startRange,
-                    lastState.condition.range,
-                    ...lastState.repeat.blocks.map((node) => node.range),
-                    token.range
-                  ),
-                });
+                pushNode(
+                  statementStates,
+                  {
+                    kind: 'while',
+                    condition: lastState.condition,
+                    repeat: lastState.repeat.blocks,
+                    range: widerRange(
+                      lastState.startRange,
+                      lastState.condition.range,
+                      ...lastState.repeat.blocks.map((node) => node.range),
+                      token.range,
+                      logs
+                    ),
+                  },
+                  logs
+                );
                 break;
               }
               case 'for': {
-                pushNode(statementStates, {
-                  kind: 'for',
-                  bind: lastState.bind,
-                  iterable: lastState.iterable,
-                  repeat: lastState.repeat.blocks,
-                  range: widerRange(
-                    lastState.startRange,
-                    lastState.bind.range,
-                    ...lastState.repeat.blocks.map((node) => node.range),
-                    token.range
-                  ),
-                });
+                pushNode(
+                  statementStates,
+                  {
+                    kind: 'for',
+                    bind: lastState.bind,
+                    iterable: lastState.iterable,
+                    repeat: lastState.repeat.blocks,
+                    range: widerRange(
+                      lastState.startRange,
+                      lastState.bind.range,
+                      ...lastState.repeat.blocks.map((node) => node.range),
+                      token.range,
+                      logs
+                    ),
+                  },
+                  logs
+                );
                 break;
               }
             }
@@ -1046,7 +1093,7 @@ const parseBlockCore = (
           default: {
             const node = parseExpression(cursor, logs);
             if (node) {
-              pushNode(statementStates, node);
+              pushNode(statementStates, node, logs);
             }
             break;
           }
@@ -1064,19 +1111,22 @@ const parseBlockCore = (
         }
         const node = parseExpression(cursor, logs);
         if (node) {
-          pushNode(statementStates, node);
+          pushNode(statementStates, node, logs);
         }
         break;
       }
     }
   }
 
-  flushStatementState(rootState);
+  flushStatementState(rootState, logs);
   if (statementStates.length !== 1) {
     logs.push({
       type: 'error',
       description: `Could not find statement closing`,
-      range: widerRange(...statementStates.map((state) => state.startRange)),
+      range: widerRange(
+        ...statementStates.map((state) => state.startRange),
+        logs
+      ),
     });
   }
   return rootState.branch.blocks;

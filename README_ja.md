@@ -70,9 +70,9 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-今すぐ試したい場合は、[Play groundページ](https://kekyo.github.io/funcity/) をどうぞ！
+今すぐ試したい場合は、[Playgroundページ](https://kekyo.github.io/funcity/) をどうぞ！
 
-[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
+[![funcity Playground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
 
 更に、このインタープリタを、あなたのアプリケーションに簡単に組み込むことが出来ます:
 
@@ -83,7 +83,11 @@ const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
 // インタープリタを実行
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // 結果の表示
 console.log(text);
@@ -612,10 +616,11 @@ flowchart LR
 ```typescript
 const run = async (
   script: string,
+  sourceId: string,
   logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // トークナイザーの実行
-  const blocks: FunCityToken[] = runTokenizer(script, logs);
+  const blocks: FunCityToken[] = runTokenizer(script, logs, sourceId);
 
   // パーサーの実行
   const nodes: FunCityBlockNode[] = runParser(blocks, logs);

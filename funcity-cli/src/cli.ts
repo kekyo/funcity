@@ -289,10 +289,11 @@ const runCodeWithContext = async (
   context: FunCityReducerContext,
   warningLogs: FunCityWarningEntry[],
   script: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  sourceId: string
 ): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
   const logs: FunCityLogEntry[] = [];
-  const tokens = runCodeTokenizer(script, logs);
+  const tokens = runCodeTokenizer(script, logs, sourceId);
   const nodes = parseExpressions(tokens, logs);
   if (logs.length >= 1) {
     return { output: undefined, logs };
@@ -319,10 +320,11 @@ const runScriptWithContext = async (
   warningLogs: FunCityWarningEntry[],
   script: string,
   signal: AbortSignal,
+  sourceId: string,
   onOutput?: (chunk: string) => void
 ): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
   const logs: FunCityLogEntry[] = [];
-  const tokens = runTokenizer(script, logs);
+  const tokens = runTokenizer(script, logs, sourceId);
   const nodes = runParser(tokens, logs);
   if (logs.length >= 1) {
     return { output: undefined, logs };
@@ -362,6 +364,7 @@ export interface ReplSession {
     signal: AbortSignal,
     options?: {
       emitIt?: boolean;
+      sourceId?: string;
     }
   ) => Promise<ReplEvaluationResult>;
   getPrompt: () => Promise<string>;
@@ -395,11 +398,12 @@ export const createReplSession = (
     signal: AbortSignal,
     options?: {
       emitIt?: boolean;
+      sourceId?: string;
     }
   ): Promise<ReplEvaluationResult> => {
     // Tokenize and parse step
     const logs: FunCityLogEntry[] = [];
-    const tokens = runCodeTokenizer(line, logs);
+    const tokens = runCodeTokenizer(line, logs, options?.sourceId ?? '<repl>');
     const nodes = parseExpressions(tokens, logs);
     if (logs.length >= 1) {
       return {
@@ -488,10 +492,10 @@ const loadRcForRepl = async (session: ReplSession): Promise<void> => {
   const { output, logs } = await session.evaluateLine(
     script,
     new AbortController().signal,
-    { emitIt: false }
+    { emitIt: false, sourceId: rcPath }
   );
   if (logs.length > 0) {
-    outputErrors(rcPath, logs, console);
+    outputErrors(logs, console);
   }
   if (output) {
     console.log(output);
@@ -543,7 +547,7 @@ const runRepl = async (
         signal
       );
       if (logs.length > 0) {
-        outputErrors('<repl>', logs, console);
+        outputErrors(logs, console);
       }
       if (output) {
         console.log(output);
@@ -633,7 +637,11 @@ const runRepl = async (
 
 //////////////////////////////////////////////////////////////////////////////
 
-export const runScriptToText = async (script: string, basePath?: string) => {
+export const runScriptToText = async (
+  script: string,
+  sourceId: string,
+  basePath?: string
+) => {
   const require = createRequireFunction(basePath);
   const variables = buildCandidateVariables(
     objectVariables,
@@ -644,12 +652,17 @@ export const runScriptToText = async (script: string, basePath?: string) => {
     }
   );
   const logs: FunCityLogEntry[] = [];
-  const output = await runScriptOnceToText(script, { variables, logs });
+  const output = await runScriptOnceToText(script, {
+    variables,
+    logs,
+    sourceId,
+  });
   return { output, logs };
 };
 
 export const runScriptToTextStreaming = async (
   script: string,
+  sourceId: string,
   basePath?: string,
   onOutput?: (chunk: string) => void
 ) => {
@@ -669,6 +682,7 @@ export const runScriptToTextStreaming = async (
     warningLogs,
     script,
     new AbortController().signal,
+    sourceId,
     onOutput
   );
   return { output, logs };
@@ -688,10 +702,11 @@ const loadRcForContext = async (
     context,
     warningLogs,
     script,
-    new AbortController().signal
+    new AbortController().signal,
+    rcPath
   );
   if (logs.length > 0) {
-    outputErrors(rcPath, logs, console);
+    outputErrors(logs, console);
   }
   if (output) {
     console.log(output);
@@ -704,7 +719,7 @@ const runScript = async (
   predefinedVariables: PredefinedVariables
 ): Promise<void> => {
   const isStdin = input === '-';
-  const source = isStdin ? '<stdin>' : input;
+  const sourceId = isStdin ? '<stdin>' : input;
   const script = isStdin
     ? await readStream(process.stdin)
     : await readFile(input, 'utf8');
@@ -736,12 +751,13 @@ const runScript = async (
     warningLogs,
     script,
     new AbortController().signal,
+    sourceId,
     (chunk) => {
       process.stdout.write(chunk);
     }
   );
 
-  const hasError = outputErrors(source, result.logs, console);
+  const hasError = outputErrors(result.logs, console);
   if (hasError) {
     process.exitCode = 1;
   }

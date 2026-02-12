@@ -63,7 +63,11 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 // Run the interpreter
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // Display the result text
 console.log(text);

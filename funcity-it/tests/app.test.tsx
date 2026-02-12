@@ -93,7 +93,7 @@ describe('funcity-it App', () => {
       expect(globalThis.fetch).toHaveBeenCalled();
     });
 
-    const titleLink = getByRole('link', { name: /funcity play ground/i });
+    const titleLink = getByRole('link', { name: /funcity Playground/i });
 
     expect(titleLink).toHaveStyle({ display: 'flex' });
     expect(titleLink).toHaveStyle({ alignItems: 'center' });

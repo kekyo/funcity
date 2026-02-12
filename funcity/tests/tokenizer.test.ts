@@ -10,10 +10,12 @@ import { runCodeTokenizer, runTokenizer } from '../src/tokenizer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
+const sourceId = 'unknown.fc';
+
 describe('scripting tokenize test', () => {
   it('empty', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('', logs);
+    const tokens = runTokenizer('', logs, sourceId);
 
     expect(tokens).toEqual([]);
     expect(logs).toEqual([]);
@@ -21,13 +23,14 @@ describe('scripting tokenize test', () => {
 
   it('text block token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('Hello', logs);
+    const tokens = runTokenizer('Hello', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'text',
         text: 'Hello',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 5 },
         },
@@ -36,16 +39,25 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('custom sourceId', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('Hello', logs, 'custom.fc');
+
+    expect(tokens[0]?.range.sourceId).toBe('custom.fc');
+    expect(logs).toEqual([]);
+  });
+
   it('escaped block braces in text', () => {
     const logs: FunCityLogEntry[] = [];
     // Escaped block braces: 'Hello \{{World\}}'
-    const tokens = runTokenizer('Hello \\{{World\\}}', logs);
+    const tokens = runTokenizer('Hello \\{{World\\}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'text',
         text: 'Hello {{World}}',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 17 },
         },
@@ -57,13 +69,14 @@ describe('scripting tokenize test', () => {
   it('literal backslash is kept', () => {
     const logs: FunCityLogEntry[] = [];
     // Escape character '\' is not affected without block braces.
-    const tokens = runTokenizer('A\\nB', logs);
+    const tokens = runTokenizer('A\\nB', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'text',
         text: 'A\\nB',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 4 },
         },
@@ -74,13 +87,14 @@ describe('scripting tokenize test', () => {
 
   it('variable token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{hello}}', logs);
+    const tokens = runTokenizer('{{hello}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -89,6 +103,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -97,6 +112,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -107,13 +123,14 @@ describe('scripting tokenize test', () => {
 
   it('optional variable token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{foo?}}', logs);
+    const tokens = runTokenizer('{{foo?}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -122,6 +139,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo?',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 6 },
         },
@@ -130,6 +148,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 8 },
         },
@@ -140,13 +159,14 @@ describe('scripting tokenize test', () => {
 
   it('code token without block braces', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runCodeTokenizer("foo 123 'bar'", logs);
+    const tokens = runCodeTokenizer("foo 123 'bar'", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -155,6 +175,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 7 },
         },
@@ -163,6 +184,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 13 },
         },
@@ -173,13 +195,14 @@ describe('scripting tokenize test', () => {
 
   it('code token with line continuation (LF)', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runCodeTokenizer('add 1 \\\n2', logs);
+    const tokens = runCodeTokenizer('add 1 \\\n2', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'identity',
         name: 'add',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -188,6 +211,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 5 },
         },
@@ -196,6 +220,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 2,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 1 },
         },
@@ -207,13 +232,14 @@ describe('scripting tokenize test', () => {
   it('code token with line continuation (CRLF)', () => {
     const logs: FunCityLogEntry[] = [];
     const crlf = String.fromCharCode(13, 10);
-    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, logs);
+    const tokens = runCodeTokenizer(`add 1 \\${crlf}2`, logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'identity',
         name: 'add',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -222,6 +248,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 5 },
         },
@@ -230,6 +257,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 2,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 1 },
         },
@@ -240,13 +268,14 @@ describe('scripting tokenize test', () => {
 
   it('code token with line comment', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runCodeTokenizer('foo // bar\nbaz', logs);
+    const tokens = runCodeTokenizer('foo // bar\nbaz', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -255,6 +284,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -263,6 +293,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'baz',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -273,13 +304,14 @@ describe('scripting tokenize test', () => {
 
   it('code token with semicolon', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runCodeTokenizer('foo;bar', logs);
+    const tokens = runCodeTokenizer('foo;bar', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -288,6 +320,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'semicolon',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 4 },
         },
@@ -296,6 +329,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 7 },
         },
@@ -306,13 +340,14 @@ describe('scripting tokenize test', () => {
 
   it('member access variable token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{foo.bar}}', logs);
+    const tokens = runTokenizer('{{foo.bar}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -321,6 +356,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -329,6 +365,7 @@ describe('scripting tokenize test', () => {
         kind: 'dot',
         optional: false,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -337,6 +374,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
@@ -345,6 +383,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -355,13 +394,14 @@ describe('scripting tokenize test', () => {
 
   it('optional member access variable token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{foo?.bar}}', logs);
+    const tokens = runTokenizer('{{foo?.bar}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -370,6 +410,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -378,6 +419,7 @@ describe('scripting tokenize test', () => {
         kind: 'dot',
         optional: true,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 7 },
         },
@@ -386,6 +428,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -394,6 +437,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -404,13 +448,14 @@ describe('scripting tokenize test', () => {
 
   it('optional member access with postfix token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{foo?.bar?}}', logs);
+    const tokens = runTokenizer('{{foo?.bar?}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -419,6 +464,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -427,6 +473,7 @@ describe('scripting tokenize test', () => {
         kind: 'dot',
         optional: true,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 7 },
         },
@@ -435,6 +482,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'bar?',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 11 },
         },
@@ -443,6 +491,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -453,13 +502,14 @@ describe('scripting tokenize test', () => {
 
   it('combined both text and apply body tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('ABC{{hello}}DEF', logs);
+    const tokens = runTokenizer('ABC{{hello}}DEF', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'text',
         text: 'ABC',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -468,6 +518,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 5 },
         },
@@ -476,6 +527,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 10 },
         },
@@ -484,6 +536,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -492,6 +545,7 @@ describe('scripting tokenize test', () => {
         kind: 'text',
         text: 'DEF',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 15 },
         },
@@ -502,13 +556,14 @@ describe('scripting tokenize test', () => {
 
   it('before space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{  'hello'}}", logs);
+    const tokens = runTokenizer("{{  'hello'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -517,6 +572,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 11 },
         },
@@ -525,6 +581,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -535,13 +592,14 @@ describe('scripting tokenize test', () => {
 
   it('after space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'  }}", logs);
+    const tokens = runTokenizer("{{'hello'  }}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -550,6 +608,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -558,6 +617,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -568,13 +628,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple lines 2', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'\n12345}}", logs);
+    const tokens = runTokenizer("{{'hello'\n12345}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -583,6 +644,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -591,6 +653,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -599,6 +662,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 5 },
         },
@@ -607,6 +671,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 6 },
           end: { line: 2, column: 7 },
         },
@@ -617,13 +682,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple lines 3', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'\n12345\nfoobar}}", logs);
+    const tokens = runTokenizer("{{'hello'\n12345\nfoobar}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -632,6 +698,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -640,6 +707,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -648,6 +716,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 5 },
         },
@@ -656,6 +725,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 6 },
           end: { line: 2, column: 6 },
         },
@@ -664,6 +734,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 6 },
         },
@@ -672,6 +743,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 7 },
           end: { line: 3, column: 8 },
         },
@@ -682,13 +754,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple lines after space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'  \n12345}}", logs);
+    const tokens = runTokenizer("{{'hello'  \n12345}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -697,6 +770,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -705,6 +779,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 12 },
         },
@@ -713,6 +788,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 5 },
         },
@@ -721,6 +797,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 6 },
           end: { line: 2, column: 7 },
         },
@@ -731,13 +808,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple lines before space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'\n  12345}}", logs);
+    const tokens = runTokenizer("{{'hello'\n  12345}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -746,6 +824,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -754,6 +833,7 @@ describe('scripting tokenize test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -762,6 +842,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 2, column: 3 },
           end: { line: 2, column: 7 },
         },
@@ -770,6 +851,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 8 },
           end: { line: 2, column: 9 },
         },
@@ -780,13 +862,14 @@ describe('scripting tokenize test', () => {
 
   it('string token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'hello'}}", logs);
+    const tokens = runTokenizer("{{'hello'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -795,6 +878,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -803,6 +887,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -813,7 +898,7 @@ describe('scripting tokenize test', () => {
 
   it('string token with double quotes', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{"hello"}}', logs);
+    const tokens = runTokenizer('{{"hello"}}', logs, sourceId);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -824,7 +909,7 @@ describe('scripting tokenize test', () => {
 
   it('string token with backticks', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{`hello`}}', logs);
+    const tokens = runTokenizer('{{`hello`}}', logs, sourceId);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -835,7 +920,7 @@ describe('scripting tokenize test', () => {
 
   it('string token allows other quotes unescaped', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{"a\'b`c"}}', logs);
+    const tokens = runTokenizer('{{"a\'b`c"}}', logs, sourceId);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -846,13 +931,14 @@ describe('scripting tokenize test', () => {
 
   it('empty string token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{''}}", logs);
+    const tokens = runTokenizer("{{''}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -861,6 +947,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: '',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -869,6 +956,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 6 },
         },
@@ -879,7 +967,11 @@ describe('scripting tokenize test', () => {
 
   it('string token with escapes', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'a\\n\\t\\r\\v\\f\\0\\\\\\'b'}}", logs);
+    const tokens = runTokenizer(
+      "{{'a\\n\\t\\r\\v\\f\\0\\\\\\'b'}}",
+      logs,
+      sourceId
+    );
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -890,7 +982,7 @@ describe('scripting tokenize test', () => {
 
   it('string token with quote escapes', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{"a\\\'b\\"c\\`d"}}', logs);
+    const tokens = runTokenizer('{{"a\\\'b\\"c\\`d"}}', logs, sourceId);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -901,7 +993,7 @@ describe('scripting tokenize test', () => {
 
   it('string token with invalid escape keeps raw', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{'a\\xb'}}", logs);
+    const tokens = runTokenizer("{{'a\\xb'}}", logs, sourceId);
 
     expect(tokens[1]).toMatchObject({
       kind: 'string',
@@ -913,13 +1005,14 @@ describe('scripting tokenize test', () => {
 
   it('number token 12345', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{12345}}', logs);
+    const tokens = runTokenizer('{{12345}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -928,6 +1021,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -936,6 +1030,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -946,13 +1041,14 @@ describe('scripting tokenize test', () => {
 
   it('number token -1234', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{-1234}}', logs);
+    const tokens = runTokenizer('{{-1234}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -961,6 +1057,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: -1234,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -969,6 +1066,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -979,13 +1077,14 @@ describe('scripting tokenize test', () => {
 
   it('number token +1234', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{+1234}}', logs);
+    const tokens = runTokenizer('{{+1234}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -994,6 +1093,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 1234,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -1002,6 +1102,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -1012,13 +1113,14 @@ describe('scripting tokenize test', () => {
 
   it('number token 12.34', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{12.34}}', logs);
+    const tokens = runTokenizer('{{12.34}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1027,6 +1129,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12.34,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -1035,6 +1138,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -1045,13 +1149,14 @@ describe('scripting tokenize test', () => {
 
   it('variable token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{hello}}', logs);
+    const tokens = runTokenizer('{{hello}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1060,6 +1165,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -1068,6 +1174,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -1078,13 +1185,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{foo 123 'bar'}}", logs);
+    const tokens = runTokenizer("{{foo 123 'bar'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1093,6 +1201,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -1101,6 +1210,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
@@ -1109,6 +1219,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 15 },
         },
@@ -1117,6 +1228,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 16 },
           end: { line: 1, column: 17 },
         },
@@ -1127,13 +1239,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple token with multiple spaces', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{foo  123  'bar'}}", logs);
+    const tokens = runTokenizer("{{foo  123  'bar'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1142,6 +1255,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -1150,6 +1264,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1158,6 +1273,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 17 },
         },
@@ -1166,6 +1282,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },
@@ -1176,13 +1293,14 @@ describe('scripting tokenize test', () => {
 
   it('variable parenteses token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{(hello)}}', logs);
+    const tokens = runTokenizer('{{(hello)}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1191,6 +1309,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1199,6 +1318,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1207,6 +1327,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1215,6 +1336,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -1225,13 +1347,14 @@ describe('scripting tokenize test', () => {
 
   it('string parenteses token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{('hello')}}", logs);
+    const tokens = runTokenizer("{{('hello')}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1240,6 +1363,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1248,6 +1372,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 10 },
         },
@@ -1256,6 +1381,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1264,6 +1390,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1274,13 +1401,14 @@ describe('scripting tokenize test', () => {
 
   it('number parenteses token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{(12345)}}', logs);
+    const tokens = runTokenizer('{{(12345)}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1289,6 +1417,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1297,6 +1426,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1305,6 +1435,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1313,6 +1444,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -1323,13 +1455,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple parenteses tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{(foo 123 'bar')}}", logs);
+    const tokens = runTokenizer("{{(foo 123 'bar')}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1338,6 +1471,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1346,6 +1480,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 6 },
         },
@@ -1354,6 +1489,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1362,6 +1498,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 16 },
         },
@@ -1370,6 +1507,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
         },
@@ -1378,6 +1516,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },
@@ -1388,13 +1527,14 @@ describe('scripting tokenize test', () => {
 
   it('nested multiple parenteses tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{foo (123) 'bar'}}", logs);
+    const tokens = runTokenizer("{{foo (123) 'bar'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1403,6 +1543,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -1411,6 +1552,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -1419,6 +1561,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1427,6 +1570,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1435,6 +1579,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 17 },
         },
@@ -1443,6 +1588,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },
@@ -1453,13 +1599,14 @@ describe('scripting tokenize test', () => {
 
   it('open token before space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{  (12345)}}', logs);
+    const tokens = runTokenizer('{{  (12345)}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1468,6 +1615,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 5 },
         },
@@ -1476,6 +1624,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 10 },
         },
@@ -1484,6 +1633,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1492,6 +1642,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1502,13 +1653,14 @@ describe('scripting tokenize test', () => {
 
   it('open token after space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{(  12345)}}', logs);
+    const tokens = runTokenizer('{{(  12345)}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1517,6 +1669,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1525,6 +1678,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 10 },
         },
@@ -1533,6 +1687,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1541,6 +1696,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1551,13 +1707,14 @@ describe('scripting tokenize test', () => {
 
   it('close token before space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{(12345  )}}', logs);
+    const tokens = runTokenizer('{{(12345  )}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1566,6 +1723,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1574,6 +1732,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1582,6 +1741,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1590,6 +1750,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1600,13 +1761,14 @@ describe('scripting tokenize test', () => {
 
   it('close token after space', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{(12345)  }}', logs);
+    const tokens = runTokenizer('{{(12345)  }}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1615,6 +1777,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1623,6 +1786,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1631,6 +1795,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1639,6 +1804,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1649,13 +1815,14 @@ describe('scripting tokenize test', () => {
 
   it('variable bracket token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{[hello]}}', logs);
+    const tokens = runTokenizer('{{[hello]}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1664,6 +1831,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1672,6 +1840,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1680,6 +1849,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1688,6 +1858,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -1698,13 +1869,14 @@ describe('scripting tokenize test', () => {
 
   it('string bracket token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{['hello']}}", logs);
+    const tokens = runTokenizer("{{['hello']}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1713,6 +1885,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1721,6 +1894,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 10 },
         },
@@ -1729,6 +1903,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1737,6 +1912,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1747,13 +1923,14 @@ describe('scripting tokenize test', () => {
 
   it('number bracket token', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{[12345]}}', logs);
+    const tokens = runTokenizer('{{[12345]}}', logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1762,6 +1939,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1770,6 +1948,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1778,6 +1957,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1786,6 +1966,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -1796,13 +1977,14 @@ describe('scripting tokenize test', () => {
 
   it('multiple bracket tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{[foo 123 'bar']}}", logs);
+    const tokens = runTokenizer("{{[foo 123 'bar']}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1811,6 +1993,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1819,6 +2002,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 6 },
         },
@@ -1827,6 +2011,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1835,6 +2020,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 16 },
         },
@@ -1843,6 +2029,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
         },
@@ -1851,6 +2038,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },
@@ -1861,13 +2049,14 @@ describe('scripting tokenize test', () => {
 
   it('nested multiple bracket tokens', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer("{{foo [123] 'bar'}}", logs);
+    const tokens = runTokenizer("{{foo [123] 'bar'}}", logs, sourceId);
 
     expect(tokens).toEqual([
       {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1876,6 +2065,7 @@ describe('scripting tokenize test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -1884,6 +2074,7 @@ describe('scripting tokenize test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -1892,6 +2083,7 @@ describe('scripting tokenize test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1900,6 +2092,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1908,6 +2101,7 @@ describe('scripting tokenize test', () => {
         kind: 'string',
         value: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 17 },
         },
@@ -1916,6 +2110,7 @@ describe('scripting tokenize test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },

@@ -72,14 +72,14 @@ describe('funcity-cli repl', () => {
 
 describe('funcity-cli run', () => {
   it('executes script with text blocks', async () => {
-    const result = await runScriptToText('Hello {{add 1 2}}');
+    const result = await runScriptToText('Hello {{add 1 2}}', 'hello.fc');
     expect(result.logs).toEqual([]);
     expect(result.output).toBe('Hello 3');
   });
 
   it('exposes object variables', async () => {
     const iso = '2025-11-23T00:00:00.000Z';
-    const result = await runScriptToText(`{{Date '${iso}'}}`);
+    const result = await runScriptToText(`{{Date '${iso}'}}`, 'hello.fc');
     expect(result.logs).toEqual([]);
     expect(result.output).toBe(iso);
   });
@@ -94,7 +94,7 @@ describe('funcity-cli run', () => {
         'utf8'
       );
       const script = "{{set mod (require './sample.cjs')}}{{mod.value}}";
-      const result = await runScriptToText(script, dir);
+      const result = await runScriptToText(script, 'sample.fc', dir);
       expect(result.logs).toEqual([]);
       expect(result.output).toBe('ok');
     } finally {
@@ -104,7 +104,7 @@ describe('funcity-cli run', () => {
 
   it('executes Fibonacci example from README', async () => {
     const script = `{{\nset fib (fun n \\\n  (cond (le n 1) \\\n    n \\\n    (add (fib (sub n 1)) (fib (sub n 2)))))\n}}\nFibonacci (10) = {{fib 10}}\n`;
-    const result = await runScriptToText(script);
+    const result = await runScriptToText(script, 'hello.fc');
 
     expect(result.logs).toEqual([]);
     expect(result.output?.trim()).toBe('Fibonacci (10) = 55');
@@ -114,6 +114,7 @@ describe('funcity-cli run', () => {
     const chunks: string[] = [];
     const result = await runScriptToTextStreaming(
       'Hello{{set 1 2}}',
+      'hello.fc',
       undefined,
       (chunk) => {
         chunks.push(chunk);

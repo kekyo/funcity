@@ -17,6 +17,7 @@ import {
 // ATTENTION: All `range` fields are nonsense value.
 
 export const dummyRange = {
+  sourceId: 'unknown.fc',
   start: { line: 1, column: 1 },
   end: { line: 1, column: 1 },
 };

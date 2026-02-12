@@ -25,6 +25,7 @@ export const emptyLocation: FunCityLocation = {
  * Empty range with zeroed coordinates.
  */
 export const emptyRange: FunCityRange = {
+  sourceId: 'unknown.fc',
   start: emptyLocation,
   end: emptyLocation,
 } as const;
@@ -128,14 +129,33 @@ export const fromError = (error: any): string => {
 /**
  * Build a range that covers all provided ranges.
  * @param ranges - Ranges to cover.
+ * @param logs - Logs list for recording sourceId mismatch errors.
  * @returns The widest range.
  */
-export const widerRange = (...ranges: FunCityRange[]): FunCityRange => {
+type WiderRangeArgs =
+  | [...FunCityRange[]]
+  | [...FunCityRange[], FunCityLogEntry[]];
+
+export const widerRange = (...args: WiderRangeArgs): FunCityRange => {
+  const lastArg = args[args.length - 1];
+  const logs = Array.isArray(lastArg)
+    ? (lastArg as FunCityLogEntry[])
+    : undefined;
+  const ranges = Array.isArray(lastArg)
+    ? (args.slice(0, -1) as FunCityRange[])
+    : (args as FunCityRange[]);
+
   let start = emptyRange.start;
   let end = emptyRange.end;
+  let primarySourceId: string | undefined;
+  const sourceIds = new Set<string>();
 
   for (const range of ranges) {
     if (range.start.line >= 1 && range.start.column >= 1) {
+      if (!primarySourceId) {
+        primarySourceId = range.sourceId;
+      }
+      sourceIds.add(range.sourceId);
       if (start.line === 0 || start.column === 0) {
         start = range.start;
       } else if (range.start.line < start.line) {
@@ -157,7 +177,16 @@ export const widerRange = (...ranges: FunCityRange[]): FunCityRange => {
     }
   }
 
-  return { start, end };
+  const sourceId = primarySourceId ?? emptyRange.sourceId;
+  const combinedRange: FunCityRange = { sourceId, start, end };
+  if (sourceIds.size >= 2 && logs) {
+    logs.push({
+      type: 'error',
+      description: 'Range sourceId mismatch',
+      range: combinedRange,
+    });
+  }
+  return combinedRange;
 };
 
 const locationEquals = (lhs: FunCityLocation, rhs: FunCityLocation) =>
@@ -169,19 +198,19 @@ const getLocationString = (range: FunCityRange) =>
     : `${range.start.line}:${range.start.column}:${range.end.line}:${range.end.column}`;
 
 const printErrorString = (
-  path: string,
   error: FunCityLogEntry,
   writer: FunCityLogEntryWriter
 ) => {
+  const sourceId = error.range.sourceId;
   switch (error.type) {
     case 'warning':
       writer.warn(
-        `${path}:${getLocationString(error.range)}: warning: ${error.description}`
+        `${sourceId}:${getLocationString(error.range)}: warning: ${error.description}`
       );
       break;
     case 'error':
       writer.error(
-        `${path}:${getLocationString(error.range)}: error: ${error.description}`
+        `${sourceId}:${getLocationString(error.range)}: error: ${error.description}`
       );
       return true;
   }
@@ -190,20 +219,18 @@ const printErrorString = (
 
 /**
  * Output error list and return whether any error-level entry exists.
- * @param path - Source path.
  * @param logs - Errors to output.
  * @param writer - Writer interface.
  * @returns True when an error-level entry exists.
  */
 export const outputErrors = (
-  path: string,
   logs: readonly FunCityLogEntry[],
   writer?: FunCityLogEntryWriter
 ) => {
   const _writer = writer ?? console;
   let isError = false;
   for (const error of logs) {
-    const result = printErrorString(path, error, _writer);
+    const result = printErrorString(error, _writer);
     isError ||= result;
   }
   return isError;

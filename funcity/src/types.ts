@@ -42,6 +42,10 @@ export interface FunCityLocation {
  */
 export interface FunCityRange {
   /**
+   * Source identifier (file path, URL, etc).
+   */
+  readonly sourceId: string;
+  /**
    * Start location.
    */
   readonly start: FunCityLocation;
@@ -650,6 +654,10 @@ export interface FunCityOnceRunnerProps {
    * Predefined variables.
    */
   variables?: FunCityVariables;
+  /**
+   * Source identifier (file path, URL, etc).
+   */
+  sourceId: string;
   /**
    * Will be stored detected warnings/logs into it.
    */

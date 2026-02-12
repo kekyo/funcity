@@ -71,9 +71,9 @@ set fib (fun n \
 }}
 Fibonacci (10) = {{fib 10}}
 ```
-If you want to try it right now, use [Play ground page](https://kekyo.github.io/funcity/)!
+If you want to try it right now, use [Playground page](https://kekyo.github.io/funcity/)!
 
-[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
+[![funcity Playground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
 
 Furthermore, you can easily integrate this interpreter into your application:
 
@@ -84,7 +84,11 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 // Run the interpreter
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // Display the result text
 console.log(text);
@@ -610,10 +614,11 @@ Writing the whole operation in code gives a minimal example like this:
 ```typescript
 const run = async (
   script: string,
+  sourceId: string,
   logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // Run the tokenizer
-  const blocks: FunCityToken[] = runTokenizer(script, logs);
+  const blocks: FunCityToken[] = runTokenizer(script, logs, sourceId);
 
   // Run the parser
   const nodes: FunCityBlockNode[] = runParser(blocks, logs);
