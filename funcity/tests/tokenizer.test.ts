@@ -121,6 +121,42 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('variable token with triple braces', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer('{{{hello}}}', logs, sourceId);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'open',
+        symbol: '{{{',
+        range: {
+          sourceId,
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 8 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}}',
+        range: {
+          sourceId,
+          start: { line: 1, column: 9 },
+          end: { line: 1, column: 11 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('optional variable token', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runTokenizer('{{foo?}}', logs, sourceId);

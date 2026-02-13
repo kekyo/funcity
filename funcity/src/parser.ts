@@ -698,6 +698,22 @@ const parseBlockCore = (
   logs: FunCityLogEntry[],
   mode: ParseMode
 ): FunCityBlockNode[] => {
+  const isRepeatedSymbol = (symbol: string, ch: string, minLength: number) => {
+    if (symbol.length < minLength) {
+      return false;
+    }
+    for (let index = 0; index < symbol.length; index++) {
+      if (symbol[index] !== ch) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const isCodeBlockOpenSymbol = (symbol: string) =>
+    isRepeatedSymbol(symbol, '{', 2);
+  const isCodeBlockCloseSymbol = (symbol: string) =>
+    isRepeatedSymbol(symbol, '}', 2);
+
   // Logical statement state is started at 'root' state.
   // All block node will be aggregated into it.
   const rootState: RootStatementState = {
@@ -708,6 +724,7 @@ const parseBlockCore = (
   const statementStates: LogicalStatementState[] = [rootState];
   const isCodeMode = mode === 'code';
   let isInExpressionBlock = isCodeMode;
+  let expectedCloseSymbol: string | undefined;
 
   while (true) {
     const token = drainEndOfLineAndPeek(cursor);
@@ -739,7 +756,7 @@ const parseBlockCore = (
       }
       case 'open': {
         // Beginnig expression block.
-        if (token.symbol === '{{') {
+        if (isCodeBlockOpenSymbol(token.symbol)) {
           cursor.skipToken();
           if (!isCodeMode) {
             if (isInExpressionBlock) {
@@ -748,8 +765,10 @@ const parseBlockCore = (
                 description: `Already opened expression block`,
                 range: token.range,
               });
+            } else {
+              isInExpressionBlock = true;
+              expectedCloseSymbol = '}'.repeat(token.symbol.length);
             }
-            isInExpressionBlock = true;
           }
         } else {
           const node = parseExpression(cursor, logs);
@@ -762,7 +781,7 @@ const parseBlockCore = (
       case 'close': {
         // Check closing.
         cursor.skipToken();
-        if (token.symbol === '}}' && isCodeMode) {
+        if (isCodeBlockCloseSymbol(token.symbol) && isCodeMode) {
           flushCurrentBranch(statementStates, logs);
           break;
         }
@@ -782,8 +801,17 @@ const parseBlockCore = (
           });
           break;
         }
+        if (!expectedCloseSymbol || token.symbol !== expectedCloseSymbol) {
+          logs.push({
+            type: 'error',
+            description: `Mismatched close bracket`,
+            range: token.range,
+          });
+          break;
+        }
         flushCurrentBranch(statementStates, logs);
         isInExpressionBlock = false;
+        expectedCloseSymbol = undefined;
         break;
       }
       case 'identity': {

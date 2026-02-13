@@ -301,7 +301,8 @@ interface TokenizeCodeResult {
 const tokenizeCodeTokens = (
   context: TokenizerContext,
   stopOnClose: boolean,
-  finalizeUnknownOnEot: boolean
+  finalizeUnknownOnEot: boolean,
+  closeSymbol = '}}'
 ): TokenizeCodeResult => {
   const tokens: FunCityToken[] = [];
   let unknownStartLocation: FunCityLocation | undefined;
@@ -321,7 +322,7 @@ const tokenizeCodeTokens = (
   };
 
   while (!context.cursor.eot()) {
-    if (stopOnClose && context.cursor.assert('}}')) {
+    if (stopOnClose && context.cursor.assert(closeSymbol)) {
       finalizeUnknown();
       return { tokens, closed: true };
     }
@@ -495,27 +496,33 @@ const tokenizeCodeTokens = (
  */
 const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const openStart = context.cursor.location('start');
+  let openCount = 0;
+  while (context.cursor.getChar(openCount) === '{') {
+    openCount++;
+  }
+  const openSymbol = '{'.repeat(openCount);
+  const closeSymbol = '}'.repeat(openCount);
 
-  // Skip open brackets '{{'
-  context.cursor.skip(2);
+  // Skip open brackets
+  context.cursor.skip(openCount);
 
   const tokens: FunCityToken[] = [
     {
       kind: 'open',
-      symbol: '{{',
+      symbol: openSymbol,
       range: createRange(context, openStart, context.cursor.location('end')),
     },
   ];
 
-  const result = tokenizeCodeTokens(context, true, false);
+  const result = tokenizeCodeTokens(context, true, false, closeSymbol);
   tokens.push(...result.tokens);
 
   if (result.closed) {
     const location = context.cursor.location('start');
-    context.cursor.skip(2);
+    context.cursor.skip(openCount);
     tokens.push({
       kind: 'close',
-      symbol: '}}',
+      symbol: closeSymbol,
       range: createRange(context, location, context.cursor.location('end')),
     });
     return tokens;
@@ -524,7 +531,7 @@ const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const causeLocation = context.cursor.location('start');
   context.logs.push({
     type: 'error',
-    description: 'required code block closer: `}}`',
+    description: `required code block closer: \`${closeSymbol}\``,
     range: createRange(context, causeLocation, causeLocation),
   });
   return tokens;

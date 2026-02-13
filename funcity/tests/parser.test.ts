@@ -107,6 +107,56 @@ describe('scripting parser test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('variable token with triple braces', () => {
+    // "{{{hello}}}"
+    const token: FunCityToken[] = [
+      {
+        kind: 'open',
+        symbol: '{{{',
+        range: {
+          sourceId,
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 8 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}}',
+        range: {
+          sourceId,
+          start: { line: 1, column: 9 },
+          end: { line: 1, column: 11 },
+        },
+      },
+    ];
+    const logs: FunCityLogEntry[] = [];
+
+    const nodes = runParser(token, logs);
+
+    // "{{{hello}}}"
+    expect(nodes).toEqual([
+      {
+        kind: 'variable',
+        name: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 8 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('string token', () => {
     // "{{'hello'}}"
     const token: FunCityToken[] = [

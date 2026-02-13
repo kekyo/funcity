@@ -259,6 +259,9 @@ The city is Lisbon.
 ```
 
 Inside the double braces `{{...}}`, you can write a statement or expression.
+Curly braces can be specified for any length as long as they contain two or more characters.
+They must be closed with the same number of curly braces as opened (e.g., `{{{...}}}` / `{{{{...}}}}`).
+
 Besides strings, you can also insert numbers:
 
 ```bash
