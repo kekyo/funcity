@@ -83,6 +83,14 @@ describe('funcity stream parser', () => {
     expect(styles).toContain('string');
   });
 
+  it('highlights triple-quoted strings', () => {
+    const tokens = tokenizeTokens("{{'''hello'''}}");
+    const tripleQuotes = tokens
+      .filter((token) => token.style === 'string' && token.text === "'''")
+      .map((token) => token.text);
+    expect(tripleQuotes).toHaveLength(2);
+  });
+
   it('highlights elseif as keyword', () => {
     const styles = tokenizeStyles('elseif true', true);
     expect(styles).toContain('keyword');

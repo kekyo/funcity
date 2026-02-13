@@ -73,15 +73,19 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
   },
   token(stream, state) {
     const mode = state.stack[state.stack.length - 1]!;
-    const countBraceRun = (ch: string) => {
+    const countRun = (ch: string) => {
       let index = stream.pos;
       while (index < stream.string.length && stream.string[index] === ch) {
         index++;
       }
       return index - stream.pos;
     };
-    const consumeBraceRun = (length: number) => {
+    const consumeRun = (length: number) => {
       stream.pos += length;
+    };
+    const resolveQuoteLength = (quoteChar: string) => {
+      const runLength = countRun(quoteChar);
+      return runLength >= 3 ? runLength : 1;
     };
     const openExpression = (braceLength: number) => {
       state.stack.push({ kind: 'expr', braceLength });
@@ -99,9 +103,9 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
     };
 
     if (mode.kind === 'text') {
-      const openLength = countBraceRun('{');
+      const openLength = countRun('{');
       if (openLength >= 2) {
-        consumeBraceRun(openLength);
+        consumeRun(openLength);
         openExpression(openLength);
         return 'interpolation';
       }
@@ -114,6 +118,8 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
       }
       return null;
     } else if (mode.kind === 'string') {
+      const quoteChar = mode.quote[0];
+      const quoteLength = mode.quote.length;
       if (stream.peek() === '\\') {
         stream.next();
         if (!stream.eol()) {
@@ -122,9 +128,16 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
         return 'escape';
       }
 
-      const openLength = countBraceRun('{');
+      const quoteRunLength = countRun(quoteChar);
+      if (quoteRunLength >= quoteLength) {
+        consumeRun(quoteLength);
+        closeMode();
+        return 'string';
+      }
+
+      const openLength = countRun('{');
       if (openLength >= 2) {
-        consumeBraceRun(openLength);
+        consumeRun(openLength);
         openStringExpression(mode.quote, openLength);
         return 'interpolation';
       }
@@ -133,20 +146,19 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
         return 'string';
       }
 
-      if (stream.peek() === mode.quote) {
+      if (quoteRunLength > 0) {
         stream.next();
-        closeMode();
         return 'string';
       }
 
-      stream.eatWhile((ch) => ch !== mode.quote && ch !== '\\' && ch !== '{');
+      stream.eatWhile((ch) => ch !== quoteChar && ch !== '\\' && ch !== '{');
       return 'string';
     }
 
     const braceLength = mode.braceLength;
-    const closeLength = countBraceRun('}');
+    const closeLength = countRun('}');
     if (closeLength >= braceLength) {
-      consumeBraceRun(braceLength);
+      consumeRun(braceLength);
       closeMode();
       return 'interpolation';
     }
@@ -167,8 +179,9 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
 
     const next = stream.peek();
     if (next === "'" || next === '"' || next === '`') {
-      openString(next);
-      stream.next();
+      const quoteLength = resolveQuoteLength(next);
+      openString(next.repeat(quoteLength));
+      consumeRun(quoteLength);
       return 'string';
     }
 

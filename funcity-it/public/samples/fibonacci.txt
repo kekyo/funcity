@@ -1,3 +1,6 @@
+---
+title: Fibonacci
+---
 {{
 set fib (fun n \
   (cond (le n 1) \
