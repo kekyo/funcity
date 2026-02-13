@@ -230,6 +230,20 @@ export interface FunCityTextToken extends FunCityRangedObject {
 }
 
 /**
+ * Template token (interpolated string).
+ */
+export interface FunCityTemplateToken extends FunCityRangedObject {
+  /**
+   * Token kind.
+   */
+  readonly kind: 'template';
+  /**
+   * Template token list.
+   */
+  readonly tokens: readonly FunCityToken[];
+}
+
+/**
  * The token.
  */
 export type FunCityToken =
@@ -240,7 +254,8 @@ export type FunCityToken =
   | FunCityCloseToken
   | FunCityDotToken
   | FunCityEndOfLineToken
-  | FunCityTextToken;
+  | FunCityTextToken
+  | FunCityTemplateToken;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -256,6 +271,20 @@ export interface FunCityStringNode extends FunCityRangedObject {
    * String value.
    */
   readonly value: string;
+}
+
+/**
+ * Template (interpolated string) expression node.
+ */
+export interface FunCityTemplateNode extends FunCityRangedObject {
+  /**
+   * Node kind.
+   */
+  readonly kind: 'template';
+  /**
+   * Template block nodes.
+   */
+  readonly blocks: readonly FunCityBlockNode[];
 }
 
 /**
@@ -379,6 +408,7 @@ export interface FunCityScopeNode extends FunCityRangedObject {
 export type FunCityExpressionNode =
   | FunCityNumberNode
   | FunCityStringNode
+  | FunCityTemplateNode
   | FunCityVariableNode
   | FunCityDotNode
   | FunCityApplyNode

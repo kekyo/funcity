@@ -1,0 +1,10 @@
+---
+title: String Interpolation
+---
+{{
+set name 'Alice'
+set city 'Lisbon'
+}}
+{{'Hello {{name}} from {{city}}!'}}
+{{'Literal braces: \{{not a block\}}'}}
+{{'Nested: {{if true}}ok{{else}}ng{{end}}'}}

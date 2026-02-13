@@ -172,6 +172,7 @@ Start with `funcity` or `funcity repl`. The prompt is `funcity> `.
 
 The REPL runs code expressions only and ignores text blocks.
 This means it behaves like a pure funcity functional language interpreter.
+Note that template blocks inside string literals are still supported.
 
 Example using the `add` function and `set` for variable binding:
 
@@ -297,6 +298,18 @@ Some functions take multiple arguments. Since arguments are space-separated, nes
 $ echo "We counted about {{add (mul 4 10) 2}} birds." | funcity run
 We counted about 42 birds.
 ```
+
+### String interpolation
+
+String literals can embed template blocks with `{{...}}`.
+Inside a quoted string, `{{...}}` is parsed the same way as a normal template block, so you can nest statements like `if`/`for`/`end`.
+
+```bash
+$ echo "{{set name 'Alice'}}{{'Hello {{name}}!'}}" | funcity run
+Hello Alice!
+```
+
+To include literal braces inside a string, escape them as `\{` and `\}`.
 
 ### Basic statements and text formatting
 
@@ -431,6 +444,8 @@ Supported escape sequences:
 - `\'` single quote
 - `\"` double quote
 - ``\``` backtick
+- `\{` left brace
+- `\}` right brace
 - `\\` backslash
 
 Undefined escape sequences are treated as errors.

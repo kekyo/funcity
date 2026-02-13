@@ -788,6 +788,17 @@ describe('standard variables test', () => {
     );
     expect(value).toBe(123n);
   });
+  it('template string interpolation', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const variables = buildCandidateVariables({ name: 'Alice' });
+    const output = await runScriptOnceToText("{{'Hello {{name}}!'}}", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+    expect(output).toBe('Hello Alice!');
+    expect(logs).toEqual([]);
+  });
   it('include same scope template', async () => {
     const logs: FunCityLogEntry[] = [];
     const { include, tryInclude } = createIncludeFunction({

@@ -202,6 +202,20 @@ export const reduceExpressionNode = async (
     case 'string': {
       return node.value;
     }
+    case 'template': {
+      const resultList: unknown[] = [];
+      for (const block of node.blocks) {
+        const results = await reduceNode(context, block, signal);
+        for (const result of results) {
+          if (result !== undefined) {
+            resultList.push(result);
+          }
+        }
+      }
+      return resultList
+        .map((result) => context.convertToString(result))
+        .join('');
+    }
     case 'variable': {
       return resolveVariable(context, node, signal);
     }

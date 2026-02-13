@@ -2265,6 +2265,25 @@ describe('scripting parser test', () => {
     ]);
   });
 
+  it('template string becomes template node', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'Hello {{name}}!'}}", logs, sourceId);
+
+    const nodes = runParser(tokens, logs);
+
+    expect(nodes).toMatchObject([
+      {
+        kind: 'template',
+        blocks: [
+          { kind: 'text', text: 'Hello ' },
+          { kind: 'variable', name: 'name' },
+          { kind: 'text', text: '!' },
+        ],
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('nested bracket multiple tokens', () => {
     // "{{foo [123 [bar 'hello'] 456] baz}}"
     const token: FunCityToken[] = [

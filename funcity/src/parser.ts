@@ -8,11 +8,13 @@ import type {
   FunCityRange,
   FunCityNumberToken,
   FunCityStringToken,
+  FunCityTemplateToken,
   FunCityToken,
   FunCityIdentityToken,
   FunCityDotToken,
   FunCityNumberNode,
   FunCityStringNode,
+  FunCityTemplateNode,
   FunCityVariableNode,
   FunCityExpressionNode,
   FunCityBlockNode,
@@ -44,6 +46,20 @@ const parseString = (
   return {
     kind: 'string',
     value: token.value,
+    range: token.range,
+  };
+};
+
+const parseTemplate = (
+  cursor: ParserCursor,
+  logs: FunCityLogEntry[]
+): FunCityTemplateNode => {
+  const token = cursor.takeToken() as FunCityTemplateToken;
+  const innerCursor = createParserCursor(token.tokens);
+  const blocks = parseBlockCore(innerCursor, logs, 'script');
+  return {
+    kind: 'template',
+    blocks,
     range: token.range,
   };
 };
@@ -167,6 +183,10 @@ const parsePartialExpression = (
     }
     case 'string': {
       const node = parseString(cursor, logs);
+      return parseDotChain(cursor, logs, node);
+    }
+    case 'template': {
+      const node = parseTemplate(cursor, logs);
       return parseDotChain(cursor, logs, node);
     }
     case 'identity': {

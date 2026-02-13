@@ -54,6 +54,13 @@ export const createFunCityEditorTheme = (theme: Theme) =>
       '.cm-cursor': {
         borderLeftColor: theme.palette.text.primary,
       },
+      '.cm-interpolation': {
+        color:
+          theme.palette.mode === 'dark'
+            ? lighten(theme.palette.warning.main, 0.3)
+            : theme.palette.warning.main,
+        fontWeight: '600',
+      },
     },
     { dark: theme.palette.mode === 'dark' }
   );
@@ -69,6 +76,11 @@ export const createFunCityHighlightStyle = (theme: Theme) => {
     {
       tag: tags.keyword,
       color: pick(theme.palette.secondary),
+      fontWeight: '600',
+    },
+    {
+      tag: tags.special(tags.bracket),
+      color: pick(theme.palette.warning),
       fontWeight: '600',
     },
     {

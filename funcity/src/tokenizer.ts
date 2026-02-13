@@ -10,6 +10,7 @@ import type {
   FunCityNumberToken,
   FunCityRange,
   FunCityStringToken,
+  FunCityTemplateToken,
   FunCityToken,
 } from './types';
 
@@ -118,24 +119,58 @@ const stringEscapeMap: Readonly<Record<string, string>> = {
   "'": "'",
   '"': '"',
   '`': '`',
+  '{': '{',
+  '}': '}',
   '\\': '\\',
 };
 
 const tokenizeString = (
   context: TokenizerContext,
   quoteSymbol: string
-): FunCityStringToken => {
+): FunCityStringToken | FunCityTemplateToken => {
   const start = context.cursor.location('start');
   // Skip open quote
   context.cursor.skip(quoteSymbol.length);
 
   let value = '';
+  let templateTokens: FunCityToken[] | undefined;
+  let textStart: FunCityLocation | undefined;
+  const appendText = (text: string, startLocation?: FunCityLocation) => {
+    if (value.length === 0) {
+      textStart = startLocation ?? context.cursor.location('start');
+    }
+    value += text;
+  };
+  const flushTextToken = () => {
+    if (!templateTokens || value.length === 0 || !textStart) {
+      return;
+    }
+    templateTokens.push({
+      kind: 'text',
+      text: value,
+      range: createRange(context, textStart, context.cursor.location('end')),
+    });
+    value = '';
+    textStart = undefined;
+  };
   let closed = false;
   while (!context.cursor.eot()) {
     if (context.cursor.assert(quoteSymbol)) {
+      if (templateTokens) {
+        flushTextToken();
+      }
       context.cursor.skip(quoteSymbol.length); // Skip close quote
       closed = true;
       break;
+    }
+    if (context.cursor.assert('{{')) {
+      if (!templateTokens) {
+        templateTokens = [];
+      }
+      flushTextToken();
+      const tokens = tokenizeCodeBlock(context);
+      templateTokens.push(...tokens);
+      continue;
     }
     const ch = context.cursor.getChar();
     if (ch === '\\') {
@@ -151,13 +186,13 @@ const tokenizeString = (
             context.cursor.location('end')
           ),
         });
-        value += '\\';
+        appendText('\\', escapeStart);
         break;
       }
       const escape = context.cursor.getChar();
       const mapped = stringEscapeMap[escape];
       if (mapped !== undefined) {
-        value += mapped;
+        appendText(mapped, escapeStart);
         context.cursor.skip(1);
         continue;
       }
@@ -171,10 +206,10 @@ const tokenizeString = (
           context.cursor.location('end')
         ),
       });
-      value += `\\${escape}`;
+      appendText(`\\${escape}`, escapeStart);
       continue;
     }
-    value += ch;
+    appendText(ch);
     context.cursor.skip(1);
   }
 
@@ -185,6 +220,15 @@ const tokenizeString = (
       description: 'string close quote is not found',
       range: createRange(context, location, location),
     });
+  }
+
+  if (templateTokens) {
+    flushTextToken();
+    return {
+      kind: 'template',
+      tokens: templateTokens,
+      range: createRange(context, start, context.cursor.location('end')),
+    };
   }
 
   return {

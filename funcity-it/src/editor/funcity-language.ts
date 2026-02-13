@@ -5,15 +5,21 @@
 
 import { StreamLanguage } from '@codemirror/language';
 import type { StreamParser } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import {
   buildCandidateVariables,
   fetchVariables,
   objectVariables,
 } from 'funcity';
 
+type FunCityStreamMode =
+  | { kind: 'text' }
+  | { kind: 'expr'; braceLength: number }
+  | { kind: 'string'; quote: string }
+  | { kind: 'stringExpr'; quote: string; braceLength: number };
+
 type FunCityStreamState = {
-  inExpression: boolean;
-  stringQuote: string | null;
+  stack: FunCityStreamMode[];
 };
 
 const reservedKeywords = new Set([
@@ -59,14 +65,45 @@ candidateVariables.forEach((value, key) => {
 });
 
 export const funcityStreamParser: StreamParser<FunCityStreamState> = {
+  tokenTable: {
+    interpolation: tags.special(tags.bracket),
+  },
   startState() {
-    return { inExpression: false, stringQuote: null };
+    return { stack: [{ kind: 'text' }] };
   },
   token(stream, state) {
-    if (!state.inExpression) {
-      if (stream.match('{{')) {
-        state.inExpression = true;
-        return 'bracket';
+    const mode = state.stack[state.stack.length - 1]!;
+    const countBraceRun = (ch: string) => {
+      let index = stream.pos;
+      while (index < stream.string.length && stream.string[index] === ch) {
+        index++;
+      }
+      return index - stream.pos;
+    };
+    const consumeBraceRun = (length: number) => {
+      stream.pos += length;
+    };
+    const openExpression = (braceLength: number) => {
+      state.stack.push({ kind: 'expr', braceLength });
+    };
+    const openString = (quote: string) => {
+      state.stack.push({ kind: 'string', quote });
+    };
+    const openStringExpression = (quote: string, braceLength: number) => {
+      state.stack.push({ kind: 'stringExpr', quote, braceLength });
+    };
+    const closeMode = () => {
+      if (state.stack.length > 1) {
+        state.stack.pop();
+      }
+    };
+
+    if (mode.kind === 'text') {
+      const openLength = countBraceRun('{');
+      if (openLength >= 2) {
+        consumeBraceRun(openLength);
+        openExpression(openLength);
+        return 'interpolation';
       }
 
       const nextExpr = stream.string.indexOf('{{', stream.pos);
@@ -76,14 +113,7 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
         stream.pos = nextExpr;
       }
       return null;
-    }
-
-    if (state.stringQuote) {
-      if (stream.peek() === state.stringQuote) {
-        stream.next();
-        state.stringQuote = null;
-        return 'string';
-      }
+    } else if (mode.kind === 'string') {
       if (stream.peek() === '\\') {
         stream.next();
         if (!stream.eol()) {
@@ -91,12 +121,38 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
         }
         return 'escape';
       }
-      stream.eatWhile((ch) => ch !== state.stringQuote && ch !== '\\');
+
+      const openLength = countBraceRun('{');
+      if (openLength >= 2) {
+        consumeBraceRun(openLength);
+        openStringExpression(mode.quote, openLength);
+        return 'interpolation';
+      }
+      if (openLength === 1) {
+        stream.next();
+        return 'string';
+      }
+
+      if (stream.peek() === mode.quote) {
+        stream.next();
+        closeMode();
+        return 'string';
+      }
+
+      stream.eatWhile((ch) => ch !== mode.quote && ch !== '\\' && ch !== '{');
       return 'string';
     }
 
-    if (stream.match('}}')) {
-      state.inExpression = false;
+    const braceLength = mode.braceLength;
+    const closeLength = countBraceRun('}');
+    if (closeLength >= braceLength) {
+      consumeBraceRun(braceLength);
+      closeMode();
+      return 'interpolation';
+    }
+
+    if (closeLength > 0) {
+      stream.next();
       return 'bracket';
     }
 
@@ -111,7 +167,7 @@ export const funcityStreamParser: StreamParser<FunCityStreamState> = {
 
     const next = stream.peek();
     if (next === "'" || next === '"' || next === '`') {
-      state.stringQuote = next;
+      openString(next);
       stream.next();
       return 'string';
     }

@@ -1052,6 +1052,34 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('string token with interpolation becomes template token', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'Hello {{name}}!'}}", logs, sourceId);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'template',
+      tokens: [
+        { kind: 'text', text: 'Hello ' },
+        { kind: 'open', symbol: '{{' },
+        { kind: 'identity', name: 'name' },
+        { kind: 'close', symbol: '}}' },
+        { kind: 'text', text: '!' },
+      ],
+    });
+    expect(logs).toEqual([]);
+  });
+
+  it('string token with escaped braces stays string', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'Hello \\{{name\\}}'}}", logs, sourceId);
+
+    expect(tokens[1]).toMatchObject({
+      kind: 'string',
+      value: 'Hello {{name}}',
+    });
+    expect(logs).toEqual([]);
+  });
+
   it('string token with quote escapes', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runTokenizer('{{"a\\\'b\\"c\\`d"}}', logs, sourceId);
