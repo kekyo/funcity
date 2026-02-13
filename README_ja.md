@@ -1122,8 +1122,22 @@ const results = await runReducer(nodes, variables, logs);
 ### include,tryInclude
 
 `include` は外部スクリプトを評価して結果を挿入します。
-`tryInclude` は同様ですが、欠如時の扱いをオプションで指定できます。
-これらは `createIncludeFunction()` で作成し、変数に注入します:
+`tryInclude` は同様ですが、スクリプトが見つからない場合に無視します。
+
+CLIでは、以下のように定義されます:
+
+- REPL: 基準パスは、カレントディレクトリ基準です。
+- スクリプト実行: 基準パスは、スクリプトのディレクトリまたはカレントディレクトリ基準です。
+- 変数スコープは常に同じとみなされます（子スコープは作られません）。
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+
+解析エラーが含まれる場合は、どちらも例外を投げます。
+
+プログラマブルにこれらの関数を使用する場合は、 `createIncludeFunction()` で作成し、変数に注入します:
 
 ```typescript
 const logs: FunCityLogEntry[] = [];
@@ -1141,25 +1155,20 @@ const { include, tryInclude } = createIncludeFunction({
 const variables = buildCandidateVariables({ include, tryInclude });
 ```
 
-`resolve` は以下のいずれかを返します:
-- `string` のスクリプト（`sourceId` はリクエスト文字列になります）。
+`resolve` は以下のいずれかを返す必要があります:
+
+- 文字列のスクリプト（`sourceId` はリクエスト文字列になります）。
 - `{ sourceId, script }` のオブジェクト。
 - `undefined`（ソース欠如。`includeMissing` / `tryIncludeMissing` の設定で扱いが決まります）。
 
 `mode` は解析方式を指定します:
+
 - `template`: テンプレート全体を解析（`runTokenizer` + `runParser`）。
 - `code`: コード専用を解析（`runCodeTokenizer` + `parseExpressions`）。
 
 `scope` は評価スコープを指定します:
 - `same`: 呼び出し元スコープで評価（`set` が呼び出し元に影響）。
 - `child`: 子スコープで評価（変数は外に漏れません）。
-
-```funcity
-{{include 'foo.fc'}}
-{{tryInclude 'optional.fc'}}
-```
-
-解析エラーが含まれる場合は、どちらも例外を投げます。
 
 ### objectVariables
 

@@ -1126,9 +1126,22 @@ Resolves after the specified milliseconds (optional second argument is returned)
 
 ### include,tryInclude
 
-`include` evaluates an external script and inserts the result.
-`tryInclude` behaves the same way, but can ignore missing sources via options.
-These functions are created by `createIncludeFunction()` and then injected into variables:
+`include` evaluates external scripts and inserts the result.
+`tryInclude` behaves similarly but ignores the script if it cannot be found.
+
+In the CLI, it is defined as follows:
+
+- REPL: The base path is relative to the current directory.
+- Script execution: The base path is relative to the script's directory or the current directory.
+- Variable scope is always considered the same (no child scope is created).
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+Both functions throw when a parse error is detected in the included script.
+
+To use these functions programmatically, create them with `createIncludeFunction()` and inject them into a variable:
 
 ```typescript
 const logs: FunCityLogEntry[] = [];
@@ -1147,24 +1160,20 @@ const variables = buildCandidateVariables({ include, tryInclude });
 ```
 
 `resolve` must return one of the following:
+
 - A `string` script. The `sourceId` will be the request string.
 - An `{ sourceId, script }` object.
 - `undefined` to indicate a missing source (handled by `includeMissing` / `tryIncludeMissing`).
 
 `mode` controls parsing:
+
 - `template`: parse full templates (uses `runTokenizer` + `runParser`).
 - `code`: parse code-only scripts (uses `runCodeTokenizer` + `parseExpressions`).
 
 `scope` controls evaluation:
+
 - `same`: evaluate in the caller scope (so `set` affects the caller).
 - `child`: evaluate in a child scope (no variable leakage).
-
-```funcity
-{{include 'foo.fc'}}
-{{tryInclude 'optional.fc'}}
-```
-
-Both functions throw when a parse error is detected in the included script.
 
 ### objectVariables
 

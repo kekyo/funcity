@@ -17,10 +17,12 @@ import {
   FunCityReducerError,
   FunCityReducerContext,
   FunCityWarningEntry,
+  type IncludeResolverContext,
 } from 'funcity';
 import {
   buildCandidateVariables,
   convertToString,
+  createIncludeFunction,
   createReducerContext,
   emptyRange,
   fetchVariables,
@@ -32,7 +34,6 @@ import {
   runParser,
   runCodeTokenizer,
   runTokenizer,
-  runScriptOnceToText,
 } from 'funcity';
 import { createRequireFunction, nodeJsVariables } from 'funcity/node';
 
@@ -49,6 +50,14 @@ interface RootCliOptions {
   readonly define: readonly string[];
   readonly defineJson: readonly string[];
 }
+
+const resolveIncludeBaseDir = (context: IncludeResolverContext): string => {
+  const sourceId = context.sourceId;
+  if (sourceId === '<repl>' || sourceId === '<stdin>') {
+    return process.cwd();
+  }
+  return path.dirname(path.resolve(sourceId));
+};
 
 const createReplReadline = () => {
   const fallbackReadline = nodeJsVariables.readline as (
@@ -293,6 +302,19 @@ const runCodeWithContext = async (
   sourceId: string
 ): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
   const logs: FunCityLogEntry[] = [];
+  const { include, tryInclude } = createIncludeFunction({
+    resolve: async (request, resolveContext) => {
+      const baseDir = resolveIncludeBaseDir(resolveContext);
+      const targetPath = path.resolve(baseDir, request);
+      const script = await readFile(targetPath, 'utf8');
+      return { sourceId: targetPath, script };
+    },
+    logs,
+    mode: 'template',
+    scope: 'same',
+  });
+  context.setValue('include', include, signal);
+  context.setValue('tryInclude', tryInclude, signal);
   const tokens = runCodeTokenizer(script, logs, sourceId);
   const nodes = parseExpressions(tokens, logs);
   if (logs.length >= 1) {
@@ -324,6 +346,19 @@ const runScriptWithContext = async (
   onOutput?: (chunk: string) => void
 ): Promise<{ output: string | undefined; logs: FunCityLogEntry[] }> => {
   const logs: FunCityLogEntry[] = [];
+  const { include, tryInclude } = createIncludeFunction({
+    resolve: async (request, resolveContext) => {
+      const baseDir = resolveIncludeBaseDir(resolveContext);
+      const targetPath = path.resolve(baseDir, request);
+      const script = await readFile(targetPath, 'utf8');
+      return { sourceId: targetPath, script };
+    },
+    logs,
+    mode: 'template',
+    scope: 'same',
+  });
+  context.setValue('include', include, signal);
+  context.setValue('tryInclude', tryInclude, signal);
   const tokens = runTokenizer(script, logs, sourceId);
   const nodes = runParser(tokens, logs);
   if (logs.length >= 1) {
@@ -403,6 +438,19 @@ export const createReplSession = (
   ): Promise<ReplEvaluationResult> => {
     // Tokenize and parse step
     const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request, resolveContext) => {
+        const baseDir = resolveIncludeBaseDir(resolveContext);
+        const targetPath = path.resolve(baseDir, request);
+        const script = await readFile(targetPath, 'utf8');
+        return { sourceId: targetPath, script };
+      },
+      logs,
+      mode: 'template',
+      scope: 'same',
+    });
+    reducerContext.setValue('include', include, signal);
+    reducerContext.setValue('tryInclude', tryInclude, signal);
     const tokens = runCodeTokenizer(line, logs, options?.sourceId ?? '<repl>');
     const nodes = parseExpressions(tokens, logs);
     if (logs.length >= 1) {
@@ -651,12 +699,15 @@ export const runScriptToText = async (
       require,
     }
   );
-  const logs: FunCityLogEntry[] = [];
-  const output = await runScriptOnceToText(script, {
-    variables,
-    logs,
-    sourceId,
-  });
+  const warningLogs: FunCityWarningEntry[] = [];
+  const reducerContext = createReducerContext(variables, warningLogs);
+  const { output, logs } = await runScriptWithContext(
+    reducerContext,
+    warningLogs,
+    script,
+    new AbortController().signal,
+    sourceId
+  );
   return { output, logs };
 };
 

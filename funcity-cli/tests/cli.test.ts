@@ -127,6 +127,107 @@ describe('funcity-cli run', () => {
   });
 });
 
+describe('funcity-cli include', () => {
+  const withTempDir = async (
+    root: string,
+    prefix: string,
+    callback: (dir: string) => Promise<void>
+  ): Promise<void> => {
+    const dir = await fs.mkdtemp(path.join(root, prefix));
+    try {
+      await callback(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('resolves include in repl from cwd', async () => {
+    await withTempDir(
+      process.cwd(),
+      'funcity-cli-include-repl-',
+      async (dir) => {
+        const includePath = path.join(dir, 'snippet.fc');
+        await fs.writeFile(includePath, 'Hello from repl', 'utf8');
+        const relativeDir = path.relative(process.cwd(), dir);
+        const session = createReplSession();
+        const result = await session.evaluateLine(
+          `include './${relativeDir}/snippet.fc'`,
+          new AbortController().signal
+        );
+        expect(result.logs).toEqual([]);
+        expect(result.output).toBe('it: Hello from repl');
+      }
+    );
+  });
+
+  it('resolves include in run from script directory with same scope', async () => {
+    await withTempDir(os.tmpdir(), 'funcity-cli-include-run-', async (dir) => {
+      const includePath = path.join(dir, 'inc.fc');
+      await fs.writeFile(includePath, '{{set a 5}}', 'utf8');
+      const scriptPath = path.join(dir, 'main.fc');
+      const script = "{{include 'inc.fc'}}{{a}}";
+      const result = await runScriptToText(script, scriptPath);
+      expect(result.logs).toEqual([]);
+      expect(result.output).toBe('5');
+    });
+  });
+
+  it('supports nested includes with relative paths', async () => {
+    await withTempDir(
+      os.tmpdir(),
+      'funcity-cli-include-nested-',
+      async (dir) => {
+        const subDir = path.join(dir, 'sub');
+        await fs.mkdir(subDir, { recursive: true });
+        await fs.writeFile(path.join(subDir, 'nested.fc'), 'Nested', 'utf8');
+        await fs.writeFile(
+          path.join(subDir, 'child.fc'),
+          "{{include 'nested.fc'}}",
+          'utf8'
+        );
+        const scriptPath = path.join(dir, 'main.fc');
+        const script = "{{include 'sub/child.fc'}}";
+        const result = await runScriptToText(script, scriptPath);
+        expect(result.logs).toEqual([]);
+        expect(result.output).toBe('Nested');
+      }
+    );
+  });
+
+  it('resolves include for stdin from cwd', async () => {
+    await withTempDir(
+      process.cwd(),
+      'funcity-cli-include-stdin-',
+      async (dir) => {
+        const includePath = path.join(dir, 'stdin.fc');
+        await fs.writeFile(includePath, 'Hello stdin', 'utf8');
+        const relativeDir = path.relative(process.cwd(), dir);
+        const script = `{{include './${relativeDir}/stdin.fc'}}`;
+        const result = await runScriptToText(script, '<stdin>');
+        expect(result.logs).toEqual([]);
+        expect(result.output).toBe('Hello stdin');
+      }
+    );
+  });
+
+  it('reports include parse errors', async () => {
+    await withTempDir(
+      os.tmpdir(),
+      'funcity-cli-include-error-',
+      async (dir) => {
+        const includePath = path.join(dir, 'bad.fc');
+        await fs.writeFile(includePath, '{{if}}{{end}}', 'utf8');
+        const scriptPath = path.join(dir, 'main.fc');
+        const script = "{{include 'bad.fc'}}";
+        const result = await runScriptToText(script, scriptPath);
+        expect(result.output).toBeUndefined();
+        expect(result.logs.length).toBeGreaterThan(0);
+        expect(result.logs[0]?.description).toMatch(/Include parse error/);
+      }
+    );
+  });
+});
+
 describe('funcity-cli options', () => {
   const captureStdout = async (
     callback: () => Promise<void>
