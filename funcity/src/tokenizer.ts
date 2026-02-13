@@ -123,22 +123,21 @@ const stringEscapeMap: Readonly<Record<string, string>> = {
 
 const tokenizeString = (
   context: TokenizerContext,
-  quote: string
+  quoteSymbol: string
 ): FunCityStringToken => {
   const start = context.cursor.location('start');
-
   // Skip open quote
-  context.cursor.skip(1);
+  context.cursor.skip(quoteSymbol.length);
 
   let value = '';
   let closed = false;
   while (!context.cursor.eot()) {
-    const ch = context.cursor.getChar();
-    if (ch === quote) {
-      context.cursor.skip(1); // Skip close quote
+    if (context.cursor.assert(quoteSymbol)) {
+      context.cursor.skip(quoteSymbol.length); // Skip close quote
       closed = true;
       break;
     }
+    const ch = context.cursor.getChar();
     if (ch === '\\') {
       const escapeStart = context.cursor.location('start');
       context.cursor.skip(1);
@@ -360,7 +359,12 @@ const tokenizeCodeTokens = (
     // Read string
     if (ch === "'" || ch === '"' || ch === '`') {
       finalizeUnknown();
-      tokens.push(tokenizeString(context, ch));
+      let quoteCount = 1;
+      while (context.cursor.getChar(quoteCount) === ch) {
+        quoteCount++;
+      }
+      const quoteLength = quoteCount >= 3 ? quoteCount : 1;
+      tokens.push(tokenizeString(context, ch.repeat(quoteLength)));
     }
     // Read number
     else if (firstNumericChars.indexOf(ch) >= 0) {

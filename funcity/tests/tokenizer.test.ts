@@ -932,6 +932,42 @@ describe('scripting tokenize test', () => {
     expect(logs).toEqual([]);
   });
 
+  it('string token with triple quotes', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'''hello'''}}", logs, sourceId);
+
+    expect(tokens).toEqual([
+      {
+        kind: 'open',
+        symbol: '{{',
+        range: {
+          sourceId,
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 2 },
+        },
+      },
+      {
+        kind: 'string',
+        value: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 3 },
+          end: { line: 1, column: 13 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}',
+        range: {
+          sourceId,
+          start: { line: 1, column: 14 },
+          end: { line: 1, column: 15 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
   it('string token with double quotes', () => {
     const logs: FunCityLogEntry[] = [];
     const tokens = runTokenizer('{{"hello"}}', logs, sourceId);
