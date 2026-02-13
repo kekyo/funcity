@@ -3,11 +3,20 @@
 // Under MIT.
 // https://github.com/kekyo/funcity/
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { FunCityBlockNode, FunCityWarningEntry } from '../../src/types';
+import type {
+  FunCityBlockNode,
+  FunCityLogEntry,
+  FunCityWarningEntry,
+} from '../../src/types';
+import { FunCityReducerError } from '../../src/types';
 import { runReducer } from '../../src/reducer';
-import { buildCandidateVariables } from '../../src/variables/standard-variables';
+import { runScriptOnceToText } from '../../src/scripting';
+import {
+  buildCandidateVariables,
+  createIncludeFunction,
+} from '../../src/variables/standard-variables';
 import {
   applyNode,
   dummyRange,
@@ -155,6 +164,43 @@ describe('standard variables test', () => {
     const nowValue = reduced[0] as Date;
     expect(nowValue.getTime()).toBeGreaterThanOrEqual(nowBefore);
     expect(nowValue.getTime()).toBeLessThanOrEqual(nowAfter);
+  });
+  it('random/randomf', async () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const randomSpan = await reduceSingle(
+        applyNode('random', [numberNode(5)])
+      );
+      expect(randomSpan).toBe(2);
+
+      const randomRange = await reduceSingle(
+        applyNode('random', [numberNode(5), numberNode(7)])
+      );
+      expect(randomRange).toBe(8);
+
+      const randomfValue = await reduceSingle(applyNode('randomf', []));
+      expect(randomfValue).toBe(0.5);
+
+      const randomfSpan = await reduceSingle(
+        applyNode('randomf', [numberNode(5)])
+      );
+      expect(randomfSpan).toBe(2.5);
+
+      const randomfRange = await reduceSingle(
+        applyNode('randomf', [numberNode(5), numberNode(7)])
+      );
+      expect(randomfRange).toBe(8.5);
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+  it('random requires arguments', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables();
+    await expect(
+      runReducer([applyNode('random', [])], variables, warningLogs)
+    ).rejects.toBeInstanceOf(FunCityReducerError);
+    expect(warningLogs).toEqual([]);
   });
   it('concat', async () => {
     const value = await reduceSingle(
@@ -741,6 +787,115 @@ describe('standard variables test', () => {
       applyNode('toBigInt', [stringNode('123')])
     );
     expect(value).toBe(123n);
+  });
+  it('template string interpolation', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const variables = buildCandidateVariables({ name: 'Alice' });
+    const output = await runScriptOnceToText("{{'Hello {{name}}!'}}", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+    expect(output).toBe('Hello Alice!');
+    expect(logs).toEqual([]);
+  });
+  it('include same scope template', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => {
+        if (request === 'foo.fc') {
+          return '{{set a 1}}';
+        }
+        return undefined;
+      },
+      logs,
+      scope: 'same',
+      mode: 'template',
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+    const output = await runScriptOnceToText(
+      "{{include 'foo.fc'}}{{defaults a? 'none'}}",
+      { variables, logs, sourceId: 'main.fc' }
+    );
+    expect(output).toBe('1');
+    expect(logs).toEqual([]);
+  });
+  it('include child scope template', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => {
+        if (request === 'foo.fc') {
+          return '{{set a 1}}';
+        }
+        return undefined;
+      },
+      logs,
+      scope: 'child',
+      mode: 'template',
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+    const output = await runScriptOnceToText(
+      "{{include 'foo.fc'}}{{defaults a? 'none'}}",
+      { variables, logs, sourceId: 'main.fc' }
+    );
+    expect(output).toBe('none');
+    expect(logs).toEqual([]);
+  });
+  it('include same scope code mode', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => {
+        if (request === 'foo.fc') {
+          return 'set a 1';
+        }
+        return undefined;
+      },
+      logs,
+      scope: 'same',
+      mode: 'code',
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+    const output = await runScriptOnceToText(
+      "{{include 'foo.fc'}}{{defaults a? 'none'}}",
+      { variables, logs, sourceId: 'main.fc' }
+    );
+    expect(output).toBe('1');
+    expect(logs).toEqual([]);
+  });
+  it('tryInclude missing', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async () => undefined,
+      logs,
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+    const output = await runScriptOnceToText("{{tryInclude 'missing.fc'}}OK", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+    expect(output).toBe('OK');
+    expect(logs).toEqual([]);
+  });
+  it('include parse error throws', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => {
+        if (request === 'bad.fc') {
+          return '{{if}}{{end}}';
+        }
+        return undefined;
+      },
+      logs,
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+    const output = await runScriptOnceToText("{{include 'bad.fc'}}", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+    expect(output).toBeUndefined();
+    expect(logs.some((entry) => entry.type === 'error')).toBe(true);
   });
   it('url', async () => {
     const value = await reduceSingle(

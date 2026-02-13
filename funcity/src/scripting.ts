@@ -27,9 +27,9 @@ export const runScriptOnce = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<unknown[]> => {
-  const { variables = buildCandidateVariables(), logs = [] } = props;
+  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
 
-  const tokens = runTokenizer(script, logs);
+  const tokens = runTokenizer(script, logs, sourceId);
   const nodes = runParser(tokens, logs);
   if (logs.length >= 1) {
     return [];
@@ -72,9 +72,9 @@ export const runScriptOnceToText = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<string | undefined> => {
-  const { variables = buildCandidateVariables(), logs = [] } = props;
+  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
 
-  const tokens = runTokenizer(script, logs);
+  const tokens = runTokenizer(script, logs, sourceId);
   const nodes = runParser(tokens, logs);
   if (logs.length >= 1) {
     return undefined;

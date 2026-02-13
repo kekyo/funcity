@@ -8,7 +8,9 @@ import type {
   FunCityIdentityToken,
   FunCityLocation,
   FunCityNumberToken,
+  FunCityRange,
   FunCityStringToken,
+  FunCityTemplateToken,
   FunCityToken,
 } from './types';
 
@@ -83,10 +85,24 @@ interface TokenizerContext {
    */
   readonly cursor: TokenizerCursor;
   /**
+   * Source identifier (file path, URL, etc).
+   */
+  readonly sourceId: string;
+  /**
    * Will be stored detected warnings/logs into it
    */
   readonly logs: FunCityLogEntry[];
 }
+
+const createRange = (
+  context: TokenizerContext,
+  start: FunCityLocation,
+  end: FunCityLocation
+): FunCityRange => ({
+  sourceId: context.sourceId,
+  start,
+  end,
+});
 
 /**
  * Tokenize the string value.
@@ -103,27 +119,60 @@ const stringEscapeMap: Readonly<Record<string, string>> = {
   "'": "'",
   '"': '"',
   '`': '`',
+  '{': '{',
+  '}': '}',
   '\\': '\\',
 };
 
 const tokenizeString = (
   context: TokenizerContext,
-  quote: string
-): FunCityStringToken => {
+  quoteSymbol: string
+): FunCityStringToken | FunCityTemplateToken => {
   const start = context.cursor.location('start');
-
   // Skip open quote
-  context.cursor.skip(1);
+  context.cursor.skip(quoteSymbol.length);
 
   let value = '';
+  let templateTokens: FunCityToken[] | undefined;
+  let textStart: FunCityLocation | undefined;
+  const appendText = (text: string, startLocation?: FunCityLocation) => {
+    if (value.length === 0) {
+      textStart = startLocation ?? context.cursor.location('start');
+    }
+    value += text;
+  };
+  const flushTextToken = () => {
+    if (!templateTokens || value.length === 0 || !textStart) {
+      return;
+    }
+    templateTokens.push({
+      kind: 'text',
+      text: value,
+      range: createRange(context, textStart, context.cursor.location('end')),
+    });
+    value = '';
+    textStart = undefined;
+  };
   let closed = false;
   while (!context.cursor.eot()) {
-    const ch = context.cursor.getChar();
-    if (ch === quote) {
-      context.cursor.skip(1); // Skip close quote
+    if (context.cursor.assert(quoteSymbol)) {
+      if (templateTokens) {
+        flushTextToken();
+      }
+      context.cursor.skip(quoteSymbol.length); // Skip close quote
       closed = true;
       break;
     }
+    if (context.cursor.assert('{{')) {
+      if (!templateTokens) {
+        templateTokens = [];
+      }
+      flushTextToken();
+      const tokens = tokenizeCodeBlock(context);
+      templateTokens.push(...tokens);
+      continue;
+    }
+    const ch = context.cursor.getChar();
     if (ch === '\\') {
       const escapeStart = context.cursor.location('start');
       context.cursor.skip(1);
@@ -131,15 +180,19 @@ const tokenizeString = (
         context.logs.push({
           type: 'error',
           description: 'invalid escape sequence: \\\\',
-          range: { start: escapeStart, end: context.cursor.location('end') },
+          range: createRange(
+            context,
+            escapeStart,
+            context.cursor.location('end')
+          ),
         });
-        value += '\\';
+        appendText('\\', escapeStart);
         break;
       }
       const escape = context.cursor.getChar();
       const mapped = stringEscapeMap[escape];
       if (mapped !== undefined) {
-        value += mapped;
+        appendText(mapped, escapeStart);
         context.cursor.skip(1);
         continue;
       }
@@ -147,12 +200,16 @@ const tokenizeString = (
       context.logs.push({
         type: 'error',
         description: `invalid escape sequence: \\${escape}`,
-        range: { start: escapeStart, end: context.cursor.location('end') },
+        range: createRange(
+          context,
+          escapeStart,
+          context.cursor.location('end')
+        ),
       });
-      value += `\\${escape}`;
+      appendText(`\\${escape}`, escapeStart);
       continue;
     }
-    value += ch;
+    appendText(ch);
     context.cursor.skip(1);
   }
 
@@ -161,14 +218,23 @@ const tokenizeString = (
     context.logs.push({
       type: 'error',
       description: 'string close quote is not found',
-      range: { start: location, end: location },
+      range: createRange(context, location, location),
     });
+  }
+
+  if (templateTokens) {
+    flushTextToken();
+    return {
+      kind: 'template',
+      tokens: templateTokens,
+      range: createRange(context, start, context.cursor.location('end')),
+    };
   }
 
   return {
     kind: 'string',
     value,
-    range: { start, end: context.cursor.location('end') },
+    range: createRange(context, start, context.cursor.location('end')),
   };
 };
 
@@ -190,7 +256,7 @@ const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
       return {
         kind: 'number',
         value: Number(context.cursor.getRangeAndSkip(index)),
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       };
     }
 
@@ -202,7 +268,7 @@ const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
       return {
         kind: 'number',
         value: Number(context.cursor.getRangeAndSkip(index)),
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       };
     }
     index++;
@@ -213,7 +279,7 @@ const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
       return {
         kind: 'number',
         value: Number(context.cursor.getRangeAndSkip(index)),
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       };
     }
 
@@ -222,7 +288,7 @@ const tokenizeNumber = (context: TokenizerContext): FunCityNumberToken => {
       return {
         kind: 'number',
         value: Number(context.cursor.getRangeAndSkip(index)),
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       };
     }
     index++;
@@ -266,7 +332,7 @@ const tokenizeIdentity = (context: TokenizerContext): FunCityIdentityToken => {
   return {
     kind: 'identity',
     name: context.cursor.getRangeAndSkip(index),
-    range: { start, end: context.cursor.location('end') },
+    range: createRange(context, start, context.cursor.location('end')),
   };
 };
 
@@ -278,7 +344,8 @@ interface TokenizeCodeResult {
 const tokenizeCodeTokens = (
   context: TokenizerContext,
   stopOnClose: boolean,
-  finalizeUnknownOnEot: boolean
+  finalizeUnknownOnEot: boolean,
+  closeSymbol = '}}'
 ): TokenizeCodeResult => {
   const tokens: FunCityToken[] = [];
   let unknownStartLocation: FunCityLocation | undefined;
@@ -287,17 +354,18 @@ const tokenizeCodeTokens = (
       context.logs.push({
         type: 'warning',
         description: 'unknown words',
-        range: {
-          start: unknownStartLocation,
-          end: context.cursor.location('end'),
-        },
+        range: createRange(
+          context,
+          unknownStartLocation,
+          context.cursor.location('end')
+        ),
       });
       unknownStartLocation = undefined;
     }
   };
 
   while (!context.cursor.eot()) {
-    if (stopOnClose && context.cursor.assert('}}')) {
+    if (stopOnClose && context.cursor.assert(closeSymbol)) {
       finalizeUnknown();
       return { tokens, closed: true };
     }
@@ -335,7 +403,12 @@ const tokenizeCodeTokens = (
     // Read string
     if (ch === "'" || ch === '"' || ch === '`') {
       finalizeUnknown();
-      tokens.push(tokenizeString(context, ch));
+      let quoteCount = 1;
+      while (context.cursor.getChar(quoteCount) === ch) {
+        quoteCount++;
+      }
+      const quoteLength = quoteCount >= 3 ? quoteCount : 1;
+      tokens.push(tokenizeString(context, ch.repeat(quoteLength)));
     }
     // Read number
     else if (firstNumericChars.indexOf(ch) >= 0) {
@@ -349,7 +422,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'open',
         symbol: '(',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -360,7 +433,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'close',
         symbol: ')',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -371,7 +444,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'open',
         symbol: '[',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -382,7 +455,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'close',
         symbol: ']',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -394,7 +467,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'dot',
         optional: true,
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       });
     }
     // Read dot
@@ -404,7 +477,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'dot',
         optional: false,
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -420,7 +493,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'eol',
         source: 'newline',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -431,7 +504,7 @@ const tokenizeCodeTokens = (
       tokens.push({
         kind: 'eol',
         source: 'semicolon',
-        range: { start: location, end: location },
+        range: createRange(context, location, location),
       });
       context.cursor.skip(1);
     }
@@ -471,28 +544,34 @@ const tokenizeCodeTokens = (
  */
 const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const openStart = context.cursor.location('start');
+  let openCount = 0;
+  while (context.cursor.getChar(openCount) === '{') {
+    openCount++;
+  }
+  const openSymbol = '{'.repeat(openCount);
+  const closeSymbol = '}'.repeat(openCount);
 
-  // Skip open brackets '{{'
-  context.cursor.skip(2);
+  // Skip open brackets
+  context.cursor.skip(openCount);
 
   const tokens: FunCityToken[] = [
     {
       kind: 'open',
-      symbol: '{{',
-      range: { start: openStart, end: context.cursor.location('end') },
+      symbol: openSymbol,
+      range: createRange(context, openStart, context.cursor.location('end')),
     },
   ];
 
-  const result = tokenizeCodeTokens(context, true, false);
+  const result = tokenizeCodeTokens(context, true, false, closeSymbol);
   tokens.push(...result.tokens);
 
   if (result.closed) {
     const location = context.cursor.location('start');
-    context.cursor.skip(2);
+    context.cursor.skip(openCount);
     tokens.push({
       kind: 'close',
-      symbol: '}}',
-      range: { start: location, end: context.cursor.location('end') },
+      symbol: closeSymbol,
+      range: createRange(context, location, context.cursor.location('end')),
     });
     return tokens;
   }
@@ -500,8 +579,8 @@ const tokenizeCodeBlock = (context: TokenizerContext): FunCityToken[] => {
   const causeLocation = context.cursor.location('start');
   context.logs.push({
     type: 'error',
-    description: 'required code block closer: `}}`',
-    range: { start: causeLocation, end: causeLocation },
+    description: `required code block closer: \`${closeSymbol}\``,
+    range: createRange(context, causeLocation, causeLocation),
   });
   return tokens;
 };
@@ -631,14 +710,17 @@ const createTokenizerCursor = (script: string): TokenizerCursor => {
  * Run the tokenizer for code expressions only.
  * @param script - Input script text
  * @param logs - Will be stored detected warnings/logs into it
+ * @param sourceId - Source identifier (file path, URL, etc)
  * @returns The token list
  */
 export const runCodeTokenizer = (
   script: string,
-  logs: FunCityLogEntry[]
+  logs: FunCityLogEntry[],
+  sourceId: string
 ): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
+    sourceId,
     logs,
   };
 
@@ -650,14 +732,17 @@ export const runCodeTokenizer = (
  * Run the tokenizer.
  * @param script - Input script text
  * @param logs - Will be stored detected warnings/logs into it
+ * @param sourceId - Source identifier (file path, URL, etc)
  * @returns The token list
  */
 export const runTokenizer = (
   script: string,
-  logs: FunCityLogEntry[]
+  logs: FunCityLogEntry[],
+  sourceId: string
 ): FunCityToken[] => {
   const context: TokenizerContext = {
     cursor: createTokenizerCursor(script),
+    sourceId,
     logs,
   };
 
@@ -696,7 +781,7 @@ export const runTokenizer = (
       tokens.push({
         kind: 'text',
         text,
-        range: { start, end: context.cursor.location('end') },
+        range: createRange(context, start, context.cursor.location('end')),
       });
     } else {
       tokens.push(...tokenizeCodeBlock(context));

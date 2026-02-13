@@ -42,6 +42,10 @@ export interface FunCityLocation {
  */
 export interface FunCityRange {
   /**
+   * Source identifier (file path, URL, etc).
+   */
+  readonly sourceId: string;
+  /**
    * Start location.
    */
   readonly start: FunCityLocation;
@@ -226,6 +230,20 @@ export interface FunCityTextToken extends FunCityRangedObject {
 }
 
 /**
+ * Template token (interpolated string).
+ */
+export interface FunCityTemplateToken extends FunCityRangedObject {
+  /**
+   * Token kind.
+   */
+  readonly kind: 'template';
+  /**
+   * Template token list.
+   */
+  readonly tokens: readonly FunCityToken[];
+}
+
+/**
  * The token.
  */
 export type FunCityToken =
@@ -236,7 +254,8 @@ export type FunCityToken =
   | FunCityCloseToken
   | FunCityDotToken
   | FunCityEndOfLineToken
-  | FunCityTextToken;
+  | FunCityTextToken
+  | FunCityTemplateToken;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -252,6 +271,20 @@ export interface FunCityStringNode extends FunCityRangedObject {
    * String value.
    */
   readonly value: string;
+}
+
+/**
+ * Template (interpolated string) expression node.
+ */
+export interface FunCityTemplateNode extends FunCityRangedObject {
+  /**
+   * Node kind.
+   */
+  readonly kind: 'template';
+  /**
+   * Template block nodes.
+   */
+  readonly blocks: readonly FunCityBlockNode[];
 }
 
 /**
@@ -375,6 +408,7 @@ export interface FunCityScopeNode extends FunCityRangedObject {
 export type FunCityExpressionNode =
   | FunCityNumberNode
   | FunCityStringNode
+  | FunCityTemplateNode
   | FunCityVariableNode
   | FunCityDotNode
   | FunCityApplyNode
@@ -571,6 +605,14 @@ export interface FunCityFunctionContext {
    * @returns Reduced value.
    */
   readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
+  /**
+   * Reduce block node(s) with this context.
+   * @param nodeOrNodes - Target block node or list
+   * @returns Reduced values.
+   */
+  readonly reduceBlock: (
+    nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+  ) => Promise<unknown[]>;
 }
 
 /**
@@ -650,6 +692,10 @@ export interface FunCityOnceRunnerProps {
    * Predefined variables.
    */
   variables?: FunCityVariables;
+  /**
+   * Source identifier (file path, URL, etc).
+   */
+  sourceId: string;
   /**
    * Will be stored detected warnings/logs into it.
    */

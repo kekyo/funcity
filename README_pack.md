@@ -63,7 +63,11 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 // Run the interpreter
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // Display the result text
 console.log(text);
@@ -94,6 +98,8 @@ In other words, funcity is a processing system that brings the power of function
 String literals can be wrapped in single quotes `'`, double quotes `"`, or backticks `` ` ``.
 The opening and closing quote must match. Other quote characters can be used inside a string without escaping.
 To use the same quote as the opener (or `\`) inside a string, escape it with a backslash.
+You can also embed template blocks with `{{...}}` inside a quoted string.
+Use `\{` and `\}` to output literal braces.
 
 Supported escape sequences:
 
@@ -106,6 +112,8 @@ Supported escape sequences:
 - `\'` single quote
 - `\"` double quote
 - ``\``` backtick
+- `\{` left brace
+- `\}` right brace
 - `\\` backslash
 
 ---

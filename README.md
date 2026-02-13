@@ -71,9 +71,9 @@ set fib (fun n \
 }}
 Fibonacci (10) = {{fib 10}}
 ```
-If you want to try it right now, use [Play ground page](https://kekyo.github.io/funcity/)!
+If you want to try it right now, use [Playground page](https://kekyo.github.io/funcity/)!
 
-[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
+[![funcity Playground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
 
 Furthermore, you can easily integrate this interpreter into your application:
 
@@ -84,7 +84,11 @@ const script = "Today is {{cond weather.sunny ‘nice’ 'bad'}} weather.";
 // Run the interpreter
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // Display the result text
 console.log(text);
@@ -168,6 +172,7 @@ Start with `funcity` or `funcity repl`. The prompt is `funcity> `.
 
 The REPL runs code expressions only and ignores text blocks.
 This means it behaves like a pure funcity functional language interpreter.
+Note that template blocks inside string literals are still supported.
 
 Example using the `add` function and `set` for variable binding:
 
@@ -255,6 +260,9 @@ The city is Lisbon.
 ```
 
 Inside the double braces `{{...}}`, you can write a statement or expression.
+Curly braces can be specified for any length as long as they contain two or more characters.
+They must be closed with the same number of curly braces as opened (e.g., `{{{...}}}` / `{{{{...}}}}`).
+
 Besides strings, you can also insert numbers:
 
 ```bash
@@ -290,6 +298,18 @@ Some functions take multiple arguments. Since arguments are space-separated, nes
 $ echo "We counted about {{add (mul 4 10) 2}} birds." | funcity run
 We counted about 42 birds.
 ```
+
+### String interpolation
+
+String literals can embed template blocks with `{{...}}`.
+Inside a quoted string, `{{...}}` is parsed the same way as a normal template block, so you can nest statements like `if`/`for`/`end`.
+
+```bash
+$ echo "{{set name 'Alice'}}{{'Hello {{name}}!'}}" | funcity run
+Hello Alice!
+```
+
+To include literal braces inside a string, escape them as `\{` and `\}`.
 
 ### Basic statements and text formatting
 
@@ -407,7 +427,9 @@ Here, we're comparing input using simple ‘y’ or ‘Y’, but using the regul
 ### Escaping string literals
 
 String literals in funcity can be wrapped in single quotes `'`, double quotes `"`, or backticks `` ` ``.
-The opening and closing quote must match. The empty string can be written as `''`, `""`, or an empty backtick literal.
+You can also wrap strings with three or more of the same quote character (for example `'''...'''` or `"""..."""`, and likewise with backticks).
+The opening and closing quote must match. The empty string can be written as `''`, `""`, or an empty backtick literal (two quotes are reserved for this).
+
 Other quote characters can be used inside a string without escaping.
 To use the same quote as the opener (or `\`) inside a string, escape it with a backslash.
 
@@ -422,6 +444,8 @@ Supported escape sequences:
 - `\'` single quote
 - `\"` double quote
 - ``\``` backtick
+- `\{` left brace
+- `\}` right brace
 - `\\` backslash
 
 Undefined escape sequences are treated as errors.
@@ -610,10 +634,11 @@ Writing the whole operation in code gives a minimal example like this:
 ```typescript
 const run = async (
   script: string,
+  sourceId: string,
   logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // Run the tokenizer
-  const blocks: FunCityToken[] = runTokenizer(script, logs);
+  const blocks: FunCityToken[] = runTokenizer(script, logs, sourceId);
 
   // Run the parser
   const nodes: FunCityBlockNode[] = runParser(blocks, logs);
@@ -797,6 +822,8 @@ The following are the standard functions:
 | `le` | Returns true if the first argument is less than or equal to the second. |
 | `ge` | Returns true if the first argument is greater than or equal to the second. |
 | `now` | Returns current date time in `Date` object. |
+| `random` | Returns a random integer using `Math.random()` (requires arguments). |
+| `randomf` | Returns a random floating-point number using `Math.random()`. |
 | `concat` | Concatenates strings and `Iterable` arguments in order. |
 | `join` | Uses the first argument as a separator and joins strings from the second argument onward. |
 | `trim` | Trims whitespace at both ends of the first argument. |
@@ -844,6 +871,8 @@ The following are the standard functions:
 | `fetchText` | Fetches and returns `response.text()`. |
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
+| `include` | Includes and evaluates an external script. Provided via `createIncludeFunction()`. |
+| `tryInclude` | Same as `include`, but can ignore missing sources via options. Provided via `createIncludeFunction()`. |
 | `delay` | Resolves after the specified milliseconds. |
 | `console` | Console output object. |
 
@@ -919,6 +948,26 @@ These functions can take multiple arguments:
 
 For `and` and `or`, at least one argument is required.
 They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`. They are "funcity function").
+
+### random,randomf
+
+`random` generates a random integer using JavaScript's `Math.random()`:
+
+```funcity
+{{random 5}}
+{{random 5 7}}
+```
+
+- With one argument, it returns an integer in `0 .. <n`.
+- With two arguments, it returns an integer in `base .. <base+span`.
+
+`randomf` is the floating-point version with the same ranges:
+
+```funcity
+{{randomf ()}}
+{{randomf 5}}
+{{randomf 5 7}}
+```
 
 ### at,first,last
 
@@ -1094,6 +1143,57 @@ Resolves after the specified milliseconds (optional second argument is returned)
 ```funcity
 {{delay 200}}
 ```
+
+### include,tryInclude
+
+`include` evaluates external scripts and inserts the result.
+`tryInclude` behaves similarly but ignores the script if it cannot be found.
+
+In the CLI, it is defined as follows:
+
+- REPL: The base path is relative to the current directory.
+- Script execution: The base path is relative to the script's directory or the current directory.
+- Variable scope is always considered the same (no child scope is created).
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+Both functions throw when a parse error is detected in the included script.
+
+To use these functions programmatically, create them with `createIncludeFunction()` and inject them into a variable:
+
+```typescript
+const logs: FunCityLogEntry[] = [];
+const { include, tryInclude } = createIncludeFunction({
+  resolve: async (request) => {
+    if (request === 'foo.fc') {
+      return "{{set a 1}}";
+    }
+    return undefined;
+  },
+  logs,
+  mode: 'template',
+  scope: 'same',
+});
+const variables = buildCandidateVariables({ include, tryInclude });
+```
+
+`resolve` must return one of the following:
+
+- A `string` script. The `sourceId` will be the request string.
+- An `{ sourceId, script }` object.
+- `undefined` to indicate a missing source (handled by `includeMissing` / `tryIncludeMissing`).
+
+`mode` controls parsing:
+
+- `template`: parse full templates (uses `runTokenizer` + `runParser`).
+- `code`: parse code-only scripts (uses `runCodeTokenizer` + `parseExpressions`).
+
+`scope` controls evaluation:
+
+- `same`: evaluate in the caller scope (so `set` affects the caller).
+- `child`: evaluate in a child scope (no variable leakage).
 
 ### objectVariables
 

@@ -133,10 +133,14 @@ const parseSampleText = (text: string, fileName: string) => {
   };
 };
 
+const toSampleSourceId = (fileName: string) =>
+  fileName.replace(/\.txt$/i, '.fc');
+
 const App = ({ mode, onToggleMode }: AppProps) => {
   const [script, setScript] = useState(() =>
     getInitialScript(window.location.search)
   );
+  const [sourceId, setSourceId] = useState('hello.fc');
   const [output, setOutput] = useState('');
   const [logText, setLogText] = useState('');
   const [isRunning, setIsRunning] = useState(false);
@@ -155,10 +159,19 @@ const App = ({ mode, onToggleMode }: AppProps) => {
   const activeReadlineRef = useRef<ReadlineRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logExtensions = useMemo(() => [consoleOutputExtensions], []);
+  const htmlTitleText = useMemo(() => `${sourceId} - funcity`, [sourceId]);
+  const titleText = useMemo(
+    () => `funcity Playground [${version}]: ${sourceId}`,
+    [sourceId]
+  );
 
   useEffect(() => {
     document.documentElement.style.colorScheme = mode;
   }, [mode]);
+
+  useEffect(() => {
+    document.title = htmlTitleText;
+  }, [titleText]);
 
   useEffect(() => {
     if (sampleFileNames.length === 0) {
@@ -349,6 +362,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
 
   const handleSampleSelect = useCallback((sample: SampleEntry) => {
     setScript(sample.script);
+    setSourceId(toSampleSourceId(sample.fileName));
     setSamplesAnchorEl(null);
   }, []);
 
@@ -465,6 +479,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
         {
           variables: runtimeVariables,
           logs,
+          sourceId,
         },
         controller.signal
       );
@@ -521,7 +536,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
                 alt="funcity icon"
                 sx={{ width: 33, height: 32 }}
               />
-              <Box component="span">funcity Play ground [{version}]</Box>
+              <Box component="span">{titleText}</Box>
             </Link>
           </Typography>
           <Box flexGrow={1} />

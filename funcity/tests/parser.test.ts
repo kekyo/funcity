@@ -11,6 +11,8 @@ import { parseExpressions, runParser } from '../src/parser';
 
 ///////////////////////////////////////////////////////////////////////////////////
 
+const sourceId = 'unknown.fc';
+
 describe('scripting parser test', () => {
   it('nop token 1', () => {
     // ""
@@ -31,6 +33,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -39,6 +42,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -60,6 +64,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -68,6 +73,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -76,6 +82,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 9 },
         },
@@ -91,8 +98,59 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
+        },
+      },
+    ]);
+    expect(logs).toEqual([]);
+  });
+
+  it('variable token with triple braces', () => {
+    // "{{{hello}}}"
+    const token: FunCityToken[] = [
+      {
+        kind: 'open',
+        symbol: '{{{',
+        range: {
+          sourceId,
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 3 },
+        },
+      },
+      {
+        kind: 'identity',
+        name: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 8 },
+        },
+      },
+      {
+        kind: 'close',
+        symbol: '}}}',
+        range: {
+          sourceId,
+          start: { line: 1, column: 9 },
+          end: { line: 1, column: 11 },
+        },
+      },
+    ];
+    const logs: FunCityLogEntry[] = [];
+
+    const nodes = runParser(token, logs);
+
+    // "{{{hello}}}"
+    expect(nodes).toEqual([
+      {
+        kind: 'variable',
+        name: 'hello',
+        range: {
+          sourceId,
+          start: { line: 1, column: 4 },
+          end: { line: 1, column: 8 },
         },
       },
     ]);
@@ -106,6 +164,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -114,6 +173,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -122,6 +182,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -137,6 +198,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -152,6 +214,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -160,6 +223,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -168,6 +232,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -183,6 +248,7 @@ describe('scripting parser test', () => {
         kind: 'variable',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -198,6 +264,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -206,6 +273,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -214,6 +282,7 @@ describe('scripting parser test', () => {
         kind: 'dot',
         optional: false,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -222,6 +291,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
@@ -230,6 +300,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -247,6 +318,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -256,16 +328,19 @@ describe('scripting parser test', () => {
             name: 'bar',
             optional: false,
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 9 },
             },
             operatorRange: {
+              sourceId,
               start: { line: 1, column: 6 },
               end: { line: 1, column: 6 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -281,6 +356,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -289,6 +365,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -296,6 +373,7 @@ describe('scripting parser test', () => {
       {
         kind: 'dot',
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 7 },
         },
@@ -305,6 +383,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -313,6 +392,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -330,6 +410,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -339,16 +420,19 @@ describe('scripting parser test', () => {
             name: 'bar',
             optional: true,
             range: {
+              sourceId,
               start: { line: 1, column: 8 },
               end: { line: 1, column: 10 },
             },
             operatorRange: {
+              sourceId,
               start: { line: 1, column: 6 },
               end: { line: 1, column: 7 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 10 },
         },
@@ -364,6 +448,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -372,6 +457,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -379,6 +465,7 @@ describe('scripting parser test', () => {
       {
         kind: 'dot',
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 7 },
         },
@@ -388,6 +475,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar?',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 11 },
         },
@@ -396,6 +484,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -413,6 +502,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -422,16 +512,19 @@ describe('scripting parser test', () => {
             name: 'bar?',
             optional: true,
             range: {
+              sourceId,
               start: { line: 1, column: 8 },
               end: { line: 1, column: 11 },
             },
             operatorRange: {
+              sourceId,
               start: { line: 1, column: 6 },
               end: { line: 1, column: 7 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 11 },
         },
@@ -447,6 +540,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'Hello',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 5 },
         },
@@ -455,6 +549,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 7 },
         },
@@ -463,6 +558,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -471,6 +567,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -479,6 +576,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'World',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 17 },
         },
@@ -494,6 +592,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'Hello',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 5 },
         },
@@ -502,6 +601,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -510,6 +610,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'World',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 17 },
         },
@@ -525,6 +626,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -533,6 +635,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -541,6 +644,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 16 },
         },
@@ -549,6 +653,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 22 },
         },
@@ -557,6 +662,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 23 },
           end: { line: 1, column: 24 },
         },
@@ -574,6 +680,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foobar',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 8 },
           },
@@ -583,6 +690,7 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'hello',
             range: {
+              sourceId,
               start: { line: 1, column: 10 },
               end: { line: 1, column: 16 },
             },
@@ -591,12 +699,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 1, column: 18 },
               end: { line: 1, column: 22 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 22 },
         },
@@ -612,6 +722,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -620,6 +731,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -628,6 +740,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -636,6 +749,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'baz',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 13 },
         },
@@ -644,6 +758,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 15 },
           end: { line: 1, column: 19 },
         },
@@ -652,6 +767,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 20 },
           end: { line: 1, column: 20 },
         },
@@ -660,6 +776,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 21 },
           end: { line: 1, column: 23 },
         },
@@ -677,6 +794,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foobar',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 8 },
           },
@@ -688,6 +806,7 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'baz',
               range: {
+                sourceId,
                 start: { line: 1, column: 11 },
                 end: { line: 1, column: 13 },
               },
@@ -697,18 +816,21 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 12345,
                 range: {
+                  sourceId,
                   start: { line: 1, column: 15 },
                   end: { line: 1, column: 19 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 11 },
               end: { line: 1, column: 19 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 19 },
         },
@@ -724,6 +846,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -732,6 +855,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -740,6 +864,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -748,6 +873,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -756,6 +882,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -773,12 +900,14 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foobar',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 8 },
           },
         },
         args: [],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 11 },
         },
@@ -794,6 +923,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -802,6 +932,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -810,6 +941,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -818,6 +950,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'baz',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 13 },
         },
@@ -826,6 +959,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 15 },
           end: { line: 1, column: 15 },
         },
@@ -834,6 +968,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 16 },
           end: { line: 1, column: 16 },
         },
@@ -842,6 +977,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
         },
@@ -850,6 +986,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 18 },
           end: { line: 1, column: 19 },
         },
@@ -867,6 +1004,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foobar',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 8 },
           },
@@ -878,18 +1016,21 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'baz',
               range: {
+                sourceId,
                 start: { line: 1, column: 11 },
                 end: { line: 1, column: 13 },
               },
             },
             args: [],
             range: {
+              sourceId,
               start: { line: 1, column: 11 },
               end: { line: 1, column: 16 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 16 },
         },
@@ -905,6 +1046,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -913,6 +1055,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -921,6 +1064,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -929,6 +1073,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 5 },
         },
@@ -937,6 +1082,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 6 },
           end: { line: 2, column: 7 },
         },
@@ -955,6 +1101,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foobar',
             range: {
+              sourceId,
               start: { line: 1, column: 3 },
               end: { line: 1, column: 8 },
             },
@@ -963,12 +1110,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 5 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 2, column: 5 },
         },
@@ -984,6 +1133,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -992,6 +1142,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 8 },
         },
@@ -1000,6 +1151,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1008,6 +1160,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'ABC',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 5 },
         },
@@ -1016,6 +1169,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 6 },
           end: { line: 2, column: 7 },
         },
@@ -1034,6 +1188,7 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 1, column: 3 },
               end: { line: 1, column: 8 },
             },
@@ -1042,12 +1197,14 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'ABC',
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 5 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 2, column: 5 },
         },
@@ -1063,6 +1220,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1071,6 +1229,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1079,6 +1238,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1087,6 +1247,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1095,6 +1256,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1110,6 +1272,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1125,6 +1288,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1133,6 +1297,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1141,6 +1306,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 10 },
         },
@@ -1149,6 +1315,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1157,6 +1324,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1172,6 +1340,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 10 },
         },
@@ -1187,6 +1356,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1195,6 +1365,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1203,6 +1374,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1211,6 +1383,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -1219,6 +1392,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 22 },
         },
@@ -1233,6 +1407,7 @@ describe('scripting parser test', () => {
         kind: 'variable',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1248,6 +1423,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1256,6 +1432,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1264,6 +1441,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1272,6 +1450,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 17 },
         },
@@ -1280,6 +1459,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 19 },
           end: { line: 1, column: 23 },
         },
@@ -1288,6 +1468,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 24 },
           end: { line: 1, column: 24 },
         },
@@ -1296,6 +1477,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 25 },
           end: { line: 1, column: 26 },
         },
@@ -1313,6 +1495,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foobar',
           range: {
+            sourceId,
             start: { line: 1, column: 4 },
             end: { line: 1, column: 9 },
           },
@@ -1322,6 +1505,7 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'hello',
             range: {
+              sourceId,
               start: { line: 1, column: 11 },
               end: { line: 1, column: 17 },
             },
@@ -1330,12 +1514,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 1, column: 19 },
               end: { line: 1, column: 23 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 23 },
         },
@@ -1351,6 +1537,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1359,6 +1546,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1367,6 +1555,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1375,6 +1564,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -1383,6 +1573,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 7 },
         },
@@ -1391,6 +1582,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 8 },
           end: { line: 2, column: 8 },
         },
@@ -1399,6 +1591,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 5 },
         },
@@ -1407,6 +1600,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 3, column: 6 },
           end: { line: 3, column: 6 },
         },
@@ -1415,6 +1609,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 7 },
           end: { line: 3, column: 8 },
         },
@@ -1433,6 +1628,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foobar',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 9 },
             },
@@ -1441,6 +1637,7 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'hello',
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 7 },
             },
@@ -1449,12 +1646,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 3, column: 1 },
               end: { line: 3, column: 5 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 3, column: 6 },
         },
@@ -1470,6 +1669,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1478,6 +1678,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -1486,6 +1687,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -1494,6 +1696,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -1502,6 +1705,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 12 },
         },
@@ -1510,6 +1714,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'baz',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 15 },
         },
@@ -1518,6 +1723,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 23 },
         },
@@ -1526,6 +1732,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 24 },
           end: { line: 1, column: 24 },
         },
@@ -1534,6 +1741,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 26 },
           end: { line: 1, column: 30 },
         },
@@ -1542,6 +1750,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 31 },
           end: { line: 1, column: 31 },
         },
@@ -1550,6 +1759,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'hoge',
         range: {
+          sourceId,
           start: { line: 1, column: 33 },
           end: { line: 1, column: 36 },
         },
@@ -1558,6 +1768,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 37 },
           end: { line: 1, column: 38 },
         },
@@ -1575,6 +1786,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -1586,6 +1798,7 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'bar',
               range: {
+                sourceId,
                 start: { line: 1, column: 8 },
                 end: { line: 1, column: 10 },
               },
@@ -1597,6 +1810,7 @@ describe('scripting parser test', () => {
                   kind: 'variable',
                   name: 'baz',
                   range: {
+                    sourceId,
                     start: { line: 1, column: 13 },
                     end: { line: 1, column: 15 },
                   },
@@ -1606,12 +1820,14 @@ describe('scripting parser test', () => {
                     kind: 'string',
                     value: 'hello',
                     range: {
+                      sourceId,
                       start: { line: 1, column: 17 },
                       end: { line: 1, column: 23 },
                     },
                   },
                 ],
                 range: {
+                  sourceId,
                   start: { line: 1, column: 13 },
                   end: { line: 1, column: 23 },
                 },
@@ -1620,12 +1836,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 12345,
                 range: {
+                  sourceId,
                   start: { line: 1, column: 26 },
                   end: { line: 1, column: 30 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 8 },
               end: { line: 1, column: 30 },
             },
@@ -1634,12 +1852,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'hoge',
             range: {
+              sourceId,
               start: { line: 1, column: 33 },
               end: { line: 1, column: 36 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 36 },
         },
@@ -1655,6 +1875,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1663,6 +1884,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1671,6 +1893,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 8 },
         },
@@ -1679,6 +1902,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -1687,6 +1911,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 11 },
         },
@@ -1705,12 +1930,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 8 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 9 },
         },
@@ -1726,6 +1953,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1734,6 +1962,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1742,6 +1971,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 10 },
         },
@@ -1750,6 +1980,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -1758,6 +1989,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 13 },
         },
@@ -1776,12 +2008,14 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'hello',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 10 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 11 },
         },
@@ -1797,6 +2031,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1805,6 +2040,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1813,6 +2049,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1821,6 +2058,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -1829,6 +2067,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -1847,12 +2086,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foobar',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 9 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 10 },
         },
@@ -1868,6 +2109,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -1876,6 +2118,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -1884,6 +2127,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foobar',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 9 },
         },
@@ -1892,6 +2136,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 17 },
         },
@@ -1900,6 +2145,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 12345,
         range: {
+          sourceId,
           start: { line: 1, column: 19 },
           end: { line: 1, column: 23 },
         },
@@ -1908,6 +2154,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 24 },
           end: { line: 1, column: 24 },
         },
@@ -1916,6 +2163,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 25 },
           end: { line: 1, column: 26 },
         },
@@ -1934,6 +2182,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foobar',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 9 },
             },
@@ -1942,6 +2191,7 @@ describe('scripting parser test', () => {
             kind: 'string',
             value: 'hello',
             range: {
+              sourceId,
               start: { line: 1, column: 11 },
               end: { line: 1, column: 17 },
             },
@@ -1950,12 +2200,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 12345,
             range: {
+              sourceId,
               start: { line: 1, column: 19 },
               end: { line: 1, column: 23 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 24 },
         },
@@ -1966,7 +2218,7 @@ describe('scripting parser test', () => {
 
   it('bracket tokens with semicolon error', () => {
     const logs: FunCityLogEntry[] = [];
-    const tokens = runTokenizer('{{[foo;bar]}}', logs);
+    const tokens = runTokenizer('{{[foo;bar]}}', logs, sourceId);
 
     const nodes = runParser(tokens, logs);
 
@@ -1978,6 +2230,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foo',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 6 },
             },
@@ -1986,12 +2239,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'bar',
             range: {
+              sourceId,
               start: { line: 1, column: 8 },
               end: { line: 1, column: 10 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 11 },
         },
@@ -2002,11 +2257,31 @@ describe('scripting parser test', () => {
         type: 'error',
         description: 'Semicolon is not allowed in list expression',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
       },
     ]);
+  });
+
+  it('template string becomes template node', () => {
+    const logs: FunCityLogEntry[] = [];
+    const tokens = runTokenizer("{{'Hello {{name}}!'}}", logs, sourceId);
+
+    const nodes = runParser(tokens, logs);
+
+    expect(nodes).toMatchObject([
+      {
+        kind: 'template',
+        blocks: [
+          { kind: 'text', text: 'Hello ' },
+          { kind: 'variable', name: 'name' },
+          { kind: 'text', text: '!' },
+        ],
+      },
+    ]);
+    expect(logs).toEqual([]);
   });
 
   it('nested bracket multiple tokens', () => {
@@ -2016,6 +2291,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2024,6 +2300,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -2032,6 +2309,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2040,6 +2318,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -2048,6 +2327,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 12 },
         },
@@ -2056,6 +2336,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 15 },
         },
@@ -2064,6 +2345,7 @@ describe('scripting parser test', () => {
         kind: 'string',
         value: 'hello',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 23 },
         },
@@ -2072,6 +2354,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 24 },
           end: { line: 1, column: 24 },
         },
@@ -2080,6 +2363,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 456,
         range: {
+          sourceId,
           start: { line: 1, column: 26 },
           end: { line: 1, column: 28 },
         },
@@ -2088,6 +2372,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 29 },
           end: { line: 1, column: 29 },
         },
@@ -2096,6 +2381,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'baz',
         range: {
+          sourceId,
           start: { line: 1, column: 31 },
           end: { line: 1, column: 33 },
         },
@@ -2104,6 +2390,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 34 },
           end: { line: 1, column: 35 },
         },
@@ -2121,6 +2408,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -2133,6 +2421,7 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 1, column: 8 },
                   end: { line: 1, column: 10 },
                 },
@@ -2144,6 +2433,7 @@ describe('scripting parser test', () => {
                     kind: 'variable',
                     name: 'bar',
                     range: {
+                      sourceId,
                       start: { line: 1, column: 13 },
                       end: { line: 1, column: 15 },
                     },
@@ -2152,12 +2442,14 @@ describe('scripting parser test', () => {
                     kind: 'string',
                     value: 'hello',
                     range: {
+                      sourceId,
                       start: { line: 1, column: 17 },
                       end: { line: 1, column: 23 },
                     },
                   },
                 ],
                 range: {
+                  sourceId,
                   start: { line: 1, column: 12 },
                   end: { line: 1, column: 24 },
                 },
@@ -2166,12 +2458,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 456,
                 range: {
+                  sourceId,
                   start: { line: 1, column: 26 },
                   end: { line: 1, column: 28 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 29 },
             },
@@ -2180,12 +2474,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'baz',
             range: {
+              sourceId,
               start: { line: 1, column: 31 },
               end: { line: 1, column: 33 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 33 },
         },
@@ -2201,6 +2497,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2209,6 +2506,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2217,6 +2515,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -2225,6 +2524,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2233,6 +2533,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -2241,6 +2542,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -2249,6 +2551,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -2257,6 +2560,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 5 },
         },
@@ -2274,6 +2578,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -2283,6 +2588,7 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 3 },
             },
@@ -2290,6 +2596,7 @@ describe('scripting parser test', () => {
         ],
         else: [],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 3, column: 3 },
         },
@@ -2305,6 +2612,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2313,6 +2621,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2321,6 +2630,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -2329,6 +2639,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2337,6 +2648,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -2345,6 +2657,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 2, column: 5 },
           end: { line: 2, column: 7 },
         },
@@ -2353,6 +2666,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 8 },
           end: { line: 2, column: 8 },
         },
@@ -2361,6 +2675,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -2369,6 +2684,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 5 },
         },
@@ -2386,6 +2702,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -2397,6 +2714,7 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'foo',
               range: {
+                sourceId,
                 start: { line: 2, column: 1 },
                 end: { line: 2, column: 3 },
               },
@@ -2406,12 +2724,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 2, column: 5 },
                   end: { line: 2, column: 7 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 7 },
             },
@@ -2419,6 +2739,7 @@ describe('scripting parser test', () => {
         ],
         else: [],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 3, column: 3 },
         },
@@ -2434,6 +2755,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2442,6 +2764,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2450,6 +2773,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -2458,6 +2782,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2466,6 +2791,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -2474,6 +2800,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -2482,6 +2809,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -2490,6 +2818,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
         },
@@ -2498,6 +2827,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 4, column: 1 },
           end: { line: 4, column: 3 },
         },
@@ -2506,6 +2836,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 4, column: 4 },
           end: { line: 4, column: 5 },
         },
@@ -2523,6 +2854,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -2535,6 +2867,7 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'foo',
                 range: {
+                  sourceId,
                   start: { line: 2, column: 1 },
                   end: { line: 2, column: 3 },
                 },
@@ -2543,12 +2876,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 3, column: 1 },
                   end: { line: 3, column: 3 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 3, column: 3 },
             },
@@ -2556,6 +2891,7 @@ describe('scripting parser test', () => {
         ],
         else: [],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 4, column: 3 },
         },
@@ -2571,6 +2907,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2579,6 +2916,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2587,6 +2925,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -2595,6 +2934,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2603,6 +2943,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -2611,6 +2952,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -2619,6 +2961,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'else',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 4 },
         },
@@ -2627,6 +2970,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 3, column: 5 },
           end: { line: 3, column: 5 },
         },
@@ -2635,6 +2979,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 456,
         range: {
+          sourceId,
           start: { line: 4, column: 1 },
           end: { line: 4, column: 3 },
         },
@@ -2643,6 +2988,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
         },
@@ -2651,6 +2997,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 5, column: 1 },
           end: { line: 5, column: 3 },
         },
@@ -2659,6 +3006,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 5, column: 4 },
           end: { line: 5, column: 5 },
         },
@@ -2676,6 +3024,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -2685,6 +3034,7 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 3 },
             },
@@ -2695,12 +3045,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 456,
             range: {
+              sourceId,
               start: { line: 4, column: 1 },
               end: { line: 4, column: 3 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 5, column: 3 },
         },
@@ -2716,6 +3068,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2724,6 +3077,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2732,6 +3086,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -2740,6 +3095,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -2748,6 +3104,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -2756,6 +3113,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -2764,6 +3122,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'elseif',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 6 },
         },
@@ -2772,6 +3131,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 0,
         range: {
+          sourceId,
           start: { line: 3, column: 8 },
           end: { line: 3, column: 8 },
         },
@@ -2780,6 +3140,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 3, column: 9 },
           end: { line: 3, column: 9 },
         },
@@ -2788,6 +3149,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 456,
         range: {
+          sourceId,
           start: { line: 4, column: 1 },
           end: { line: 4, column: 3 },
         },
@@ -2796,6 +3158,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
         },
@@ -2804,6 +3167,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'else',
         range: {
+          sourceId,
           start: { line: 5, column: 1 },
           end: { line: 5, column: 4 },
         },
@@ -2812,6 +3176,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 5, column: 5 },
           end: { line: 5, column: 5 },
         },
@@ -2820,6 +3185,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 789,
         range: {
+          sourceId,
           start: { line: 6, column: 1 },
           end: { line: 6, column: 3 },
         },
@@ -2828,6 +3194,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 6, column: 4 },
           end: { line: 6, column: 4 },
         },
@@ -2836,6 +3203,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 7, column: 1 },
           end: { line: 7, column: 3 },
         },
@@ -2844,6 +3212,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 7, column: 4 },
           end: { line: 7, column: 5 },
         },
@@ -2861,6 +3230,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -2870,6 +3240,7 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 3 },
             },
@@ -2882,6 +3253,7 @@ describe('scripting parser test', () => {
               kind: 'number',
               value: 0,
               range: {
+                sourceId,
                 start: { line: 3, column: 8 },
                 end: { line: 3, column: 8 },
               },
@@ -2891,6 +3263,7 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 456,
                 range: {
+                  sourceId,
                   start: { line: 4, column: 1 },
                   end: { line: 4, column: 3 },
                 },
@@ -2901,18 +3274,21 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 789,
                 range: {
+                  sourceId,
                   start: { line: 6, column: 1 },
                   end: { line: 6, column: 3 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 3, column: 1 },
               end: { line: 7, column: 3 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 7, column: 3 },
         },
@@ -2928,6 +3304,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -2936,6 +3313,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -2944,6 +3322,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'flag?',
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 10 },
         },
@@ -2952,6 +3331,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 12 },
         },
@@ -2960,6 +3340,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'THEN',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 16 },
         },
@@ -2968,6 +3349,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 18 },
         },
@@ -2976,6 +3358,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'else',
         range: {
+          sourceId,
           start: { line: 1, column: 19 },
           end: { line: 1, column: 22 },
         },
@@ -2984,6 +3367,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 23 },
           end: { line: 1, column: 24 },
         },
@@ -2992,6 +3376,7 @@ describe('scripting parser test', () => {
         kind: 'text',
         text: 'ELSE',
         range: {
+          sourceId,
           start: { line: 1, column: 25 },
           end: { line: 1, column: 28 },
         },
@@ -3000,6 +3385,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 29 },
           end: { line: 1, column: 30 },
         },
@@ -3008,6 +3394,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 1, column: 31 },
           end: { line: 1, column: 33 },
         },
@@ -3016,6 +3403,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 34 },
           end: { line: 1, column: 35 },
         },
@@ -3033,6 +3421,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'flag?',
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 10 },
           },
@@ -3042,6 +3431,7 @@ describe('scripting parser test', () => {
             kind: 'text',
             text: 'THEN',
             range: {
+              sourceId,
               start: { line: 1, column: 13 },
               end: { line: 1, column: 16 },
             },
@@ -3052,12 +3442,14 @@ describe('scripting parser test', () => {
             kind: 'text',
             text: 'ELSE',
             range: {
+              sourceId,
               start: { line: 1, column: 25 },
               end: { line: 1, column: 28 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 33 },
         },
@@ -3073,6 +3465,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3081,6 +3474,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -3089,6 +3483,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -3097,6 +3492,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -3105,6 +3501,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 2 },
         },
@@ -3113,6 +3510,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 0,
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -3121,6 +3519,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
         },
@@ -3129,6 +3528,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -3137,6 +3537,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
         },
@@ -3145,6 +3546,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 4, column: 1 },
           end: { line: 4, column: 3 },
         },
@@ -3153,6 +3555,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
         },
@@ -3161,6 +3564,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 5, column: 1 },
           end: { line: 5, column: 3 },
         },
@@ -3169,6 +3573,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 5, column: 4 },
           end: { line: 5, column: 5 },
         },
@@ -3186,6 +3591,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -3197,6 +3603,7 @@ describe('scripting parser test', () => {
               kind: 'number',
               value: 0,
               range: {
+                sourceId,
                 start: { line: 2, column: 4 },
                 end: { line: 2, column: 4 },
               },
@@ -3206,6 +3613,7 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 3, column: 1 },
                   end: { line: 3, column: 3 },
                 },
@@ -3213,6 +3621,7 @@ describe('scripting parser test', () => {
             ],
             else: [],
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 4, column: 3 },
             },
@@ -3220,6 +3629,7 @@ describe('scripting parser test', () => {
         ],
         else: [],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 5, column: 3 },
         },
@@ -3235,6 +3645,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3243,6 +3654,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 4 },
         },
@@ -3251,6 +3663,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 6 },
           end: { line: 1, column: 6 },
         },
@@ -3259,6 +3672,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -3267,6 +3681,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'if',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 2 },
         },
@@ -3275,6 +3690,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 0,
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -3283,6 +3699,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
         },
@@ -3291,6 +3708,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -3299,6 +3717,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 4 },
         },
@@ -3307,6 +3726,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'else',
         range: {
+          sourceId,
           start: { line: 4, column: 1 },
           end: { line: 4, column: 3 },
         },
@@ -3315,6 +3735,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 4, column: 4 },
           end: { line: 4, column: 4 },
         },
@@ -3323,6 +3744,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 456,
         range: {
+          sourceId,
           start: { line: 5, column: 1 },
           end: { line: 5, column: 3 },
         },
@@ -3331,6 +3753,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 5, column: 4 },
           end: { line: 5, column: 4 },
         },
@@ -3339,6 +3762,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 6, column: 1 },
           end: { line: 6, column: 3 },
         },
@@ -3347,6 +3771,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 6, column: 4 },
           end: { line: 6, column: 4 },
         },
@@ -3355,6 +3780,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'else',
         range: {
+          sourceId,
           start: { line: 7, column: 1 },
           end: { line: 7, column: 3 },
         },
@@ -3363,6 +3789,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 7, column: 4 },
           end: { line: 7, column: 4 },
         },
@@ -3371,6 +3798,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 789,
         range: {
+          sourceId,
           start: { line: 8, column: 1 },
           end: { line: 8, column: 3 },
         },
@@ -3379,6 +3807,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 8, column: 4 },
           end: { line: 8, column: 4 },
         },
@@ -3387,6 +3816,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 9, column: 1 },
           end: { line: 9, column: 3 },
         },
@@ -3395,6 +3825,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 9, column: 4 },
           end: { line: 9, column: 5 },
         },
@@ -3412,6 +3843,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 6 },
             end: { line: 1, column: 6 },
           },
@@ -3423,6 +3855,7 @@ describe('scripting parser test', () => {
               kind: 'number',
               value: 0,
               range: {
+                sourceId,
                 start: { line: 2, column: 4 },
                 end: { line: 2, column: 4 },
               },
@@ -3432,6 +3865,7 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 3, column: 1 },
                   end: { line: 3, column: 3 },
                 },
@@ -3442,12 +3876,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 456,
                 range: {
+                  sourceId,
                   start: { line: 5, column: 1 },
                   end: { line: 5, column: 3 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 6, column: 3 },
             },
@@ -3458,12 +3894,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 789,
             range: {
+              sourceId,
               start: { line: 8, column: 1 },
               end: { line: 8, column: 3 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 9, column: 3 },
         },
@@ -3479,6 +3917,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3487,6 +3926,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'while',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 7 },
         },
@@ -3495,6 +3935,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 9 },
         },
@@ -3503,6 +3944,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 10 },
           end: { line: 1, column: 10 },
         },
@@ -3511,6 +3953,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -3519,6 +3962,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 4 },
         },
@@ -3527,6 +3971,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -3535,6 +3980,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 5 },
         },
@@ -3552,6 +3998,7 @@ describe('scripting parser test', () => {
           kind: 'number',
           value: 1,
           range: {
+            sourceId,
             start: { line: 1, column: 9 },
             end: { line: 1, column: 9 },
           },
@@ -3561,12 +4008,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 3 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 3, column: 3 },
         },
@@ -3582,6 +4031,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3590,6 +4040,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'for',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -3598,6 +4049,7 @@ describe('scripting parser test', () => {
         kind: 'identity', // required
         name: 'item',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 10 },
         },
@@ -3606,6 +4058,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'items',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 16 },
         },
@@ -3614,6 +4067,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
         },
@@ -3622,6 +4076,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'item',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 4 },
         },
@@ -3630,6 +4085,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 2, column: 5 },
           end: { line: 2, column: 5 },
         },
@@ -3638,6 +4094,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'end',
         range: {
+          sourceId,
           start: { line: 3, column: 1 },
           end: { line: 3, column: 3 },
         },
@@ -3646,6 +4103,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 3, column: 4 },
           end: { line: 3, column: 5 },
         },
@@ -3663,6 +4121,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'item',
           range: {
+            sourceId,
             start: { line: 1, column: 7 },
             end: { line: 1, column: 10 },
           },
@@ -3671,6 +4130,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'items',
           range: {
+            sourceId,
             start: { line: 1, column: 12 },
             end: { line: 1, column: 16 },
           },
@@ -3680,12 +4140,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'item',
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 4 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 3, column: 3 },
         },
@@ -3701,6 +4163,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3709,6 +4172,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'set',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -3717,6 +4181,7 @@ describe('scripting parser test', () => {
         kind: 'identity', // required
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
@@ -3725,6 +4190,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 13 },
         },
@@ -3733,6 +4199,7 @@ describe('scripting parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 14 },
           end: { line: 1, column: 14 },
         },
@@ -3741,6 +4208,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 3 },
         },
@@ -3749,6 +4217,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 2, column: 4 },
           end: { line: 2, column: 5 },
         },
@@ -3769,6 +4238,7 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'set',
               range: {
+                sourceId,
                 start: { line: 1, column: 3 },
                 end: { line: 1, column: 5 },
               },
@@ -3778,6 +4248,7 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'foo',
                 range: {
+                  sourceId,
                   start: { line: 1, column: 7 },
                   end: { line: 1, column: 9 },
                 },
@@ -3786,12 +4257,14 @@ describe('scripting parser test', () => {
                 kind: 'number',
                 value: 123,
                 range: {
+                  sourceId,
                   start: { line: 1, column: 11 },
                   end: { line: 1, column: 13 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 3 },
               end: { line: 1, column: 13 },
             },
@@ -3800,12 +4273,14 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foo',
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 3 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 2, column: 3 },
         },
@@ -3821,6 +4296,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3829,6 +4305,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'fun',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -3837,6 +4314,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 9 },
         },
@@ -3845,6 +4323,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 13 },
         },
@@ -3853,6 +4332,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 14 },
           end: { line: 1, column: 15 },
         },
@@ -3870,6 +4350,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'fun',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -3879,6 +4360,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foo',
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 9 },
             },
@@ -3887,12 +4369,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 11 },
               end: { line: 1, column: 13 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 13 },
         },
@@ -3908,6 +4392,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -3916,6 +4401,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'fun',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -3924,6 +4410,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -3932,6 +4419,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -3940,6 +4428,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -3948,6 +4437,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 15 },
         },
@@ -3956,6 +4446,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 16 },
           end: { line: 1, column: 17 },
         },
@@ -3973,6 +4464,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'fun',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -3985,12 +4477,14 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'foo',
                 range: {
+                  sourceId,
                   start: { line: 1, column: 8 },
                   end: { line: 1, column: 10 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 11 },
             },
@@ -3999,12 +4493,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 13 },
               end: { line: 1, column: 15 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 15 },
         },
@@ -4020,6 +4516,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -4028,6 +4525,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'fun',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -4036,6 +4534,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -4044,6 +4543,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -4052,6 +4552,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'bar',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 14 },
         },
@@ -4060,6 +4561,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 15 },
           end: { line: 1, column: 15 },
         },
@@ -4068,6 +4570,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 19 },
         },
@@ -4076,6 +4579,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 20 },
           end: { line: 1, column: 21 },
         },
@@ -4093,6 +4597,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'fun',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -4105,6 +4610,7 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'foo',
                 range: {
+                  sourceId,
                   start: { line: 1, column: 8 },
                   end: { line: 1, column: 10 },
                 },
@@ -4113,12 +4619,14 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'bar',
                 range: {
+                  sourceId,
                   start: { line: 1, column: 12 },
                   end: { line: 1, column: 14 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 15 },
             },
@@ -4127,12 +4635,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 17 },
               end: { line: 1, column: 19 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 19 },
         },
@@ -4148,6 +4658,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -4156,6 +4667,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '(',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 3 },
         },
@@ -4164,6 +4676,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'fun',
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 6 },
         },
@@ -4172,6 +4685,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 8 },
         },
@@ -4180,6 +4694,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 9 },
           end: { line: 1, column: 11 },
         },
@@ -4188,6 +4703,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 12 },
           end: { line: 1, column: 12 },
         },
@@ -4196,6 +4712,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 14 },
           end: { line: 1, column: 16 },
         },
@@ -4204,6 +4721,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ')',
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 17 },
         },
@@ -4212,6 +4730,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 19 },
           end: { line: 1, column: 21 },
         },
@@ -4220,6 +4739,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 22 },
           end: { line: 1, column: 23 },
         },
@@ -4239,6 +4759,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'fun',
             range: {
+              sourceId,
               start: { line: 1, column: 4 },
               end: { line: 1, column: 6 },
             },
@@ -4251,12 +4772,14 @@ describe('scripting parser test', () => {
                   kind: 'variable',
                   name: 'foo',
                   range: {
+                    sourceId,
                     start: { line: 1, column: 9 },
                     end: { line: 1, column: 11 },
                   },
                 },
               ],
               range: {
+                sourceId,
                 start: { line: 1, column: 8 },
                 end: { line: 1, column: 12 },
               },
@@ -4265,12 +4788,14 @@ describe('scripting parser test', () => {
               kind: 'variable',
               name: 'foo',
               range: {
+                sourceId,
                 start: { line: 1, column: 14 },
                 end: { line: 1, column: 16 },
               },
             },
           ],
           range: {
+            sourceId,
             start: { line: 1, column: 4 },
             end: { line: 1, column: 16 },
           },
@@ -4280,12 +4805,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 19 },
               end: { line: 1, column: 21 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 4 },
           end: { line: 1, column: 21 },
         },
@@ -4301,6 +4828,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '{{',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 2 },
         },
@@ -4309,6 +4837,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'fun',
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 5 },
         },
@@ -4317,6 +4846,7 @@ describe('scripting parser test', () => {
         kind: 'open',
         symbol: '[',
         range: {
+          sourceId,
           start: { line: 1, column: 7 },
           end: { line: 1, column: 7 },
         },
@@ -4325,6 +4855,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 8 },
           end: { line: 1, column: 10 },
         },
@@ -4333,6 +4864,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: ']',
         range: {
+          sourceId,
           start: { line: 1, column: 11 },
           end: { line: 1, column: 11 },
         },
@@ -4341,6 +4873,7 @@ describe('scripting parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 13 },
           end: { line: 1, column: 15 },
         },
@@ -4349,6 +4882,7 @@ describe('scripting parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 17 },
           end: { line: 1, column: 19 },
         },
@@ -4357,6 +4891,7 @@ describe('scripting parser test', () => {
         kind: 'close',
         symbol: '}}',
         range: {
+          sourceId,
           start: { line: 1, column: 20 },
           end: { line: 1, column: 21 },
         },
@@ -4374,6 +4909,7 @@ describe('scripting parser test', () => {
           kind: 'variable',
           name: 'fun',
           range: {
+            sourceId,
             start: { line: 1, column: 3 },
             end: { line: 1, column: 5 },
           },
@@ -4386,12 +4922,14 @@ describe('scripting parser test', () => {
                 kind: 'variable',
                 name: 'foo',
                 range: {
+                  sourceId,
                   start: { line: 1, column: 8 },
                   end: { line: 1, column: 10 },
                 },
               },
             ],
             range: {
+              sourceId,
               start: { line: 1, column: 7 },
               end: { line: 1, column: 11 },
             },
@@ -4400,6 +4938,7 @@ describe('scripting parser test', () => {
             kind: 'variable',
             name: 'foo',
             range: {
+              sourceId,
               start: { line: 1, column: 13 },
               end: { line: 1, column: 15 },
             },
@@ -4408,12 +4947,14 @@ describe('scripting parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 17 },
               end: { line: 1, column: 19 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 3 },
           end: { line: 1, column: 19 },
         },
@@ -4430,6 +4971,7 @@ describe('code parser test', () => {
         kind: 'identity',
         name: 'foo',
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 3 },
         },
@@ -4438,6 +4980,7 @@ describe('code parser test', () => {
         kind: 'number',
         value: 123,
         range: {
+          sourceId,
           start: { line: 1, column: 5 },
           end: { line: 1, column: 7 },
         },
@@ -4454,6 +4997,7 @@ describe('code parser test', () => {
           kind: 'variable',
           name: 'foo',
           range: {
+            sourceId,
             start: { line: 1, column: 1 },
             end: { line: 1, column: 3 },
           },
@@ -4463,12 +5007,14 @@ describe('code parser test', () => {
             kind: 'number',
             value: 123,
             range: {
+              sourceId,
               start: { line: 1, column: 5 },
               end: { line: 1, column: 7 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 7 },
         },
@@ -4483,6 +5029,7 @@ describe('code parser test', () => {
         kind: 'number',
         value: 1,
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 1, column: 1 },
         },
@@ -4491,6 +5038,7 @@ describe('code parser test', () => {
         kind: 'eol',
         source: 'newline',
         range: {
+          sourceId,
           start: { line: 1, column: 2 },
           end: { line: 1, column: 2 },
         },
@@ -4499,6 +5047,7 @@ describe('code parser test', () => {
         kind: 'number',
         value: 2,
         range: {
+          sourceId,
           start: { line: 2, column: 1 },
           end: { line: 2, column: 1 },
         },
@@ -4516,6 +5065,7 @@ describe('code parser test', () => {
             kind: 'number',
             value: 1,
             range: {
+              sourceId,
               start: { line: 1, column: 1 },
               end: { line: 1, column: 1 },
             },
@@ -4524,12 +5074,14 @@ describe('code parser test', () => {
             kind: 'number',
             value: 2,
             range: {
+              sourceId,
               start: { line: 2, column: 1 },
               end: { line: 2, column: 1 },
             },
           },
         ],
         range: {
+          sourceId,
           start: { line: 1, column: 1 },
           end: { line: 2, column: 1 },
         },

@@ -70,9 +70,9 @@ set fib (fun n \
 Fibonacci (10) = {{fib 10}}
 ```
 
-今すぐ試したい場合は、[Play groundページ](https://kekyo.github.io/funcity/) をどうぞ！
+今すぐ試したい場合は、[Playgroundページ](https://kekyo.github.io/funcity/) をどうぞ！
 
-[![funcity Play ground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
+[![funcity Playground](./images/funcity-it.png)](https://kekyo.github.io/funcity/)
 
 更に、このインタープリタを、あなたのアプリケーションに簡単に組み込むことが出来ます:
 
@@ -83,7 +83,11 @@ const script = "Today is {{cond weather.sunny 'nice' 'bad'}} weather.";
 // インタープリタを実行
 const variables = buildCandidateVariables();
 const logs: FunCityLogEntry[] = [];
-const text = await runScriptOnceToText(script, variables, logs);
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+});
 
 // 結果の表示
 console.log(text);
@@ -165,6 +169,7 @@ $ funcity run
 `funcity` または `funcity repl` で開始します。`funcity> ` が入力プロンプトです。
 
 REPLはコード式専用で動作し、テキストブロックは無視されます。
+ただし、文字列リテラル内のテンプレートブロックは有効です。
 したがって、funcityの関数型言語インタープリタ実行のみを抜き出したように処理されます。
 
 以下は、 `add` 関数や `set` を使用した変数への値の設定（変数束縛）を実行した例です:
@@ -256,6 +261,9 @@ $ echo "イリオモテヤマネコは{{'西表島'}}に住んでいる。" | fu
 ```
 
 二重の波括弧'{{...}}'に囲われた部分には、予約語による文または式が記述できます。
+波括弧は2文字以上なら任意の長さで指定できます。開始と同じ数の閉じ波括弧で終了する必要があります
+(例: `{{{...}}}` / `{{{{...}}}}`)。
+
 文字列の他にも、数値も指定できます:
 
 ```bash
@@ -291,6 +299,18 @@ $ echo "イリオモテとヤマネコだから、{{concat 'イリオモテ' '�
 $ echo "イリオモテヤマネコが、多分{{add (mul 4 10) 2}}匹居る。" | funcity run
 イリオモテヤマネコが、多分42匹居る。
 ```
+
+### 文字列の補間
+
+文字列リテラルの中でも `{{...}}` によるテンプレートを埋め込めます。
+クォート内の `{{...}}` は通常のテンプレートブロックと同じように解釈されるため、`if`/`for`/`end` などの文もネストできます。
+
+```bash
+$ echo "{{set name 'アリス'}}{{'こんにちは {{name}}!'}}" | funcity run
+こんにちは アリス!
+```
+
+文字列内で `{` `}` をそのまま出したい場合は、`\{` `\}` でエスケープしてください。
 
 ### 基本的な文とテキスト整形
 
@@ -408,7 +428,9 @@ end
 ### 文字列リテラルのエスケープ
 
 funcityの文字列リテラルは、シングルクォート `'`、ダブルクォート `"`、バッククォート `` ` `` で囲めます。
-開始と終了のクォート種別は一致させる必要があります。空文字列は `''`、`""`、またはバッククォートで空にした表記で書けます。
+同じクォートを3文字以上連続させて文字列を囲うこともできます（例: `'''...'''` / `"""..."""`、バッククォートも同様）。
+開始と終了のクォート種別は一致させる必要があります。空文字列は `''`、`""`、またはバッククォートで空にした表記で書けます（2文字は空文字列の表記に使うため、この用途には使えません）。
+
 開始と異なるクォートはエスケープなしで使えます。
 開始と同じクォート（または`\`）を文字列内で使いたい場合は、バックスラッシュでエスケープします。
 
@@ -423,6 +445,8 @@ funcityの文字列リテラルは、シングルクォート `'`、ダブルク
 - `\'` シングルクォート
 - `\"` ダブルクォート
 - ``\``` バッククォート
+- `\{` 左波括弧
+- `\}` 右波括弧
 - `\\` バックスラッシュ
 
 未定義のエスケープシーケンスはエラーになります。
@@ -612,10 +636,11 @@ flowchart LR
 ```typescript
 const run = async (
   script: string,
+  sourceId: string,
   logs: FunCityLogEntry[] = []
 ): Promise<string> => {
   // トークナイザーの実行
-  const blocks: FunCityToken[] = runTokenizer(script, logs);
+  const blocks: FunCityToken[] = runTokenizer(script, logs, sourceId);
 
   // パーサーの実行
   const nodes: FunCityBlockNode[] = runParser(blocks, logs);
@@ -795,6 +820,8 @@ const results = await runReducer(nodes, variables, logs);
 | `le` | 第1引数が第2引数以下の場合に真を返します。 |
 | `ge` | 第1引数が第2引数以上の場合に真を返します。 |
 | `now` | 現在日時を示す`Date`を返します。 |
+| `random` | `Math.random()` を使って整数の乱数を返します（引数が必要）。 |
+| `randomf` | `Math.random()` を使って実数の乱数を返します。 |
 | `concat` | 引数群の文字列や`Iterable`を順に連結します。 |
 | `join` | 第1引数を区切り文字として、第2引数以降の文字列を結合します。 |
 | `trim` | 第1引数の文字列の前後の空白を削除します。 |
@@ -838,6 +865,8 @@ const results = await runReducer(nodes, variables, logs);
 | `regex` | 第1引数の正規表現と第2引数のオプションで、正規表現オブジェクトを生成します。 |
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
+| `include` | 外部スクリプトを評価して挿入します（`createIncludeFunction()` で作成）。 |
+| `tryInclude` | `include` と同様ですが、欠如時の扱いをオプションで指定できます。 |
 | `delay` | 指定ミリ秒後に解決します。 |
 | `console` | コンソール出力オブジェクト。 |
 
@@ -914,6 +943,26 @@ const results = await runReducer(nodes, variables, logs);
 
 `and`, `or` については、1個以上の引数が必要です。
 左から評価し、結果が確定した時点で評価を打ち切ります (`and` は最初の偽、`or` は最初の真。funcity関数)
+
+### random,randomf
+
+`random` は JavaScript の `Math.random()` を使って整数の乱数を生成します:
+
+```funcity
+{{random 5}}
+{{random 5 7}}
+```
+
+- 引数1つなら `0 .. <n` の整数を返します。
+- 引数2つなら `base .. <base+span` の整数を返します。
+
+`randomf` は実数版で、同じ範囲を返します:
+
+```funcity
+{{randomf ()}}
+{{randomf 5}}
+{{randomf 5 7}}
+```
 
 ### at,first,last
 
@@ -1089,6 +1138,57 @@ const results = await runReducer(nodes, variables, logs);
 ```funcity
 {{delay 200}}
 ```
+
+### include,tryInclude
+
+`include` は外部スクリプトを評価して結果を挿入します。
+`tryInclude` は同様ですが、スクリプトが見つからない場合に無視します。
+
+CLIでは、以下のように定義されます:
+
+- REPL: 基準パスは、カレントディレクトリ基準です。
+- スクリプト実行: 基準パスは、スクリプトのディレクトリまたはカレントディレクトリ基準です。
+- 変数スコープは常に同じとみなされます（子スコープは作られません）。
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+
+解析エラーが含まれる場合は、どちらも例外を投げます。
+
+プログラマブルにこれらの関数を使用する場合は、 `createIncludeFunction()` で作成し、変数に注入します:
+
+```typescript
+const logs: FunCityLogEntry[] = [];
+const { include, tryInclude } = createIncludeFunction({
+  resolve: async (request) => {
+    if (request === 'foo.fc') {
+      return "{{set a 1}}";
+    }
+    return undefined;
+  },
+  logs,
+  mode: 'template',
+  scope: 'same',
+});
+const variables = buildCandidateVariables({ include, tryInclude });
+```
+
+`resolve` は以下のいずれかを返す必要があります:
+
+- 文字列のスクリプト（`sourceId` はリクエスト文字列になります）。
+- `{ sourceId, script }` のオブジェクト。
+- `undefined`（ソース欠如。`includeMissing` / `tryIncludeMissing` の設定で扱いが決まります）。
+
+`mode` は解析方式を指定します:
+
+- `template`: テンプレート全体を解析（`runTokenizer` + `runParser`）。
+- `code`: コード専用を解析（`runCodeTokenizer` + `parseExpressions`）。
+
+`scope` は評価スコープを指定します:
+- `same`: 呼び出し元スコープで評価（`set` が呼び出し元に影響）。
+- `child`: 子スコープで評価（変数は外に漏れません）。
 
 ### objectVariables
 
