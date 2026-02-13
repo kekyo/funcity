@@ -802,6 +802,8 @@ The following are the standard functions:
 | `le` | Returns true if the first argument is less than or equal to the second. |
 | `ge` | Returns true if the first argument is greater than or equal to the second. |
 | `now` | Returns current date time in `Date` object. |
+| `random` | Returns a random integer using `Math.random()` (requires arguments). |
+| `randomf` | Returns a random floating-point number using `Math.random()`. |
 | `concat` | Concatenates strings and `Iterable` arguments in order. |
 | `join` | Uses the first argument as a separator and joins strings from the second argument onward. |
 | `trim` | Trims whitespace at both ends of the first argument. |
@@ -849,6 +851,8 @@ The following are the standard functions:
 | `fetchText` | Fetches and returns `response.text()`. |
 | `fetchJson` | Fetches and returns `response.json()`. |
 | `fetchBlob` | Fetches and returns `response.blob()`. |
+| `include` | Includes and evaluates an external script. Provided via `createIncludeFunction()`. |
+| `tryInclude` | Same as `include`, but can ignore missing sources via options. Provided via `createIncludeFunction()`. |
 | `delay` | Resolves after the specified milliseconds. |
 | `console` | Console output object. |
 
@@ -924,6 +928,26 @@ These functions can take multiple arguments:
 
 For `and` and `or`, at least one argument is required.
 They evaluate left-to-right and stop once the result is determined (first false for `and`, first true for `or`. They are "funcity function").
+
+### random,randomf
+
+`random` generates a random integer using JavaScript's `Math.random()`:
+
+```funcity
+{{random 5}}
+{{random 5 7}}
+```
+
+- With one argument, it returns an integer in `0 .. <n`.
+- With two arguments, it returns an integer in `base .. <base+span`.
+
+`randomf` is the floating-point version with the same ranges:
+
+```funcity
+{{randomf ()}}
+{{randomf 5}}
+{{randomf 5 7}}
+```
 
 ### at,first,last
 
@@ -1099,6 +1123,48 @@ Resolves after the specified milliseconds (optional second argument is returned)
 ```funcity
 {{delay 200}}
 ```
+
+### include,tryInclude
+
+`include` evaluates an external script and inserts the result.
+`tryInclude` behaves the same way, but can ignore missing sources via options.
+These functions are created by `createIncludeFunction()` and then injected into variables:
+
+```typescript
+const logs: FunCityLogEntry[] = [];
+const { include, tryInclude } = createIncludeFunction({
+  resolve: async (request) => {
+    if (request === 'foo.fc') {
+      return "{{set a 1}}";
+    }
+    return undefined;
+  },
+  logs,
+  mode: 'template',
+  scope: 'same',
+});
+const variables = buildCandidateVariables({ include, tryInclude });
+```
+
+`resolve` must return one of the following:
+- A `string` script. The `sourceId` will be the request string.
+- An `{ sourceId, script }` object.
+- `undefined` to indicate a missing source (handled by `includeMissing` / `tryIncludeMissing`).
+
+`mode` controls parsing:
+- `template`: parse full templates (uses `runTokenizer` + `runParser`).
+- `code`: parse code-only scripts (uses `runCodeTokenizer` + `parseExpressions`).
+
+`scope` controls evaluation:
+- `same`: evaluate in the caller scope (so `set` affects the caller).
+- `child`: evaluate in a child scope (no variable leakage).
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+
+Both functions throw when a parse error is detected in the included script.
 
 ### objectVariables
 

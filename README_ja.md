@@ -800,6 +800,8 @@ const results = await runReducer(nodes, variables, logs);
 | `le` | 第1引数が第2引数以下の場合に真を返します。 |
 | `ge` | 第1引数が第2引数以上の場合に真を返します。 |
 | `now` | 現在日時を示す`Date`を返します。 |
+| `random` | `Math.random()` を使って整数の乱数を返します（引数が必要）。 |
+| `randomf` | `Math.random()` を使って実数の乱数を返します。 |
 | `concat` | 引数群の文字列や`Iterable`を順に連結します。 |
 | `join` | 第1引数を区切り文字として、第2引数以降の文字列を結合します。 |
 | `trim` | 第1引数の文字列の前後の空白を削除します。 |
@@ -843,6 +845,8 @@ const results = await runReducer(nodes, variables, logs);
 | `regex` | 第1引数の正規表現と第2引数のオプションで、正規表現オブジェクトを生成します。 |
 | `bind` | 第1引数の関数に、第2引数以降の引数を部分適用します。 |
 | `url` | 第1引数と第2引数（任意）のベースURLからURLオブジェクトを生成します。 |
+| `include` | 外部スクリプトを評価して挿入します（`createIncludeFunction()` で作成）。 |
+| `tryInclude` | `include` と同様ですが、欠如時の扱いをオプションで指定できます。 |
 | `delay` | 指定ミリ秒後に解決します。 |
 | `console` | コンソール出力オブジェクト。 |
 
@@ -919,6 +923,26 @@ const results = await runReducer(nodes, variables, logs);
 
 `and`, `or` については、1個以上の引数が必要です。
 左から評価し、結果が確定した時点で評価を打ち切ります (`and` は最初の偽、`or` は最初の真。funcity関数)
+
+### random,randomf
+
+`random` は JavaScript の `Math.random()` を使って整数の乱数を生成します:
+
+```funcity
+{{random 5}}
+{{random 5 7}}
+```
+
+- 引数1つなら `0 .. <n` の整数を返します。
+- 引数2つなら `base .. <base+span` の整数を返します。
+
+`randomf` は実数版で、同じ範囲を返します:
+
+```funcity
+{{randomf ()}}
+{{randomf 5}}
+{{randomf 5 7}}
+```
 
 ### at,first,last
 
@@ -1094,6 +1118,48 @@ const results = await runReducer(nodes, variables, logs);
 ```funcity
 {{delay 200}}
 ```
+
+### include,tryInclude
+
+`include` は外部スクリプトを評価して結果を挿入します。
+`tryInclude` は同様ですが、欠如時の扱いをオプションで指定できます。
+これらは `createIncludeFunction()` で作成し、変数に注入します:
+
+```typescript
+const logs: FunCityLogEntry[] = [];
+const { include, tryInclude } = createIncludeFunction({
+  resolve: async (request) => {
+    if (request === 'foo.fc') {
+      return "{{set a 1}}";
+    }
+    return undefined;
+  },
+  logs,
+  mode: 'template',
+  scope: 'same',
+});
+const variables = buildCandidateVariables({ include, tryInclude });
+```
+
+`resolve` は以下のいずれかを返します:
+- `string` のスクリプト（`sourceId` はリクエスト文字列になります）。
+- `{ sourceId, script }` のオブジェクト。
+- `undefined`（ソース欠如。`includeMissing` / `tryIncludeMissing` の設定で扱いが決まります）。
+
+`mode` は解析方式を指定します:
+- `template`: テンプレート全体を解析（`runTokenizer` + `runParser`）。
+- `code`: コード専用を解析（`runCodeTokenizer` + `parseExpressions`）。
+
+`scope` は評価スコープを指定します:
+- `same`: 呼び出し元スコープで評価（`set` が呼び出し元に影響）。
+- `child`: 子スコープで評価（変数は外に漏れません）。
+
+```funcity
+{{include 'foo.fc'}}
+{{tryInclude 'optional.fc'}}
+```
+
+解析エラーが含まれる場合は、どちらも例外を投げます。
 
 ### objectVariables
 

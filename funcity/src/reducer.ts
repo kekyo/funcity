@@ -350,6 +350,21 @@ const createScopedReducerContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
+    const reduceBlock = async (
+      nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+    ): Promise<unknown[]> => {
+      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
+      const resultList: unknown[] = [];
+      for (const node of nodes) {
+        const results = await reduceNode(thisContext, node, signal);
+        for (const result of results) {
+          if (result !== undefined) {
+            resultList.push(result);
+          }
+        }
+      }
+      return resultList;
+    };
     return {
       thisNode,
       abortSignal: signal,
@@ -361,6 +376,7 @@ const createScopedReducerContext = (
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) =>
         reduceExpressionNode(thisContext, node, signal),
+      reduceBlock,
     };
   };
 
@@ -462,6 +478,21 @@ export const createReducerContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
+    const reduceBlock = async (
+      nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+    ): Promise<unknown[]> => {
+      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
+      const resultList: unknown[] = [];
+      for (const node of nodes) {
+        const results = await reduceNode(thisContext, node, signal);
+        for (const result of results) {
+          if (result !== undefined) {
+            resultList.push(result);
+          }
+        }
+      }
+      return resultList;
+    };
     return {
       thisNode,
       abortSignal: signal,
@@ -473,6 +504,7 @@ export const createReducerContext = (
       convertToString,
       reduce: (node: FunCityExpressionNode) =>
         reduceExpressionNode(thisContext, node, signal),
+      reduceBlock,
     };
   };
 

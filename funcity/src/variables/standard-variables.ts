@@ -4,13 +4,18 @@
 // https://github.com/kekyo/funcity/
 
 import {
+  FunCityBlockNode,
   FunCityExpressionNode,
+  FunCityLogEntry,
+  FunCityRange,
   FunCityVariables,
   FunCityFunctionContext,
   FunCityVariableNode,
   FunCityReducerError,
 } from '../types';
-import { reduceExpressionNode } from '../reducer';
+import { runCodeTokenizer, runTokenizer } from '../tokenizer';
+import { parseExpressions, runParser } from '../parser';
+import { reduceExpressionNode, reduceNode } from '../reducer';
 import {
   asIterable,
   combineVariables,
@@ -283,6 +288,37 @@ const _ge = async (arg0: unknown, arg1: unknown) => {
 
 const _now = async () => {
   return new Date();
+};
+
+const _random = makeFunCityFunction(async function (
+  this: FunCityFunctionContext,
+  arg0?: FunCityExpressionNode,
+  arg1?: FunCityExpressionNode,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0 || rest.length !== 0) {
+    throw new FunCityReducerError({
+      type: 'error',
+      description: 'Required `random` range arguments',
+      range: this.thisNode.range,
+    });
+  }
+  const baseValue = await this.reduce(arg0);
+  const spanValue = arg1 ? await this.reduce(arg1) : baseValue;
+  const base = arg1 ? Number(baseValue) : 0;
+  const span = Number(spanValue);
+  const r = base + Math.floor(Math.random() * span);
+  return r;
+});
+
+const _randomf = async (arg0?: unknown, arg1?: unknown) => {
+  if (arg0 === undefined) {
+    return Math.random();
+  }
+  const base = arg1 === undefined ? 0 : Number(arg0);
+  const span = Number(arg1 ?? arg0);
+  const r = base + Math.random() * span;
+  return r;
 };
 
 const concatInner = (sep: string, args: Iterable<unknown>) => {
@@ -1073,6 +1109,178 @@ const _delay = async function (
 
 //////////////////////////////////////////////////////////////////////////////
 
+export type IncludeParseMode = 'template' | 'code';
+
+export type IncludeScope = 'same' | 'child';
+
+export type IncludeMissingBehavior = 'error' | 'empty';
+
+export interface IncludeSource {
+  readonly sourceId: string;
+  readonly script: string;
+}
+
+export interface IncludeResolverContext {
+  readonly sourceId: string;
+  readonly range: FunCityRange;
+  readonly signal: AbortSignal | undefined;
+}
+
+export type IncludeResolver = (
+  request: string,
+  context: IncludeResolverContext
+) => Promise<IncludeSource | string | undefined>;
+
+export interface IncludeFunctionOptions {
+  readonly resolve: IncludeResolver;
+  readonly logs: FunCityLogEntry[];
+  readonly mode?: IncludeParseMode;
+  readonly scope?: IncludeScope;
+  readonly includeMissing?: IncludeMissingBehavior;
+  readonly tryIncludeMissing?: IncludeMissingBehavior;
+}
+
+export interface IncludeFunctions {
+  readonly include: Function;
+  readonly tryInclude: Function;
+}
+
+export const createIncludeFunction = (
+  options: IncludeFunctionOptions
+): IncludeFunctions => {
+  const {
+    resolve,
+    logs,
+    mode = 'template',
+    scope = 'child',
+    includeMissing = 'error',
+    tryIncludeMissing = 'empty',
+  } = options;
+
+  const parseScript = (script: string, sourceId: string) => {
+    const parseLogs: FunCityLogEntry[] = [];
+    const tokens =
+      mode === 'code'
+        ? runCodeTokenizer(script, parseLogs, sourceId)
+        : runTokenizer(script, parseLogs, sourceId);
+    const nodes =
+      mode === 'code'
+        ? parseExpressions(tokens, parseLogs)
+        : runParser(tokens, parseLogs);
+    return { nodes, logs: parseLogs };
+  };
+
+  const resolveSource = async (
+    request: string,
+    context: IncludeResolverContext
+  ): Promise<IncludeSource | undefined> => {
+    const resolved = await resolve(request, context);
+    if (resolved === undefined || resolved === null) {
+      return undefined;
+    }
+    if (typeof resolved === 'string') {
+      return { sourceId: request, script: resolved };
+    }
+    return resolved;
+  };
+
+  const reduceWithScope = async (
+    context: FunCityFunctionContext,
+    nodes: readonly FunCityBlockNode[]
+  ): Promise<unknown[]> => {
+    if (scope === 'same') {
+      return await context.reduceBlock(nodes);
+    }
+    const scopedContext = context.newScope();
+    const resultList: unknown[] = [];
+    for (const node of nodes) {
+      const results = await reduceNode(
+        scopedContext,
+        node,
+        context.abortSignal
+      );
+      for (const result of results) {
+        if (result !== undefined) {
+          resultList.push(result);
+        }
+      }
+    }
+    return resultList;
+  };
+
+  const renderIncluded = async (
+    context: FunCityFunctionContext,
+    arg0: FunCityExpressionNode | undefined,
+    missingBehavior: IncludeMissingBehavior
+  ): Promise<string> => {
+    if (!arg0) {
+      throw new FunCityReducerError({
+        type: 'error',
+        description: 'Required `include` target',
+        range: context.thisNode.range,
+      });
+    }
+
+    const resolvedArg = await context.reduce(arg0);
+    if (resolvedArg === undefined || resolvedArg === null) {
+      if (missingBehavior === 'empty') {
+        return '';
+      }
+      throw new FunCityReducerError({
+        type: 'error',
+        description: 'Required `include` target',
+        range: context.thisNode.range,
+      });
+    }
+
+    const request = String(resolvedArg);
+    const source = await resolveSource(request, {
+      sourceId: context.thisNode.range.sourceId,
+      range: context.thisNode.range,
+      signal: context.abortSignal,
+    });
+    if (!source) {
+      if (missingBehavior === 'empty') {
+        return '';
+      }
+      throw new FunCityReducerError({
+        type: 'error',
+        description: `Include source not found: ${request}`,
+        range: context.thisNode.range,
+      });
+    }
+
+    const parsed = parseScript(source.script, source.sourceId);
+    if (parsed.logs.length > 0) {
+      logs.push(...parsed.logs);
+    }
+    if (parsed.logs.some((entry) => entry.type === 'error')) {
+      throw new Error(`Include parse error: ${source.sourceId}`);
+    }
+
+    const reducedValues = await reduceWithScope(context, parsed.nodes);
+    return reducedValues
+      .map((value) => context.convertToString(value))
+      .join('');
+  };
+
+  const include = makeFunCityFunction(async function (
+    this: FunCityFunctionContext,
+    arg0?: FunCityExpressionNode
+  ) {
+    return await renderIncluded(this, arg0, includeMissing);
+  });
+
+  const tryInclude = makeFunCityFunction(async function (
+    this: FunCityFunctionContext,
+    arg0?: FunCityExpressionNode
+  ) {
+    return await renderIncluded(this, arg0, tryIncludeMissing);
+  });
+
+  return { include, tryInclude };
+};
+
 /**
  * Built-in standard variables and functions.
  */
@@ -1102,6 +1310,8 @@ export const standardVariables = Object.freeze({
   le: _le,
   ge: _ge,
   now: _now,
+  random: _random,
+  randomf: _randomf,
   concat: _concat,
   join: _join,
   trim: _trim,

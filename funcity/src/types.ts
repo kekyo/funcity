@@ -575,6 +575,14 @@ export interface FunCityFunctionContext {
    * @returns Reduced value.
    */
   readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
+  /**
+   * Reduce block node(s) with this context.
+   * @param nodeOrNodes - Target block node or list
+   * @returns Reduced values.
+   */
+  readonly reduceBlock: (
+    nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+  ) => Promise<unknown[]>;
 }
 
 /**

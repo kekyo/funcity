@@ -2,6 +2,6 @@
 title: If/elseif/else branch
 ---
 {{
-set score 72
+set score (random 0 100)
 }}
 The score is {{if (lt score 60)}}low{{elseif (lt score 80)}}mid{{else}}high{{end}}.

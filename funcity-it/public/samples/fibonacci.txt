@@ -1,10 +1,8 @@
----
-title: Fibonacci function
----
 {{
 set fib (fun n \
   (cond (le n 1) \
     n \
     (add (fib (sub n 1)) (fib (sub n 2)))))
+set r (random 0 15)
 }}
-Fibonacci (10) = {{fib 10}}
+Fibonacci ({{r}}) = {{fib r}}

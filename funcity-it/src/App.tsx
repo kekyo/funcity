@@ -159,12 +159,9 @@ const App = ({ mode, onToggleMode }: AppProps) => {
   const activeReadlineRef = useRef<ReadlineRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logExtensions = useMemo(() => [consoleOutputExtensions], []);
-  const htmlTitleText = useMemo(
-    () => `${sourceId} - funcity`,
-    [sourceId]
-  );
+  const htmlTitleText = useMemo(() => `${sourceId} - funcity`, [sourceId]);
   const titleText = useMemo(
-    () => `funcity Play ground [${version}]: ${sourceId}`,
+    () => `funcity Playground [${version}]: ${sourceId}`,
     [sourceId]
   );
 
