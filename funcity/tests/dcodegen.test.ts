@@ -199,6 +199,21 @@ describe('dynamic code generator test', () => {
           backend
         );
       });
+
+      it('matches reducer on inlined standard builtin fast paths', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('add', [numberNode(1), numberNode(2), numberNode(3)]),
+            applyNode('sub', [numberNode(10), numberNode(3), numberNode(2)]),
+            applyNode('mul', [numberNode(2), numberNode(3), numberNode(4)]),
+            applyNode('lt', [numberNode(1), numberNode(2)]),
+            applyNode('not', [variableNode('false')]),
+            applyNode('toNumber', [stringNode('12')]),
+          ],
+          undefined,
+          backend
+        );
+      });
     });
   }
 });

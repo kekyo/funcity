@@ -1366,6 +1366,79 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       : `(() => {\n${body}\n})()`;
   };
 
+  const getBuiltinArgSource = (
+    argVars: readonly string[],
+    index: number
+  ): string => {
+    return argVars[index] ?? 'undefined';
+  };
+
+  const compileNumericFoldSource = (
+    argVars: readonly string[],
+    operator: '+' | '-' | '*' | '/' | '%'
+  ): string => {
+    const initial = `Number(${getBuiltinArgSource(argVars, 0)})`;
+    return argVars
+      .slice(1)
+      .reduce(
+        (expression, argVar) => `(${expression} ${operator} Number(${argVar}))`,
+        initial
+      );
+  };
+
+  const compileInlineStandardBuiltinSource = (
+    name: string,
+    argVars: readonly string[]
+  ): string | undefined => {
+    switch (name) {
+      case 'toBoolean': {
+        return `runtime.isConditionalTrue(${getBuiltinArgSource(argVars, 0)})`;
+      }
+      case 'toNumber': {
+        return `Number(${getBuiltinArgSource(argVars, 0)})`;
+      }
+      case 'add': {
+        return compileNumericFoldSource(argVars, '+');
+      }
+      case 'sub': {
+        return compileNumericFoldSource(argVars, '-');
+      }
+      case 'mul': {
+        return compileNumericFoldSource(argVars, '*');
+      }
+      case 'div': {
+        return compileNumericFoldSource(argVars, '/');
+      }
+      case 'mod': {
+        return compileNumericFoldSource(argVars, '%');
+      }
+      case 'eq': {
+        return `(${getBuiltinArgSource(argVars, 0)} === ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'ne': {
+        return `(${getBuiltinArgSource(argVars, 0)} !== ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'lt': {
+        return `(${getBuiltinArgSource(argVars, 0)} < ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'gt': {
+        return `(${getBuiltinArgSource(argVars, 0)} > ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'le': {
+        return `(${getBuiltinArgSource(argVars, 0)} <= ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'ge': {
+        return `(${getBuiltinArgSource(argVars, 0)} >= ${getBuiltinArgSource(argVars, 1)})`;
+      }
+      case 'not': {
+        return `(!runtime.isConditionalTrue(${getBuiltinArgSource(argVars, 0)}))`;
+      }
+      default: {
+        return undefined;
+      }
+    }
+  };
+
   const toNumberLiteral = (
     state: SourceCompileState,
     value: number
@@ -1723,6 +1796,10 @@ runtime.constants[${segmentsIndex}]
             const builtinArgVars = node.args.map(() =>
               allocateTemp(state, 'arg')
             );
+            const inlineBuiltinSource = compileInlineStandardBuiltinSource(
+              node.func.name,
+              builtinArgVars
+            );
             const builtinArgStatements = node.args
               .map((arg, index) => {
                 const argSource = compileExpressionSource(state, arg, scope);
@@ -1738,7 +1815,10 @@ const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
 ${builtinArgStatements}
 try {
-return await runtime.standardBuiltins.${node.func.name}(${builtinArgVars.join(', ')});
+return ${
+              inlineBuiltinSource ??
+              `await runtime.standardBuiltins.${node.func.name}(${builtinArgVars.join(', ')})`
+            };
 } catch (error) {
 return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
 }
