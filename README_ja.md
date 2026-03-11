@@ -87,6 +87,7 @@ const text = await runScriptOnceToText(script, {
   variables,
   logs,
   sourceId: 'hello.fc',
+  backend: 'source', // 省略可能: 'reducer' | 'closure' | 'source'
 });
 
 // 結果の表示
@@ -105,7 +106,7 @@ console.log(text);
   あなたは、関数適用時に非同期関数であることを意識する必要はありません。
 - コアエンジンを利用したCLIも存在します。
   CLIは、REPLモードとテキスト処理モードの両方を備えています。
-- コアエンジンには、トークナイザー、パーサー、インタープリタを含みます。
+- コアエンジンには、トークナイザー、パーサー、インタープリタ、JITコードジェネレータを含みます。
 - コアエンジンライブラリは高い独立性を持ち、他のライブラリやパッケージに依存していません。
   あなたのアプリケーションへ、容易に組み込むことが出来ます。
 - パーサーとインタープリタは、純粋な式を解釈させる場合と、完全なテキストプロセッシング構文を解釈させる場合の両方に対応しています。
@@ -673,6 +674,56 @@ const run = async (
 
 注意: このコードは、同様の関数が `runScriptOnce()`, `runScriptOnceToText()` として公開されています。
 実際には `results` を、`convertToString()` を使用してテキスト化していることに注意してください。　
+これらの高水準APIは `backend?: 'reducer' | 'closure' | 'source'` を受け取ります。
+省略時は `source` が使用されます。
+
+### 実行backendの選択
+
+`runScriptOnce()` と `runScriptOnceToText()` は、任意で `backend` を受け取れます:
+
+```typescript
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+  backend: 'source',
+});
+```
+
+- `reducer` はインタープリタを直接使用します。
+- `closure` はクロージャベースのJITを使用します。
+- `source` は source-generated JIT を使用します。
+- 高水準のワンショット実行APIの既定値は `source` です。
+- 実行環境が動的コード生成を許可しない場合は、`source` ではなく `closure` または `reducer` を使用してください。
+
+### JITで関数オブジェクトを生成して実行する
+
+スクリプトを一度パースして何度も実行したい場合は、ASTノードから再利用可能な関数オブジェクトを生成できます:
+
+```typescript
+const blocks = runTokenizer(script, logs, sourceId);
+const nodes = runParser(blocks, logs);
+
+const dcodegen = createDCodegen({ backend: 'source' });
+const variables = buildCandidateVariables();
+const warningLogs: FunCityWarningEntry[] = [];
+const context = createReducerContext(
+  variables,
+  warningLogs,
+  dcodegen.createExecutor()
+);
+
+const runText = dcodegen.generateTextProgram(nodes);
+const text = await runText(context);
+
+logs.push(...warningLogs);
+```
+
+- JITジェネレータはソース文字列を直接実行するのではなく、パース済みのASTノードを入力に取ります。
+- 実行コンテキストは、必ず `createReducerContext(..., dcodegen.createExecutor())` で作成してください。
+- `generateExpression()` は単一式、`generateProgram()` は生の値配列、`generateTextProgram()` は連結済みテキストを返す関数を生成します。
+- `createDCodegen()` の既定値は `closure` です。source-generated backend を明示したい場合は `{ backend: 'source' }` を渡してください。
+- テンプレート構文ではなくコード構文だけを扱う場合は、先に `runCodeTokenizer()` / `parseExpressions()` でノード化してから、式またはプログラム用の runner を生成してください。
 
 ### 関数型言語構文のみを実行する
 
