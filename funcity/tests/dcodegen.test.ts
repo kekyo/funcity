@@ -291,6 +291,32 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('tracks builtin rebinding across repeated calls in one context', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('add', [numberNode(1), numberNode(2)]),
+            setNode(
+              'add',
+              funNode(
+                ['lhs', 'rhs'],
+                applyNode('mul', [variableNode('lhs'), variableNode('rhs')])
+              )
+            ),
+            applyNode('add', [numberNode(2), numberNode(3)]),
+            setNode(
+              'add',
+              funNode(
+                ['lhs', 'rhs'],
+                applyNode('sub', [variableNode('lhs'), variableNode('rhs')])
+              )
+            ),
+            applyNode('add', [numberNode(8), numberNode(3)]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
       it('falls back when cond is shadowed', async () => {
         await expectGeneratedMatchesReducer(
           [

@@ -12,6 +12,7 @@ import {
   type FunCityMaybePromise,
   type FunCityRange,
   type FunCityReducerContext,
+  type FunCityReducerContextValueResult,
   type FunCityReducerExecutor,
   type FunCityVariables,
   FunCityReducerError,
@@ -356,6 +357,14 @@ interface FunCitySourceRuntime {
   readonly invokeBuiltin: typeof invokeSourceBuiltin;
   readonly awaitSync: <T>(value: FunCityMaybePromise<T>) => T;
   readonly requestAsyncFallback: () => never;
+  readonly lookupStandardBinding: typeof lookupStandardBinding;
+}
+
+interface FunCitySourceBindingLookupCacheEntry {
+  readonly version: number;
+  readonly slot: number | undefined;
+  readonly isFound: boolean;
+  readonly value: unknown;
 }
 
 type FunCitySourceGeneratedRunner<T> = (
@@ -575,6 +584,49 @@ const awaitSourceSync = <T>(value: FunCityMaybePromise<T>): T => {
 
 const requestSourceAsyncFallback = (): never => {
   throw sourceSyncFallback;
+};
+
+const lookupStandardBinding = (
+  context: FunCityReducerContext,
+  name: string,
+  cache: WeakMap<FunCityReducerContext, FunCitySourceBindingLookupCacheEntry>,
+  signal: AbortSignal | undefined
+): FunCityReducerContextValueResult => {
+  const version = context.getSlotVersion();
+  const cached = cache.get(context);
+  if (cached !== undefined && cached.version === version) {
+    if (cached.slot !== undefined) {
+      return {
+        isFound: true,
+        value: context.getSlotValue(cached.slot, signal),
+      };
+    }
+    return {
+      isFound: cached.isFound,
+      value: cached.value,
+    };
+  }
+  const slot = context.resolveLocalSlot(name, signal);
+  if (slot !== undefined) {
+    cache.set(context, {
+      version,
+      slot,
+      isFound: true,
+      value: undefined,
+    });
+    return {
+      isFound: true,
+      value: context.getSlotValue(slot, signal),
+    };
+  }
+  const resolved = context.getValue(name, signal);
+  cache.set(context, {
+    version,
+    slot: undefined,
+    isFound: resolved.isFound,
+    value: resolved.value,
+  });
+  return resolved;
 };
 
 /**
@@ -1732,6 +1784,26 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       : `context.getValue(${JSON.stringify(name)}, signal)`;
   };
 
+  const createStandardBindingLookupSource = (
+    state: SourceCompileState,
+    scope: SourceCompileScope,
+    name: string
+  ): string => {
+    const directLocalRef = resolveDirectLocalRef(scope, name);
+    const localSlotRef = resolveLocalSlotRef(scope, name);
+    if (directLocalRef !== undefined) {
+      return `{ isFound: true, value: ${directLocalRef} }`;
+    }
+    if (localSlotRef !== undefined) {
+      return `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`;
+    }
+    const cacheIndex = addConstant(
+      state,
+      new WeakMap<FunCityReducerContext, FunCitySourceBindingLookupCacheEntry>()
+    );
+    return `runtime.lookupStandardBinding(context, ${JSON.stringify(name)}, runtime.constants[${cacheIndex}], signal)`;
+  };
+
   const canElideLambdaFrame = (node: FunCityExpressionNode): boolean => {
     switch (node.kind) {
       case 'number':
@@ -1800,6 +1872,22 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     );
   };
 
+  const isOptimizedStandardBindingName = (name: string): boolean => {
+    switch (name) {
+      case 'cond':
+      case 'defaults':
+      case 'fun':
+      case 'and':
+      case 'or':
+      case 'set': {
+        return true;
+      }
+      default: {
+        return toSpecializableStandardCallTarget(name) !== undefined;
+      }
+    }
+  };
+
   const canCompileSyncExpressionSource = (
     node: FunCityExpressionNode,
     scope: SourceCompileScope
@@ -1866,6 +1954,9 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
           }
           case 'set': {
             if (node.args.length !== 2 || node.args[0]!.kind !== 'variable') {
+              return false;
+            }
+            if (isOptimizedStandardBindingName(node.args[0]!.name)) {
               return false;
             }
             if (
@@ -2326,6 +2417,7 @@ return Array.from(__value).slice(__start, __end);
       invokeBuiltin: invokeSourceBuiltin,
       awaitSync: awaitSourceSync,
       requestAsyncFallback: requestSourceAsyncFallback,
+      lookupStandardBinding,
     };
   };
 
@@ -2649,7 +2741,7 @@ return ${bodySource};
       return wrapSourceClosure(
         state,
         `signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
+const ${bindingVar} = ${createStandardBindingLookupSource(state, scope, mode)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
 runtime.throwError({ description: 'empty arguments', range: runtime.constants[${addConstant(
           state,
@@ -2685,7 +2777,7 @@ return true;
     return wrapSourceClosure(
       state,
       `signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
+const ${bindingVar} = ${createStandardBindingLookupSource(state, scope, mode)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
 ${bodyStatements}
 return ${mode === 'and' ? 'true' : 'false'};
@@ -2975,8 +3067,8 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
             return wrapSourceClosure(
               state,
               `signal?.throwIfAborted();
-const ${setBindingVar} = ${createLookupResultSource(scope, 'set')};
-const ${funBindingVar} = ${createLookupResultSource(scope, 'fun')};
+const ${setBindingVar} = ${createStandardBindingLookupSource(state, scope, 'set')};
+const ${funBindingVar} = ${createStandardBindingLookupSource(state, scope, 'fun')};
 if (${setBindingVar}.isFound && ${setBindingVar}.value === runtime.standardIntrinsics.set && ${funBindingVar}.isFound && ${funBindingVar}.value === runtime.standardIntrinsics.fun) {
 const ${lambdaVar} = ${lambdaSource};
 context.setValue(${JSON.stringify(boundName)}, ${lambdaVar}, signal);
@@ -3002,7 +3094,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
           return wrapSourceClosure(
             state,
             `signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, 'set')};
+const ${bindingVar} = ${createStandardBindingLookupSource(state, scope, 'set')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.set) {
 context.setValue(${JSON.stringify(node.args[0]!.name)}, ${wrapAwaitedSource(
               state,
@@ -3071,7 +3163,11 @@ return ${compileGenericApplySource(state, node, scope)};`,
           return wrapSourceClosure(
             state,
             `signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, 'defaults')};
+const ${bindingVar} = ${createStandardBindingLookupSource(
+              state,
+              scope,
+              'defaults'
+            )};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.defaults) {
 const ${valueVar} = ${wrapAwaitedSource(
               state,
@@ -3121,7 +3217,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
             return wrapSourceClosure(
               state,
               `signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};
+const ${bindingVar} = ${createStandardBindingLookupSource(state, scope, 'fun')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.fun) {
 return ${lambdaSource};
 }
