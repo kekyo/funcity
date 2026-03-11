@@ -873,18 +873,11 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
                     range: node.range,
                   });
                 }
-                const newContext = context.newScope(signal);
-                for (
-                  let index = 0;
-                  index < intrinsicFunParameters.length;
-                  index++
-                ) {
-                  const slot = newContext.ensureLocalSlot(
-                    intrinsicFunParameters[index]!,
-                    signal
-                  );
-                  newContext.setSlotValue(slot, args[index], signal);
-                }
+                const newContext = context.newCallScope(
+                  intrinsicFunParameters,
+                  args,
+                  signal
+                );
                 return compiledIntrinsicFunBody(newContext, signal);
               };
             }
@@ -1885,13 +1878,16 @@ ${targetVar} += context.convertToString(${valueVar});
     const lambdaArgsVar = allocateTemp(state, 'args');
     const lambdaContextVar = allocateTemp(state, 'context');
     const rangeIndex = addConstant(state, lambdaRange);
-    const parameterSlots = parameterNames.map((name) => ({
-      name,
-      slotVar: allocateTemp(state, 'slot'),
-    }));
-    const lambdaScope = parameterSlots.reduce(
-      (currentScope, parameter) =>
-        extendCompileScope(currentScope, parameter.name, parameter.slotVar),
+    const parameterNamesIndex = addConstant(state, [...parameterNames]);
+    const parameterSlotRefs = new Map<string, string>();
+    for (const parameterName of parameterNames) {
+      if (!parameterSlotRefs.has(parameterName)) {
+        parameterSlotRefs.set(parameterName, String(parameterSlotRefs.size));
+      }
+    }
+    const lambdaScope = Array.from(parameterSlotRefs.entries()).reduce(
+      (currentScope, [parameterName, slotRef]) =>
+        extendCompileScope(currentScope, parameterName, slotRef),
       selfBinding === undefined
         ? scope
         : extendSelfBindingCompileScope(
@@ -1901,14 +1897,6 @@ ${targetVar} += context.convertToString(${valueVar});
           )
     );
     const bodySource = compileExpressionSource(state, bodyNode, lambdaScope);
-    const bindingStatements = parameterSlots
-      .map(
-        (parameter, index) => `const ${
-          parameter.slotVar
-        } = context.ensureLocalSlot(${JSON.stringify(parameter.name)}, signal);
-context.setSlotValue(${parameter.slotVar}, ${lambdaArgsVar}[${index}], signal);`
-      )
-      .join('\n');
     return `(...${lambdaArgsVar}) => {
 if (${lambdaArgsVar}.length < ${parameterNames.length}) {
 runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar}.length + ' < ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
@@ -1916,9 +1904,8 @@ runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar
 if (${lambdaArgsVar}.length > ${parameterNames.length}) {
 context.appendWarning({ type: 'warning', description: 'Too many arguments: ' + ${lambdaArgsVar}.length + ' > ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
 }
-const ${lambdaContextVar} = context.newScope(signal);
+const ${lambdaContextVar} = context.newCallScope(runtime.constants[${parameterNamesIndex}], ${lambdaArgsVar}, signal);
 return ((context) => {
-${bindingStatements}
 return ${bodySource};
 })(${lambdaContextVar});
 }`;

@@ -741,6 +741,18 @@ export interface FunCityReducerContext {
    */
   readonly newScope: (signal: AbortSignal | undefined) => FunCityReducerContext;
   /**
+   * Create new scoped context with prefilled local slots.
+   * @param slotNames - Slot names in binding order.
+   * @param slotValues - Slot values aligned with `slotNames`.
+   * @param signal - AbortSignal when available.
+   * @returns New reducer context.
+   */
+  readonly newCallScope: (
+    slotNames: readonly string[],
+    slotValues: readonly unknown[],
+    signal: AbortSignal | undefined
+  ) => FunCityReducerContext;
+  /**
    * Get current scope slot version.
    * @returns Slot version.
    */

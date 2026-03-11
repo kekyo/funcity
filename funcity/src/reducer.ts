@@ -397,16 +397,68 @@ const reduceBlockImmediate = (
   return resultList;
 };
 
+const createPreparedSlotState = (
+  slotNames: readonly string[] | undefined,
+  slotValues: readonly unknown[] | undefined,
+  signal: AbortSignal | undefined
+) => {
+  signal?.throwIfAborted();
+
+  let preparedSlotIds: Map<string, number> | undefined;
+  let preparedSlotValues: unknown[] | undefined;
+  let preparedSlotVersion = 0;
+
+  if (slotNames === undefined || slotNames.length === 0) {
+    return {
+      preparedSlotIds,
+      preparedSlotValues,
+      preparedSlotVersion,
+    };
+  }
+
+  for (let index = 0; index < slotNames.length; index++) {
+    const name = slotNames[index]!;
+    const existingSlot = preparedSlotIds?.get(name);
+    if (existingSlot !== undefined) {
+      preparedSlotValues![existingSlot] = slotValues?.[index];
+      continue;
+    }
+    if (!preparedSlotIds) {
+      preparedSlotIds = new Map();
+    }
+    if (!preparedSlotValues) {
+      preparedSlotValues = [];
+    }
+    const slot = preparedSlotValues.length;
+    preparedSlotIds.set(name, slot);
+    preparedSlotValues.push(slotValues?.[index]);
+    preparedSlotVersion++;
+  }
+
+  return {
+    preparedSlotIds,
+    preparedSlotValues,
+    preparedSlotVersion,
+  };
+};
+
 const createScopedReducerContext = (
   parent: FunCityReducerContext,
   signal: AbortSignal | undefined,
-  executor: FunCityReducerExecutor
+  executor: FunCityReducerExecutor,
+  initialSlotNames: readonly string[] | undefined,
+  initialSlotValues: readonly unknown[] | undefined
 ): FunCityReducerContext => {
   signal?.throwIfAborted();
 
-  let thisSlotIds: Map<string, number> | undefined;
-  let thisSlotValues: unknown[] | undefined;
-  let thisSlotVersion = 0;
+  const preparedSlotState = createPreparedSlotState(
+    initialSlotNames,
+    initialSlotValues,
+    signal
+  );
+  let thisSlotIds = preparedSlotState.preparedSlotIds;
+  let thisSlotValues = preparedSlotState.preparedSlotValues;
+  let thisSlotVersion = preparedSlotState.preparedSlotVersion;
   let thisContext: FunCityReducerContext;
 
   const getSlotVersion = () => thisSlotVersion;
@@ -498,7 +550,14 @@ const createScopedReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning: parent.appendWarning,
       getBoundFunction: parent.getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal, executor),
+      newScope: () =>
+        createScopedReducerContext(
+          thisContext,
+          signal,
+          executor,
+          undefined,
+          undefined
+        ),
       convertToString: parent.convertToString,
       reduceImmediate: (node: FunCityExpressionNode) =>
         thisContext.reduceExpressionNodeImmediate(node, signal),
@@ -517,7 +576,25 @@ const createScopedReducerContext = (
     getBoundFunction: parent.getBoundFunction,
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal, executor),
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        undefined,
+        undefined
+      ),
+    newCallScope: (
+      slotNames: readonly string[],
+      slotValues: readonly unknown[],
+      signal: AbortSignal | undefined
+    ) =>
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        slotNames,
+        slotValues
+      ),
     getSlotVersion,
     resolveLocalSlot,
     ensureLocalSlot,
@@ -693,7 +770,14 @@ export const createReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning,
       getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal, executor),
+      newScope: () =>
+        createScopedReducerContext(
+          thisContext,
+          signal,
+          executor,
+          undefined,
+          undefined
+        ),
       convertToString,
       reduceImmediate: (node: FunCityExpressionNode) =>
         thisContext.reduceExpressionNodeImmediate(node, signal),
@@ -712,7 +796,25 @@ export const createReducerContext = (
     getBoundFunction,
     appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal, executor),
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        undefined,
+        undefined
+      ),
+    newCallScope: (
+      slotNames: readonly string[],
+      slotValues: readonly unknown[],
+      signal: AbortSignal | undefined
+    ) =>
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        slotNames,
+        slotValues
+      ),
     getSlotVersion,
     resolveLocalSlot,
     ensureLocalSlot,
