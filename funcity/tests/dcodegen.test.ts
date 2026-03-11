@@ -106,6 +106,24 @@ const runGeneratedWithOptions = async (
   return { result, warningLogs };
 };
 
+const runGeneratedTextWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateTextProgram(nodes);
+  const result = await generated(reducerContext);
+  return { result, warningLogs };
+};
+
 describe('dynamic code generator test', () => {
   for (const backend of ['closure', 'source'] as const) {
     describe(`${backend} backend`, () => {
@@ -289,6 +307,51 @@ describe('dynamic code generator test', () => {
             [2, 4, 6],
             10,
           ]);
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('uses aggressive template text fast paths when enabled', async () => {
+          const generated = await runGeneratedTextWithOptions(
+            [
+              textNode('Values:'),
+              forNode('i', applyNode('range', [numberNode(1), numberNode(3)]), [
+                variableNode('i'),
+                textNode(','),
+              ]),
+              variableNode('null'),
+              variableNode('undefined'),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              range: () => ['shadowed'],
+              null: 'shadowed',
+              undefined: 'shadowed',
+            }
+          );
+
+          expect(generated.result).toBe('Values:1,2,3,(null)');
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('keeps mutable template loop bindings correct with aggressiveOptimize', async () => {
+          const generated = await runGeneratedTextWithOptions(
+            [
+              forNode('i', applyNode('range', [numberNode(1), numberNode(2)]), [
+                setNode('i', numberNode(99)),
+                variableNode('i'),
+                textNode(','),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            }
+          );
+
+          expect(generated.result).toBe('99,99,');
           expect(generated.warningLogs).toEqual([]);
         });
       }

@@ -1422,6 +1422,7 @@ const createSourceDCodegen = (
 
   interface SourceCompileScope {
     readonly localSlots: ReadonlyMap<string, string>;
+    readonly directBindings: ReadonlyMap<string, string>;
     readonly selfBindings: ReadonlyMap<string, string>;
   }
 
@@ -1437,6 +1438,7 @@ const createSourceDCodegen = (
 
   const emptyCompileScope: SourceCompileScope = {
     localSlots: new Map(),
+    directBindings: new Map(),
     selfBindings: new Map(),
   };
 
@@ -1447,6 +1449,19 @@ const createSourceDCodegen = (
   ): SourceCompileScope => {
     return {
       localSlots: new Map(scope.localSlots).set(name, slotVar),
+      directBindings: scope.directBindings,
+      selfBindings: scope.selfBindings,
+    };
+  };
+
+  const extendDirectBindingCompileScope = (
+    scope: SourceCompileScope,
+    name: string,
+    bindingRef: string
+  ): SourceCompileScope => {
+    return {
+      localSlots: scope.localSlots,
+      directBindings: new Map(scope.directBindings).set(name, bindingRef),
       selfBindings: scope.selfBindings,
     };
   };
@@ -1458,6 +1473,7 @@ const createSourceDCodegen = (
   ): SourceCompileScope => {
     return {
       localSlots: scope.localSlots,
+      directBindings: scope.directBindings,
       selfBindings: new Map(scope.selfBindings).set(name, bindingRef),
     };
   };
@@ -1474,6 +1490,13 @@ const createSourceDCodegen = (
     name: string
   ): string | undefined => {
     return scope.selfBindings.get(name);
+  };
+
+  const resolveDirectBindingRef = (
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    return scope.directBindings.get(name);
   };
 
   const createLookupResultSource = (
@@ -1605,6 +1628,89 @@ const createSourceDCodegen = (
 
   const canBlockListSuspend = (nodes: readonly FunCityBlockNode[]): boolean => {
     return nodes.some((node) => canBlockSuspend(node));
+  };
+
+  const expressionContainsSetForName = (
+    node: FunCityExpressionNode,
+    name: string
+  ): boolean => {
+    switch (node.kind) {
+      case 'number':
+      case 'string':
+      case 'variable': {
+        return false;
+      }
+      case 'template': {
+        return blockListContainsSetForName(node.blocks, name);
+      }
+      case 'dot': {
+        return expressionContainsSetForName(node.base, name);
+      }
+      case 'apply': {
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'set' &&
+          node.args[0]?.kind === 'variable' &&
+          node.args[0].name === name
+        ) {
+          return true;
+        }
+        if (expressionContainsSetForName(node.func, name)) {
+          return true;
+        }
+        return node.args.some((arg) => expressionContainsSetForName(arg, name));
+      }
+      case 'list': {
+        return node.items.some((item) =>
+          expressionContainsSetForName(item, name)
+        );
+      }
+      case 'scope': {
+        return node.nodes.some((childNode) =>
+          blockContainsSetForName(childNode, name)
+        );
+      }
+    }
+  };
+
+  const blockContainsSetForName = (
+    node: FunCityBlockNode,
+    name: string
+  ): boolean => {
+    switch (node.kind) {
+      case 'text': {
+        return false;
+      }
+      case 'for': {
+        return (
+          expressionContainsSetForName(node.iterable, name) ||
+          blockListContainsSetForName(node.repeat, name)
+        );
+      }
+      case 'while': {
+        return (
+          expressionContainsSetForName(node.condition, name) ||
+          blockListContainsSetForName(node.repeat, name)
+        );
+      }
+      case 'if': {
+        return (
+          expressionContainsSetForName(node.condition, name) ||
+          blockListContainsSetForName(node.then, name) ||
+          blockListContainsSetForName(node.else, name)
+        );
+      }
+      default: {
+        return expressionContainsSetForName(node, name);
+      }
+    }
+  };
+
+  const blockListContainsSetForName = (
+    nodes: readonly FunCityBlockNode[],
+    name: string
+  ): boolean => {
+    return nodes.some((node) => blockContainsSetForName(node, name));
   };
 
   const wrapAwaitedSource = (source: string, canSuspend: boolean): string => {
@@ -2141,6 +2247,27 @@ return ${accVar};`,
     }
   };
 
+  const deconstructAggressiveRangeLoop = (
+    state: SourceCompileState,
+    node: FunCityExpressionNode
+  ):
+    | {
+        readonly startNode: FunCityExpressionNode | undefined;
+        readonly countNode: FunCityExpressionNode | undefined;
+      }
+    | undefined => {
+    if (!state.aggressiveOptimize || node.kind !== 'apply') {
+      return undefined;
+    }
+    if (node.func.kind !== 'variable' || node.func.name !== 'range') {
+      return undefined;
+    }
+    return {
+      startNode: node.args[0],
+      countNode: node.args[1],
+    };
+  };
+
   const toNumberLiteral = (
     state: SourceCompileState,
     value: number
@@ -2316,6 +2443,75 @@ ${
         return `${targetVar} += ${JSON.stringify(node.text)};\n`;
       }
       case 'for': {
+        const aggressiveRangeLoop = deconstructAggressiveRangeLoop(
+          state,
+          node.iterable
+        );
+        if (aggressiveRangeLoop !== undefined) {
+          const startVar = allocateTemp(state, 'start');
+          const countVar = allocateTemp(state, 'count');
+          const indexVar = allocateTemp(state, 'index');
+          const itemVar = allocateTemp(state, 'item');
+          const startSource =
+            aggressiveRangeLoop.startNode === undefined
+              ? 'undefined'
+              : wrapAwaitedSource(
+                  compileExpressionSource(
+                    state,
+                    aggressiveRangeLoop.startNode,
+                    scope
+                  ),
+                  canExpressionSuspend(aggressiveRangeLoop.startNode)
+                );
+          const countSource =
+            aggressiveRangeLoop.countNode === undefined
+              ? 'undefined'
+              : wrapAwaitedSource(
+                  compileExpressionSource(
+                    state,
+                    aggressiveRangeLoop.countNode,
+                    scope
+                  ),
+                  canExpressionSuspend(aggressiveRangeLoop.countNode)
+                );
+          const canUseDirectBinding = !blockListContainsSetForName(
+            node.repeat,
+            node.bind.name
+          );
+          if (canUseDirectBinding) {
+            return `{
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+const ${itemVar} = ${startVar}++;
+${compileTextBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  extendDirectBindingCompileScope(scope, node.bind.name, itemVar)
+)}
+}
+}\n`;
+          }
+          const slotVar = allocateTemp(state, 'slot');
+          return `{
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+const ${slotVar} = context.ensureLocalSlot(${JSON.stringify(
+            node.bind.name
+          )}, signal);
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+const ${itemVar} = ${startVar}++;
+context.setSlotValue(${slotVar}, ${itemVar}, signal);
+${compileTextBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  extendCompileScope(scope, node.bind.name, slotVar)
+)}
+}
+}\n`;
+        }
         const iterableVar = allocateTemp(state, 'iterable');
         const slotVar = allocateTemp(state, 'slot');
         const itemVar = allocateTemp(state, 'item');
@@ -2378,6 +2574,34 @@ ${compileTextBlockListStatements(state, node.else, targetVar, scope)}
       default: {
         const valueVar = allocateTemp(state, 'value');
         const valueSource = compileExpressionSource(state, node, scope);
+        if (state.aggressiveOptimize) {
+          return `{
+const ${valueVar} = ${wrapAwaitedSource(
+            valueSource,
+            canExpressionSuspend(node)
+          )};
+if (${valueVar} !== undefined) {
+if (${valueVar} === null) {
+${targetVar} += '(null)';
+} else {
+switch (typeof ${valueVar}) {
+case 'string':
+${targetVar} += ${valueVar};
+break;
+case 'boolean':
+case 'number':
+case 'bigint':
+case 'symbol':
+${targetVar} += ${valueVar}.toString();
+break;
+default:
+${targetVar} += context.convertToString(${valueVar});
+break;
+}
+}
+}
+}\n`;
+        }
         return `{
 const ${valueVar} = ${wrapAwaitedSource(
           valueSource,
@@ -2575,6 +2799,13 @@ return ${textVar};`,
         const localSlotRef = resolveLocalSlotRef(scope, variableResult.name);
         if (localSlotRef !== undefined) {
           return `context.getSlotValue(${localSlotRef}, signal)`;
+        }
+        const directBindingRef = resolveDirectBindingRef(
+          scope,
+          variableResult.name
+        );
+        if (directBindingRef !== undefined) {
+          return directBindingRef;
         }
         const selfBindingRef = resolveSelfBindingRef(
           scope,
