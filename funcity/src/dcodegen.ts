@@ -2801,6 +2801,130 @@ return ${compileGenericApplySource(state, node, scope)};`,
     );
   };
 
+  const compileHigherOrderBuiltinSource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string | undefined => {
+    if (
+      node.func.kind !== 'variable' ||
+      (node.func.name !== 'map' && node.func.name !== 'reduce')
+    ) {
+      return undefined;
+    }
+    const lambdaNode = node.func.name === 'map' ? node.args[0] : node.args[1];
+    if (
+      lambdaNode === undefined ||
+      lambdaNode.kind !== 'apply' ||
+      lambdaNode.func.kind !== 'variable' ||
+      lambdaNode.func.name !== 'fun' ||
+      lambdaNode.args.length !== 2
+    ) {
+      return undefined;
+    }
+    const parameterNames = extractLambdaParameterNames(lambdaNode.args[0]!);
+    if (parameterNames === undefined) {
+      return undefined;
+    }
+    if (
+      (node.func.name === 'map' && node.args.length !== 2) ||
+      (node.func.name === 'reduce' && node.args.length !== 3)
+    ) {
+      return undefined;
+    }
+
+    const builtinBindingVar = allocateTemp(state, 'binding');
+    const funBindingVar = allocateTemp(state, 'binding');
+    const lambdaVar = allocateTemp(state, 'lambda');
+    const iterableVar = allocateTemp(state, 'iterable');
+    const itemVar = allocateTemp(state, 'item');
+    const applyNodeIndex = addConstant(state, node);
+    const iterableNode =
+      node.func.name === 'map' ? node.args[1]! : node.args[2]!;
+    const iterableSource = compileExpressionSource(state, iterableNode, scope);
+    const lambdaSource = compileIntrinsicLambdaSource(
+      state,
+      lambdaNode.range,
+      parameterNames,
+      lambdaNode.args[1]!,
+      scope,
+      undefined
+    );
+
+    if (node.func.name === 'map') {
+      const resultVar = allocateTemp(state, 'result');
+      return wrapSourceClosure(
+        state,
+        `signal?.throwIfAborted();
+const ${builtinBindingVar} = ${createLookupResultSource(scope, 'map')};
+const ${funBindingVar} = ${createStandardBindingLookupSource(state, scope, 'fun')};
+if (${builtinBindingVar}.isFound && ${builtinBindingVar}.value === runtime.standardBuiltins.map && ${funBindingVar}.isFound && ${funBindingVar}.value === runtime.standardIntrinsics.fun) {
+const ${lambdaVar} = ${lambdaSource};
+const ${iterableVar} = ${wrapAwaitedSource(
+          state,
+          iterableSource,
+          canExpressionSuspend(iterableNode)
+        )};
+const ${resultVar} = [];
+try {
+for (const ${itemVar} of ${iterableVar}) {
+${resultVar}.push(${wrapAwaitedSource(
+          state,
+          `${lambdaVar}(${itemVar})`,
+          canExpressionSuspend(lambdaNode.args[1]!)
+        )});
+}
+return ${resultVar};
+} catch (error) {
+return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+}
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+        canExpressionSuspend(iterableNode) ||
+          canExpressionSuspend(lambdaNode.args[1]!)
+      );
+    }
+
+    const initialNode = node.args[0]!;
+    const initialSource = compileExpressionSource(state, initialNode, scope);
+    const accumulatorVar = allocateTemp(state, 'acc');
+    return wrapSourceClosure(
+      state,
+      `signal?.throwIfAborted();
+const ${builtinBindingVar} = ${createLookupResultSource(scope, 'reduce')};
+const ${funBindingVar} = ${createStandardBindingLookupSource(state, scope, 'fun')};
+if (${builtinBindingVar}.isFound && ${builtinBindingVar}.value === runtime.standardBuiltins.reduce && ${funBindingVar}.isFound && ${funBindingVar}.value === runtime.standardIntrinsics.fun) {
+const ${lambdaVar} = ${lambdaSource};
+const ${iterableVar} = ${wrapAwaitedSource(
+        state,
+        iterableSource,
+        canExpressionSuspend(iterableNode)
+      )};
+let ${accumulatorVar} = ${wrapAwaitedSource(
+        state,
+        initialSource,
+        canExpressionSuspend(initialNode)
+      )};
+try {
+for (const ${itemVar} of ${iterableVar}) {
+${accumulatorVar} = ${wrapAwaitedSource(
+        state,
+        `${lambdaVar}(${accumulatorVar}, ${itemVar})`,
+        canExpressionSuspend(lambdaNode.args[1]!)
+      )};
+}
+return ${accumulatorVar};
+} catch (error) {
+return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+}
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+      canExpressionSuspend(iterableNode) ||
+        canExpressionSuspend(initialNode) ||
+        canExpressionSuspend(lambdaNode.args[1]!)
+    );
+  };
+
   const compileGenericApplySource = (
     state: SourceCompileState,
     node: FunCityApplyNode,
@@ -3239,6 +3363,14 @@ return ${compileGenericApplySource(state, node, scope)};`,
               true
             );
           }
+        }
+        const higherOrderBuiltinSource = compileHigherOrderBuiltinSource(
+          state,
+          node,
+          scope
+        );
+        if (higherOrderBuiltinSource !== undefined) {
+          return higherOrderBuiltinSource;
         }
         return compileGenericApplySource(state, node, scope);
       }

@@ -215,6 +215,34 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('matches reducer on direct higher-order map and reduce fast paths', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            setNode(
+              'values',
+              applyNode('map', [
+                funNode(
+                  ['x'],
+                  applyNode('mul', [variableNode('x'), numberNode(2)])
+                ),
+                applyNode('range', [numberNode(1), numberNode(5)]),
+              ])
+            ),
+            variableNode('values'),
+            applyNode('reduce', [
+              numberNode(0),
+              funNode(
+                ['acc', 'value'],
+                applyNode('add', [variableNode('acc'), variableNode('value')])
+              ),
+              variableNode('values'),
+            ]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
       it('keeps defaults and logical intrinsics lazy when used', async () => {
         await expectGeneratedMatchesReducer(
           [
@@ -232,6 +260,50 @@ describe('dynamic code generator test', () => {
             ]),
           ],
           undefined,
+          backend
+        );
+      });
+
+      it('falls back when higher-order builtins are shadowed', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('map', [
+              funNode(['x'], variableNode('x')),
+              applyNode('range', [numberNode(1), numberNode(4)]),
+            ]),
+            applyNode('reduce', [
+              numberNode(0),
+              funNode(
+                ['acc', 'value'],
+                applyNode('add', [variableNode('acc'), variableNode('value')])
+              ),
+              variableNode('values'),
+            ]),
+          ],
+          {
+            values: [1, 2, 3],
+            map: async (
+              mapper: (value: number) => Promise<number> | number,
+              iter: Iterable<number>
+            ) => {
+              const result: number[] = [];
+              for (const value of iter) {
+                result.push(await mapper(value));
+              }
+              return result.reverse();
+            },
+            reduce: async (
+              initial: number,
+              reducer: (acc: number, value: number) => Promise<number> | number,
+              iter: Iterable<number>
+            ) => {
+              let result = initial;
+              for (const value of iter) {
+                result = await reducer(result, value);
+              }
+              return result * 10;
+            },
+          },
           backend
         );
       });
