@@ -1486,7 +1486,7 @@ const createSourceDCodegen = (
       : `context.getValue(${JSON.stringify(name)}, signal)`;
   };
 
-  const resolveAggressiveCoreVariableSource = (
+  const resolveAggressiveVariableSource = (
     state: SourceCompileState,
     name: string
   ): string | undefined => {
@@ -1514,6 +1514,27 @@ const createSourceDCodegen = (
       }
       case 'set': {
         return 'runtime.standardIntrinsics.set';
+      }
+      case 'add':
+      case 'sub':
+      case 'mul':
+      case 'div':
+      case 'mod':
+      case 'eq':
+      case 'ne':
+      case 'lt':
+      case 'gt':
+      case 'le':
+      case 'ge':
+      case 'not': {
+        return `runtime.standardBuiltins.${name}`;
+      }
+      case 'and':
+      case 'or': {
+        return `runtime.constants[${addConstant(
+          state,
+          standardVariables[name]
+        )}]`;
       }
       default: {
         return undefined;
@@ -1834,6 +1855,121 @@ return __value.slice(__start, __end);
 }
 return Array.from(__value).slice(__start, __end);
 })()`;
+      }
+      default: {
+        return undefined;
+      }
+    }
+  };
+
+  const compileDirectInlineBuiltinApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    const builtinArgVars = node.args.map(() => allocateTemp(state, 'arg'));
+    const inlineBuiltinSource = compileInlineStandardBuiltinSource(
+      name,
+      builtinArgVars
+    );
+    if (inlineBuiltinSource === undefined) {
+      return undefined;
+    }
+    const builtinArgStatements = node.args
+      .map((arg, index) => {
+        const argSource = compileExpressionSource(state, arg, scope);
+        return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+          argSource,
+          canExpressionSuspend(arg)
+        )};`;
+      })
+      .join('\n');
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+${builtinArgStatements}
+return ${inlineBuiltinSource};`,
+      node.args.some((arg) => canExpressionSuspend(arg))
+    );
+  };
+
+  const compileDirectLogicalApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    kind: 'and' | 'or'
+  ): string => {
+    const rangeIndex = addConstant(state, node.range);
+    if (node.args.length === 0) {
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+runtime.throwError({ description: 'empty arguments', range: runtime.constants[${rangeIndex}] });`,
+        false
+      );
+    }
+    const valueVars = node.args.map(() => allocateTemp(state, 'value'));
+    const body = node.args
+      .map((arg, index) => {
+        const valueVar = valueVars[index]!;
+        const argSource = compileExpressionSource(state, arg, scope);
+        const condition =
+          kind === 'and'
+            ? `!runtime.isConditionalTrue(${valueVar})`
+            : `runtime.isConditionalTrue(${valueVar})`;
+        const result = kind === 'and' ? 'false' : 'true';
+        return `const ${valueVar} = ${wrapAwaitedSource(
+          argSource,
+          canExpressionSuspend(arg)
+        )};
+if (${condition}) {
+return ${result};
+}`;
+      })
+      .join('\n');
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+${body}
+return ${kind === 'and' ? 'true' : 'false'};`,
+      node.args.some((arg) => canExpressionSuspend(arg))
+    );
+  };
+
+  const compileAggressiveApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string | undefined => {
+    if (!state.aggressiveOptimize || node.func.kind !== 'variable') {
+      return undefined;
+    }
+    switch (node.func.name) {
+      case 'add':
+      case 'sub':
+      case 'mul':
+      case 'div':
+      case 'mod':
+      case 'eq':
+      case 'ne':
+      case 'lt':
+      case 'gt':
+      case 'le':
+      case 'ge':
+      case 'not': {
+        return compileDirectInlineBuiltinApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
+      }
+      case 'and':
+      case 'or': {
+        return compileDirectLogicalApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
       }
       default: {
         return undefined;
@@ -2265,7 +2401,7 @@ return ${textVar};`,
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
-        const aggressiveSource = resolveAggressiveCoreVariableSource(
+        const aggressiveSource = resolveAggressiveVariableSource(
           state,
           variableResult.name
         );
@@ -2505,6 +2641,14 @@ return ${compileGenericApplySource(state, node, scope)};`,
               true
             );
           }
+        }
+        const aggressiveApplySource = compileAggressiveApplySource(
+          state,
+          node,
+          scope
+        );
+        if (aggressiveApplySource !== undefined) {
+          return aggressiveApplySource;
         }
         return compileGenericApplySource(state, node, scope);
       }

@@ -175,6 +175,60 @@ describe('dynamic code generator test', () => {
           expect(generated.result).toEqual([true, false, null, 'then', 5, 4]);
           expect(generated.warningLogs).toEqual([]);
         });
+
+        it('uses non-shadowable numeric and logical symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              setNode('adder', variableNode('add')),
+              applyNode('add', [numberNode(1), numberNode(2), numberNode(3)]),
+              applyNode(variableNode('adder'), [numberNode(4), numberNode(5)]),
+              applyNode('lt', [numberNode(1), numberNode(2)]),
+              applyNode('not', [variableNode('false')]),
+              applyNode('and', [
+                variableNode('true'),
+                applyNode('lt', [numberNode(1), numberNode(2)]),
+                variableNode('false'),
+              ]),
+              applyNode('and', [
+                variableNode('false'),
+                applyNode(variableNode('explode'), []),
+              ]),
+              applyNode('or', [variableNode('false'), variableNode('true')]),
+              applyNode('or', [
+                variableNode('true'),
+                applyNode(variableNode('explode'), []),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              true: false,
+              false: true,
+              add: () => 'shadowed',
+              lt: () => false,
+              not: () => false,
+              and: () => 'shadowed',
+              or: () => 'shadowed',
+              explode: () => {
+                throw new Error('explode should not run');
+              },
+            }
+          );
+
+          expect(generated.result).toEqual([
+            6,
+            9,
+            true,
+            true,
+            false,
+            false,
+            true,
+            true,
+          ]);
+          expect(generated.warningLogs).toEqual([]);
+        });
       }
 
       it('matches reducer on mixed root blocks', async () => {
