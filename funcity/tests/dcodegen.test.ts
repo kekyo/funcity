@@ -198,6 +198,44 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('matches reducer on intrinsic defaults, logicals and set', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('and', [variableNode('true'), variableNode('true')]),
+            applyNode('or', [variableNode('false'), variableNode('true')]),
+            applyNode('defaults', [
+              variableNode('undefined'),
+              stringNode('fallback'),
+            ]),
+            setNode('value', numberNode(5)),
+            variableNode('value'),
+          ],
+          undefined,
+          backend
+        );
+      });
+
+      it('keeps defaults and logical intrinsics lazy when used', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('and', [
+              variableNode('false'),
+              applyNode(variableNode('missingAndBranch'), []),
+            ]),
+            applyNode('or', [
+              variableNode('true'),
+              applyNode(variableNode('missingOrBranch'), []),
+            ]),
+            applyNode('defaults', [
+              numberNode(1),
+              applyNode(variableNode('missingDefaultBranch'), []),
+            ]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
       it('exposes generated expression and block functions', async () => {
         const warningLogs: FunCityWarningEntry[] = [];
         const variables = buildCandidateVariables();
@@ -289,6 +327,24 @@ describe('dynamic code generator test', () => {
           [applyNode('fun', [stringNode('lhs'), stringNode('rhs')])],
           {
             fun: (lhs: string, rhs: string) => `${lhs}:${rhs}`,
+          },
+          backend
+        );
+      });
+
+      it('falls back when additional intrinsics are shadowed', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('and', [numberNode(1), numberNode(2)]),
+            applyNode('defaults', [stringNode('lhs'), stringNode('rhs')]),
+            applyNode('set', [variableNode('shadowedValue'), numberNode(2)]),
+          ],
+          {
+            shadowedValue: 'seed',
+            and: (lhs: number, rhs: number) => lhs + rhs,
+            defaults: (lhs: string, rhs: string) => `${lhs}:${rhs}`,
+            set: (lhs: unknown, rhs: unknown) =>
+              `${String(lhs)}:${String(rhs)}`,
           },
           backend
         );

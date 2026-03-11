@@ -339,7 +339,10 @@ interface FunCitySourceRuntime {
   readonly standardBuiltins: typeof specializableStandardCallTargets;
   readonly standardIntrinsics: {
     readonly cond: Function;
+    readonly defaults: Function;
     readonly fun: Function;
+    readonly and: Function;
+    readonly or: Function;
     readonly set: Function;
   };
   readonly asIterable: typeof asIterable;
@@ -760,6 +763,59 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
     );
   };
 
+  const applyLogicalIntrinsic = (
+    node: FunCityApplyNode,
+    context: FunCityReducerContext,
+    signal: AbortSignal | undefined,
+    compiledArgs: readonly FunCityGeneratedExpressionImmediate[],
+    mode: 'and' | 'or'
+  ): FunCityMaybePromise<boolean> => {
+    if (compiledArgs.length === 0) {
+      throwError({
+        description: 'empty arguments',
+        range: node.range,
+      });
+    }
+    for (let index = 0; index < compiledArgs.length; index++) {
+      const value = compiledArgs[index]!(context, signal);
+      if (isPromiseLike(value)) {
+        return (async () => {
+          if (
+            mode === 'and'
+              ? !isConditionalTrue(await value)
+              : isConditionalTrue(await value)
+          ) {
+            return mode === 'or';
+          }
+          for (
+            let continueIndex = index + 1;
+            continueIndex < compiledArgs.length;
+            continueIndex++
+          ) {
+            const continued = await compiledArgs[continueIndex]!(
+              context,
+              signal
+            );
+            if (
+              mode === 'and'
+                ? !isConditionalTrue(continued)
+                : isConditionalTrue(continued)
+            ) {
+              return mode === 'or';
+            }
+          }
+          return mode === 'and';
+        })();
+      }
+      if (
+        mode === 'and' ? !isConditionalTrue(value) : isConditionalTrue(value)
+      ) {
+        return mode === 'or';
+      }
+    }
+    return mode === 'and';
+  };
+
   const generateExpressionImmediate = (
     node: FunCityExpressionNode
   ): FunCityGeneratedExpressionImmediate => {
@@ -806,6 +862,22 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
           node.func.kind === 'variable' &&
           node.func.name === 'cond' &&
           node.args.length === 3;
+        const isIntrinsicDefaults =
+          node.func.kind === 'variable' &&
+          node.func.name === 'defaults' &&
+          node.args.length === 2;
+        const intrinsicSetName =
+          node.func.kind === 'variable' &&
+          node.func.name === 'set' &&
+          node.args.length === 2 &&
+          node.args[0]!.kind === 'variable'
+            ? node.args[0]!.name
+            : undefined;
+        const intrinsicLogicalMode =
+          node.func.kind === 'variable' &&
+          (node.func.name === 'and' || node.func.name === 'or')
+            ? node.func.name
+            : undefined;
         const intrinsicFunParameters =
           node.func.kind === 'variable' &&
           node.func.name === 'fun' &&
@@ -837,6 +909,85 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
                   isConditionalTrue(condition)
                     ? compiledArgs[1]!(context, signal)
                     : compiledArgs[2]!(context, signal)
+              );
+            }
+            return applyFunction(
+              context,
+              node,
+              signal,
+              compiledFunc,
+              compiledArgs
+            );
+          };
+          break;
+        }
+        if (isIntrinsicDefaults) {
+          generator = (context, signal) => {
+            const boundFunction = context.getValue('defaults', signal);
+            if (
+              boundFunction.isFound &&
+              boundFunction.value === standardVariables.defaults
+            ) {
+              return resolveMaybePromise(
+                compiledArgs[0]!(context, signal),
+                (value): FunCityMaybePromise<unknown> =>
+                  value !== undefined && value !== null
+                    ? value
+                    : compiledArgs[1]!(context, signal)
+              );
+            }
+            return applyFunction(
+              context,
+              node,
+              signal,
+              compiledFunc,
+              compiledArgs
+            );
+          };
+          break;
+        }
+        if (intrinsicSetName !== undefined) {
+          generator = (context, signal) => {
+            const boundFunction = context.getValue('set', signal);
+            if (
+              boundFunction.isFound &&
+              boundFunction.value === standardVariables.set
+            ) {
+              return resolveMaybePromise(
+                compiledArgs[1]!(context, signal),
+                (value): FunCityMaybePromise<unknown> => {
+                  context.setValue(intrinsicSetName, value, signal);
+                  return undefined;
+                }
+              );
+            }
+            return applyFunction(
+              context,
+              node,
+              signal,
+              compiledFunc,
+              compiledArgs
+            );
+          };
+          break;
+        }
+        if (intrinsicLogicalMode !== undefined) {
+          generator = (context, signal) => {
+            const boundFunction = context.getValue(
+              intrinsicLogicalMode,
+              signal
+            );
+            const target =
+              intrinsicLogicalMode === 'and'
+                ? standardVariables.and
+                : standardVariables.or;
+            if (boundFunction.isFound && boundFunction.value === target) {
+              return applyLogicalIntrinsic(
+                node,
+                context,
+                signal,
+                compiledArgs,
+                intrinsicLogicalMode
               );
             }
             return applyFunction(
@@ -1877,7 +2028,10 @@ return Array.from(__value).slice(__start, __end);
       standardBuiltins: specializableStandardCallTargets,
       standardIntrinsics: {
         cond: standardVariables.cond as Function,
+        defaults: standardVariables.defaults as Function,
         fun: standardVariables.fun as Function,
+        and: standardVariables.and as Function,
+        or: standardVariables.or as Function,
         set: standardVariables.set as Function,
       },
       asIterable,
@@ -2193,6 +2347,60 @@ return ${bodySource};
 }`;
   };
 
+  const compileLogicalIntrinsicSource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    mode: 'and' | 'or'
+  ): string => {
+    const bindingVar = allocateTemp(state, 'binding');
+    if (node.args.length === 0) {
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
+runtime.throwError({ description: 'empty arguments', range: runtime.constants[${addConstant(
+          state,
+          node.range
+        )}] });
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+        true
+      );
+    }
+
+    const bodyStatements = node.args
+      .map((arg) => {
+        const valueVar = allocateTemp(state, 'value');
+        const argSource = compileExpressionSource(state, arg, scope);
+        const awaitedSource = wrapAwaitedSource(
+          argSource,
+          canExpressionSuspend(arg)
+        );
+        if (mode === 'and') {
+          return `const ${valueVar} = ${awaitedSource};
+if (!runtime.isConditionalTrue(${valueVar})) {
+return false;
+}`;
+        }
+        return `const ${valueVar} = ${awaitedSource};
+if (runtime.isConditionalTrue(${valueVar})) {
+return true;
+}`;
+      })
+      .join('\n');
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
+${bodyStatements}
+return ${mode === 'and' ? 'true' : 'false'};
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+      true
+    );
+  };
+
   const compileGenericApplySource = (
     state: SourceCompileState,
     node: FunCityApplyNode,
@@ -2445,6 +2653,32 @@ return ${compileGenericApplySource(state, node, scope)};`,
         }
         if (
           node.func.kind === 'variable' &&
+          node.func.name === 'set' &&
+          node.args.length === 2 &&
+          node.args[0]!.kind === 'variable'
+        ) {
+          const bindingVar = allocateTemp(state, 'binding');
+          const valueSource = compileExpressionSource(
+            state,
+            node.args[1]!,
+            scope
+          );
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, 'set')};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.set) {
+context.setValue(${JSON.stringify(node.args[0]!.name)}, ${wrapAwaitedSource(
+              valueSource,
+              canExpressionSuspend(node.args[1]!)
+            )}, signal);
+return undefined;
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+            true
+          );
+        }
+        if (
+          node.func.kind === 'variable' &&
           node.func.name === 'cond' &&
           node.args.length === 3
         ) {
@@ -2475,6 +2709,54 @@ return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};
 }
 return ${compileGenericApplySource(state, node, scope)};`,
             true
+          );
+        }
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'defaults' &&
+          node.args.length === 2
+        ) {
+          const bindingVar = allocateTemp(state, 'binding');
+          const valueVar = allocateTemp(state, 'value');
+          const primarySource = compileExpressionSource(
+            state,
+            node.args[0]!,
+            scope
+          );
+          const fallbackSource = compileExpressionSource(
+            state,
+            node.args[1]!,
+            scope
+          );
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, 'defaults')};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.defaults) {
+const ${valueVar} = ${wrapAwaitedSource(
+              primarySource,
+              canExpressionSuspend(node.args[0]!)
+            )};
+if (${valueVar} !== undefined && ${valueVar} !== null) {
+return ${valueVar};
+}
+return ${wrapAwaitedSource(
+              fallbackSource,
+              canExpressionSuspend(node.args[1]!)
+            )};
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+            true
+          );
+        }
+        if (
+          node.func.kind === 'variable' &&
+          (node.func.name === 'and' || node.func.name === 'or')
+        ) {
+          return compileLogicalIntrinsicSource(
+            state,
+            node,
+            scope,
+            node.func.name
           );
         }
         if (
