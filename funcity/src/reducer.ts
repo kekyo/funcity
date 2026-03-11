@@ -11,6 +11,7 @@ import {
   type FunCityReducerContext,
   type FunCityReducerContextValueResult,
   type FunCityFunctionContext,
+  type FunCityMaybePromise,
   type FunCityApplyNode,
   type FunCityDotNode,
   type FunCityRange,
@@ -25,6 +26,7 @@ import {
   isFunCityFunction,
   internalCreateFunctionIdGenerator,
   internalConvertToString,
+  isPromiseLike,
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -329,16 +331,70 @@ export const reduceNode = async (
 //////////////////////////////////////////////////////////////////////////////
 
 const defaultReducerExecutor: FunCityReducerExecutor = {
-  reduceExpressionNode: (
+  reduceExpressionNodeImmediate: (
     context: FunCityReducerContext,
     node: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ) => reduceExpressionNode(context, node, signal),
-  reduceNode: (
+  reduceExpressionNode: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise.resolve(reduceExpressionNode(context, node, signal)),
+  reduceNodeImmediate: (
     context: FunCityReducerContext,
     node: FunCityBlockNode,
     signal: AbortSignal | undefined
   ) => reduceNode(context, node, signal),
+  reduceNode: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise.resolve(reduceNode(context, node, signal)),
+};
+
+const reduceBlockImmediate = (
+  context: FunCityReducerContext,
+  nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[],
+  signal: AbortSignal | undefined
+): FunCityMaybePromise<unknown[]> => {
+  const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
+  const resultList: unknown[] = [];
+  for (let index = 0; index < nodes.length; index++) {
+    const results = context.reduceNodeImmediate(nodes[index]!, signal);
+    if (isPromiseLike(results)) {
+      return (async () => {
+        const firstResults = await results;
+        for (const result of firstResults) {
+          if (result !== undefined) {
+            resultList.push(result);
+          }
+        }
+        for (
+          let continueIndex = index + 1;
+          continueIndex < nodes.length;
+          continueIndex++
+        ) {
+          const continueResults = await context.reduceNodeImmediate(
+            nodes[continueIndex]!,
+            signal
+          );
+          for (const result of continueResults) {
+            if (result !== undefined) {
+              resultList.push(result);
+            }
+          }
+        }
+        return resultList;
+      })();
+    }
+    for (const result of results) {
+      if (result !== undefined) {
+        resultList.push(result);
+      }
+    }
+  }
+  return resultList;
 };
 
 const createScopedReducerContext = (
@@ -379,21 +435,10 @@ const createScopedReducerContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
-    const reduceBlock = async (
+    const reduceBlock = (
       nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
-    ): Promise<unknown[]> => {
-      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
-      const resultList: unknown[] = [];
-      for (const node of nodes) {
-        const results = await thisContext.reduceNode(node, signal);
-        for (const result of results) {
-          if (result !== undefined) {
-            resultList.push(result);
-          }
-        }
-      }
-      return resultList;
-    };
+    ): Promise<unknown[]> =>
+      Promise.resolve(reduceBlockImmediate(thisContext, nodeOrNodes, signal));
     return {
       thisNode,
       abortSignal: signal,
@@ -403,8 +448,15 @@ const createScopedReducerContext = (
       getBoundFunction: parent.getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal, executor),
       convertToString: parent.convertToString,
+      reduceImmediate: (node: FunCityExpressionNode) =>
+        thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        thisContext.reduceExpressionNode(node, signal),
+        Promise.resolve(
+          thisContext.reduceExpressionNodeImmediate(node, signal)
+        ),
+      reduceBlockImmediate: (
+        nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+      ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
       reduceBlock,
     };
   };
@@ -420,9 +472,20 @@ const createScopedReducerContext = (
     reduceExpressionNode: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
-    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    ) =>
+      Promise.resolve(
+        executor.reduceExpressionNodeImmediate(thisContext, node, signal)
+      ),
+    reduceExpressionNodeImmediate: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
     reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
-      executor.reduceNode(thisContext, node, signal),
+      Promise.resolve(executor.reduceNodeImmediate(thisContext, node, signal)),
+    reduceNodeImmediate: (
+      node: FunCityBlockNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceNodeImmediate(thisContext, node, signal),
     isConstructable: parent.isConstructable,
     createFunctionContext,
   };
@@ -514,21 +577,10 @@ export const createReducerContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
-    const reduceBlock = async (
+    const reduceBlock = (
       nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
-    ): Promise<unknown[]> => {
-      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
-      const resultList: unknown[] = [];
-      for (const node of nodes) {
-        const results = await thisContext.reduceNode(node, signal);
-        for (const result of results) {
-          if (result !== undefined) {
-            resultList.push(result);
-          }
-        }
-      }
-      return resultList;
-    };
+    ): Promise<unknown[]> =>
+      Promise.resolve(reduceBlockImmediate(thisContext, nodeOrNodes, signal));
     return {
       thisNode,
       abortSignal: signal,
@@ -538,8 +590,15 @@ export const createReducerContext = (
       getBoundFunction,
       newScope: () => createScopedReducerContext(thisContext, signal, executor),
       convertToString,
+      reduceImmediate: (node: FunCityExpressionNode) =>
+        thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        thisContext.reduceExpressionNode(node, signal),
+        Promise.resolve(
+          thisContext.reduceExpressionNodeImmediate(node, signal)
+        ),
+      reduceBlockImmediate: (
+        nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+      ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
       reduceBlock,
     };
   };
@@ -555,9 +614,20 @@ export const createReducerContext = (
     reduceExpressionNode: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
-    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    ) =>
+      Promise.resolve(
+        executor.reduceExpressionNodeImmediate(thisContext, node, signal)
+      ),
+    reduceExpressionNodeImmediate: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
     reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
-      executor.reduceNode(thisContext, node, signal),
+      Promise.resolve(executor.reduceNodeImmediate(thisContext, node, signal)),
+    reduceNodeImmediate: (
+      node: FunCityBlockNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceNodeImmediate(thisContext, node, signal),
     isConstructable,
     createFunctionContext,
   };

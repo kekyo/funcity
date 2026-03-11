@@ -8,6 +8,7 @@ import {
   type FunCityBlockNode,
   type FunCityDotNode,
   type FunCityExpressionNode,
+  type FunCityMaybePromise,
   type FunCityRange,
   type FunCityReducerContext,
   type FunCityReducerExecutor,
@@ -21,6 +22,7 @@ import {
   fromError,
   isConditionalTrue,
   isFunCityFunction,
+  isPromiseLike,
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -152,23 +154,89 @@ export interface FunCityDynamicCodeGenerator {
   readonly createExecutor: () => FunCityReducerExecutor;
 }
 
+type FunCityGeneratedExpressionImmediate = (
+  context: FunCityReducerContext,
+  signal?: AbortSignal
+) => FunCityMaybePromise<unknown>;
+
+type FunCityGeneratedBlockImmediate = (
+  context: FunCityReducerContext,
+  signal?: AbortSignal
+) => FunCityMaybePromise<unknown[]>;
+
+type FunCityGeneratedProgramImmediate = (
+  context: FunCityReducerContext,
+  signal?: AbortSignal
+) => FunCityMaybePromise<unknown[]>;
+
 const filterUndefined = (results: readonly unknown[]) =>
   results.filter((result) => result !== undefined);
 
-const createRawBlockRunner = (
-  generators: readonly FunCityGeneratedBlock[]
-): FunCityGeneratedBlock => {
-  return async (
+const resolveMaybePromise = <T, U>(
+  value: FunCityMaybePromise<T>,
+  onResolved: (value: T) => FunCityMaybePromise<U>
+): FunCityMaybePromise<U> => {
+  if (isPromiseLike(value)) {
+    return value.then((resolved) => onResolved(resolved));
+  }
+  return onResolved(value);
+};
+
+const createRawBlockRunnerImmediate = (
+  generators: readonly FunCityGeneratedBlockImmediate[]
+): FunCityGeneratedBlockImmediate => {
+  return (
     context: FunCityReducerContext,
     signal?: AbortSignal
-  ): Promise<unknown[]> => {
+  ): FunCityMaybePromise<unknown[]> => {
     const resultList: unknown[] = [];
-    for (const generator of generators) {
-      const results = await generator(context, signal);
+    for (let index = 0; index < generators.length; index++) {
+      const results = generators[index]!(context, signal);
+      if (isPromiseLike(results)) {
+        return (async () => {
+          resultList.push(...(await results));
+          for (
+            let continueIndex = index + 1;
+            continueIndex < generators.length;
+            continueIndex++
+          ) {
+            resultList.push(
+              ...(await generators[continueIndex]!(context, signal))
+            );
+          }
+          return resultList;
+        })();
+      }
       resultList.push(...results);
     }
     return resultList;
   };
+};
+
+const collectExpressionValues = (
+  generators: readonly FunCityGeneratedExpressionImmediate[],
+  context: FunCityReducerContext,
+  signal: AbortSignal | undefined
+): FunCityMaybePromise<unknown[]> => {
+  const resultList: unknown[] = [];
+  for (let index = 0; index < generators.length; index++) {
+    const result = generators[index]!(context, signal);
+    if (isPromiseLike(result)) {
+      return (async () => {
+        resultList.push(await result);
+        for (
+          let continueIndex = index + 1;
+          continueIndex < generators.length;
+          continueIndex++
+        ) {
+          resultList.push(await generators[continueIndex]!(context, signal));
+        }
+        return resultList;
+      })();
+    }
+    resultList.push(result);
+  }
+  return resultList;
 };
 
 /**
@@ -176,35 +244,82 @@ const createRawBlockRunner = (
  * @returns Dynamic code generator instance.
  */
 export const createDCodegen = (): FunCityDynamicCodeGenerator => {
+  const expressionImmediateCache = new WeakMap<
+    FunCityExpressionNode,
+    FunCityGeneratedExpressionImmediate
+  >();
   const expressionCache = new WeakMap<
     FunCityExpressionNode,
     FunCityGeneratedExpression
   >();
+  const blockImmediateCache = new WeakMap<
+    FunCityBlockNode,
+    FunCityGeneratedBlockImmediate
+  >();
   const blockCache = new WeakMap<FunCityBlockNode, FunCityGeneratedBlock>();
-  const rawProgramCache = new WeakMap<object, FunCityGeneratedBlock>();
+  const rawProgramImmediateCache = new WeakMap<
+    object,
+    FunCityGeneratedBlockImmediate
+  >();
+  const programImmediateCache = new WeakMap<
+    object,
+    FunCityGeneratedProgramImmediate
+  >();
   const programCache = new WeakMap<object, FunCityGeneratedProgram>();
 
-  const generateRawProgram = (
+  const generateRawProgramImmediate = (
     nodes: readonly FunCityBlockNode[]
-  ): FunCityGeneratedBlock => {
-    const cached = rawProgramCache.get(nodes);
+  ): FunCityGeneratedBlockImmediate => {
+    const cached = rawProgramImmediateCache.get(nodes);
     if (cached) {
       return cached;
     }
-    const generator = createRawBlockRunner(nodes.map(generateBlock));
-    rawProgramCache.set(nodes, generator);
+    const generator = createRawBlockRunnerImmediate(
+      nodes.map(generateBlockImmediate)
+    );
+    rawProgramImmediateCache.set(nodes, generator);
     return generator;
   };
 
-  const resolveDotNode = async (
+  const resolveDotNode = (
     context: FunCityReducerContext,
     node: FunCityDotNode,
     signal: AbortSignal | undefined,
-    compiledBase: FunCityGeneratedExpression | undefined
-  ) => {
+    compiledBase: FunCityGeneratedExpressionImmediate | undefined
+  ): FunCityMaybePromise<unknown> => {
     signal?.throwIfAborted();
     const firstSegmentOptional = node.segments[0]?.optional ?? false;
-    let value: unknown;
+
+    const resolveSegments = (baseValue: unknown) => {
+      let value = baseValue;
+      let parent: object | undefined;
+      for (const segment of node.segments) {
+        const result = deconstructConditionalCombine(segment.name);
+        const isOptional = segment.optional || result.canIgnore;
+        if (
+          value !== null &&
+          (typeof value === 'object' || typeof value === 'function')
+        ) {
+          const record = value as Record<string, unknown>;
+          parent = value as object;
+          value = record[result.name];
+        } else {
+          if (!isOptional) {
+            throwError({
+              description: `variable is not bound: ${result.name}`,
+              range: segment.range,
+            });
+          }
+          return undefined;
+        }
+      }
+
+      if (parent && typeof value === 'function' && !isFunCityFunction(value)) {
+        return context.getBoundFunction(parent, value);
+      }
+      return value;
+    };
+
     if (node.base.kind === 'variable') {
       const baseResult = deconstructConditionalCombine(node.base.name);
       const valueResult = context.getValue(baseResult.name, signal);
@@ -217,71 +332,27 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
         }
         return undefined;
       }
-      value = valueResult.value;
-    } else if (compiledBase) {
-      value = await compiledBase(context, signal);
-    } else {
-      value = undefined;
+      return resolveSegments(valueResult.value);
     }
 
-    let parent: object | undefined;
-    for (const segment of node.segments) {
-      const result = deconstructConditionalCombine(segment.name);
-      const isOptional = segment.optional || result.canIgnore;
-      if (
-        value !== null &&
-        (typeof value === 'object' || typeof value === 'function')
-      ) {
-        const record = value as Record<string, unknown>;
-        parent = value as object;
-        value = record[result.name];
-      } else {
-        if (!isOptional) {
-          throwError({
-            description: `variable is not bound: ${result.name}`,
-            range: segment.range,
-          });
-        }
-        return undefined;
-      }
+    if (!compiledBase) {
+      return undefined;
     }
-
-    if (parent && typeof value === 'function' && !isFunCityFunction(value)) {
-      return context.getBoundFunction(parent, value);
-    }
-    return value;
+    return resolveMaybePromise(compiledBase(context, signal), resolveSegments);
   };
 
-  const applyFunction = async (
+  const applyResolvedFunction = (
     context: FunCityReducerContext,
     node: FunCityApplyNode,
     signal: AbortSignal | undefined,
-    compiledFunc: FunCityGeneratedExpression,
-    compiledArgs: readonly FunCityGeneratedExpression[]
-  ) => {
-    signal?.throwIfAborted();
-    const func = await compiledFunc(context, signal);
-    if (typeof func !== 'function') {
-      throwError({
-        description: 'could not apply it for function',
-        range: node.range,
-      });
-    }
-    const callable = func as Function;
-
+    callable: Function,
+    compiledArgs: readonly FunCityGeneratedExpressionImmediate[]
+  ): FunCityMaybePromise<unknown> => {
     const isSpecial = isFunCityFunction(callable);
-    const args = isSpecial
+    const resolvedArgs = isSpecial
       ? node.args
-      : await Promise.all(compiledArgs.map((arg) => arg(context, signal)));
-    const shouldConstruct = !isSpecial && context.isConstructable(callable);
-
-    try {
-      if (shouldConstruct) {
-        return Reflect.construct(callable, args);
-      }
-      const thisProxy = context.createFunctionContext(node, signal);
-      return await callable.call(thisProxy, ...args);
-    } catch (error: unknown) {
+      : collectExpressionValues(compiledArgs, context, signal);
+    const handleApplyError = (error: unknown): never => {
       if (error instanceof FunCityReducerError) {
         throw error;
       }
@@ -293,7 +364,145 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
         description: fromError(error),
         range: node.range,
       });
+    };
+
+    const invokeCallable = (args: readonly unknown[]) => {
+      const shouldConstruct = !isSpecial && context.isConstructable(callable);
+      try {
+        if (shouldConstruct) {
+          return Reflect.construct(callable, args);
+        }
+        const thisProxy = context.createFunctionContext(node, signal);
+        return callable.call(thisProxy, ...args);
+      } catch (error: unknown) {
+        handleApplyError(error);
+      }
+    };
+
+    const result = resolveMaybePromise(resolvedArgs, (args) =>
+      invokeCallable(args as readonly unknown[])
+    );
+    if (isPromiseLike(result)) {
+      return result.catch((error: unknown) => handleApplyError(error));
     }
+    return result;
+  };
+
+  const applyFunction = (
+    context: FunCityReducerContext,
+    node: FunCityApplyNode,
+    signal: AbortSignal | undefined,
+    compiledFunc: FunCityGeneratedExpressionImmediate,
+    compiledArgs: readonly FunCityGeneratedExpressionImmediate[]
+  ): FunCityMaybePromise<unknown> => {
+    signal?.throwIfAborted();
+    return resolveMaybePromise(
+      compiledFunc(context, signal),
+      (func): FunCityMaybePromise<unknown> => {
+        if (typeof func !== 'function') {
+          throwError({
+            description: 'could not apply it for function',
+            range: node.range,
+          });
+        }
+        return applyResolvedFunction(
+          context,
+          node,
+          signal,
+          func as Function,
+          compiledArgs
+        );
+      }
+    );
+  };
+
+  const generateExpressionImmediate = (
+    node: FunCityExpressionNode
+  ): FunCityGeneratedExpressionImmediate => {
+    const cached = expressionImmediateCache.get(node);
+    if (cached) {
+      return cached;
+    }
+
+    let generator: FunCityGeneratedExpressionImmediate;
+    switch (node.kind) {
+      case 'number':
+      case 'string': {
+        generator = () => node.value;
+        break;
+      }
+      case 'template': {
+        const generatedBlocks = generateRawProgramImmediate(node.blocks);
+        generator = (context, signal) =>
+          resolveMaybePromise(generatedBlocks(context, signal), (results) =>
+            filterUndefined(results)
+              .map((result) => context.convertToString(result))
+              .join('')
+          );
+        break;
+      }
+      case 'variable': {
+        generator = (context, signal) =>
+          resolveVariable(context, node.name, node.range, signal);
+        break;
+      }
+      case 'dot': {
+        const compiledBase =
+          node.base.kind === 'variable'
+            ? undefined
+            : generateExpressionImmediate(node.base);
+        generator = (context, signal) =>
+          resolveDotNode(context, node, signal, compiledBase);
+        break;
+      }
+      case 'apply': {
+        const compiledFunc = generateExpressionImmediate(node.func);
+        const compiledArgs = node.args.map(generateExpressionImmediate);
+        generator = (context, signal) =>
+          applyFunction(context, node, signal, compiledFunc, compiledArgs);
+        break;
+      }
+      case 'list': {
+        const compiledItems = node.items.map(generateExpressionImmediate);
+        generator = (context, signal) =>
+          collectExpressionValues(compiledItems, context, signal);
+        break;
+      }
+      case 'scope': {
+        const compiledNodes = node.nodes.map(generateExpressionImmediate);
+        generator = (
+          context: FunCityReducerContext,
+          signal?: AbortSignal
+        ): FunCityMaybePromise<unknown> => {
+          if (compiledNodes.length === 0) {
+            return [];
+          }
+          let result: unknown = undefined;
+          for (let index = 0; index < compiledNodes.length; index++) {
+            const current = compiledNodes[index]!(context, signal);
+            if (isPromiseLike(current)) {
+              return (async () => {
+                result = await current;
+                for (
+                  let continueIndex = index + 1;
+                  continueIndex < compiledNodes.length;
+                  continueIndex++
+                ) {
+                  result = await compiledNodes[continueIndex]!(context, signal);
+                }
+                return result;
+              })();
+            }
+            result = current;
+          }
+          return result;
+        };
+        break;
+      }
+    }
+
+    expressionImmediateCache.set(node, generator);
+    return generator;
   };
 
   const generateExpression = (
@@ -303,74 +512,145 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     if (cached) {
       return cached;
     }
+    const immediate = generateExpressionImmediate(node);
+    const generator: FunCityGeneratedExpression = (context, signal) =>
+      Promise.resolve(immediate(context, signal));
+    expressionCache.set(node, generator);
+    return generator;
+  };
 
-    let generator: FunCityGeneratedExpression;
+  const generateBlockImmediate = (
+    node: FunCityBlockNode
+  ): FunCityGeneratedBlockImmediate => {
+    const cached = blockImmediateCache.get(node);
+    if (cached) {
+      return cached;
+    }
+
+    let generator: FunCityGeneratedBlockImmediate;
     switch (node.kind) {
-      case 'number':
-      case 'string': {
-        generator = async () => node.value;
+      case 'text': {
+        generator = () => [node.text];
         break;
       }
-      case 'template': {
-        const generatedBlocks = generateRawProgram(node.blocks);
-        generator = async (context, signal) => {
-          const results = await generatedBlocks(context, signal);
-          return filterUndefined(results)
-            .map((result) => context.convertToString(result))
-            .join('');
-        };
-        break;
-      }
-      case 'variable': {
-        generator = async (context, signal) =>
-          resolveVariable(context, node.name, node.range, signal);
-        break;
-      }
-      case 'dot': {
-        const compiledBase =
-          node.base.kind === 'variable'
-            ? undefined
-            : generateExpression(node.base);
-        generator = async (context, signal) =>
-          resolveDotNode(context, node, signal, compiledBase);
-        break;
-      }
-      case 'apply': {
-        const compiledFunc = generateExpression(node.func);
-        const compiledArgs = node.args.map(generateExpression);
-        generator = async (context, signal) =>
-          await applyFunction(
-            context,
-            node,
-            signal,
-            compiledFunc,
-            compiledArgs
+      case 'for': {
+        const iterableGenerator = generateExpressionImmediate(node.iterable);
+        const repeatGenerator = generateRawProgramImmediate(node.repeat);
+        generator = (context, signal) =>
+          resolveMaybePromise(
+            iterableGenerator(context, signal),
+            (result): FunCityMaybePromise<unknown[]> => {
+              const iterable = asIterable(result);
+              if (!iterable) {
+                throwError({
+                  description: 'could not apply it for function',
+                  range: node.range,
+                });
+              }
+              const resolvedIterable = iterable as Iterable<unknown>;
+              const resultList: unknown[] = [];
+              const iterator = resolvedIterable[Symbol.iterator]();
+              for (
+                let current = iterator.next();
+                !current.done;
+                current = iterator.next()
+              ) {
+                context.setValue(node.bind.name, current.value, signal);
+                const repeated = repeatGenerator(context, signal);
+                if (isPromiseLike(repeated)) {
+                  return (async () => {
+                    resultList.push(...(await repeated));
+                    for (
+                      let next = iterator.next();
+                      !next.done;
+                      next = iterator.next()
+                    ) {
+                      context.setValue(node.bind.name, next.value, signal);
+                      resultList.push(
+                        ...(await repeatGenerator(context, signal))
+                      );
+                    }
+                    return resultList;
+                  })();
+                }
+                resultList.push(...repeated);
+              }
+              return resultList;
+            }
           );
         break;
       }
-      case 'list': {
-        const compiledItems = node.items.map(generateExpression);
-        generator = async (context, signal) =>
-          await Promise.all(compiledItems.map((item) => item(context, signal)));
+      case 'while': {
+        const conditionGenerator = generateExpressionImmediate(node.condition);
+        const repeatGenerator = generateRawProgramImmediate(node.repeat);
+        generator = (
+          context: FunCityReducerContext,
+          signal?: AbortSignal
+        ): FunCityMaybePromise<unknown[]> => {
+          const resultList: unknown[] = [];
+          while (true) {
+            const condition = conditionGenerator(context, signal);
+            if (isPromiseLike(condition)) {
+              return (async () => {
+                let currentCondition = await condition;
+                while (isConditionalTrue(currentCondition)) {
+                  resultList.push(...(await repeatGenerator(context, signal)));
+                  currentCondition = await conditionGenerator(context, signal);
+                }
+                return resultList;
+              })();
+            }
+            if (!isConditionalTrue(condition)) {
+              return resultList;
+            }
+            const repeated = repeatGenerator(context, signal);
+            if (isPromiseLike(repeated)) {
+              return (async () => {
+                resultList.push(...(await repeated));
+                while (true) {
+                  const currentCondition = await conditionGenerator(
+                    context,
+                    signal
+                  );
+                  if (!isConditionalTrue(currentCondition)) {
+                    break;
+                  }
+                  resultList.push(...(await repeatGenerator(context, signal)));
+                }
+                return resultList;
+              })();
+            }
+            resultList.push(...repeated);
+          }
+        };
         break;
       }
-      case 'scope': {
-        const compiledNodes = node.nodes.map(generateExpression);
-        generator = async (context, signal) => {
-          if (compiledNodes.length === 0) {
-            return [];
-          }
-          let result: unknown = undefined;
-          for (const compiledNode of compiledNodes) {
-            result = await compiledNode(context, signal);
-          }
-          return result;
-        };
+      case 'if': {
+        const conditionGenerator = generateExpressionImmediate(node.condition);
+        const thenGenerator = generateRawProgramImmediate(node.then);
+        const elseGenerator = generateRawProgramImmediate(node.else);
+        generator = (context, signal) =>
+          resolveMaybePromise(
+            conditionGenerator(context, signal),
+            (condition): FunCityMaybePromise<unknown[]> =>
+              isConditionalTrue(condition)
+                ? thenGenerator(context, signal)
+                : elseGenerator(context, signal)
+          );
+        break;
+      }
+      default: {
+        const expressionGenerator = generateExpressionImmediate(node);
+        generator = (context, signal) =>
+          resolveMaybePromise(
+            expressionGenerator(context, signal),
+            (result) => [result]
+          );
         break;
       }
     }
 
-    expressionCache.set(node, generator);
+    blockImmediateCache.set(node, generator);
     return generator;
   };
 
@@ -379,77 +659,26 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     if (cached) {
       return cached;
     }
-
-    let generator: FunCityGeneratedBlock;
-    switch (node.kind) {
-      case 'text': {
-        generator = async () => [node.text];
-        break;
-      }
-      case 'for': {
-        const iterableGenerator = generateExpression(node.iterable);
-        const repeatGenerator = generateRawProgram(node.repeat);
-        generator = async (context, signal) => {
-          const result = await iterableGenerator(context, signal);
-          const iterable = asIterable(result);
-          if (!iterable) {
-            throwError({
-              description: 'could not apply it for function',
-              range: node.range,
-            });
-          }
-          const resolvedIterable = iterable as Iterable<unknown>;
-
-          const resultList: unknown[] = [];
-          for (const item of resolvedIterable) {
-            context.setValue(node.bind.name, item, signal);
-            const results = await repeatGenerator(context, signal);
-            resultList.push(...results);
-          }
-          return resultList;
-        };
-        break;
-      }
-      case 'while': {
-        const conditionGenerator = generateExpression(node.condition);
-        const repeatGenerator = generateRawProgram(node.repeat);
-        generator = async (context, signal) => {
-          const resultList: unknown[] = [];
-          while (true) {
-            const condition = await conditionGenerator(context, signal);
-            if (!isConditionalTrue(condition)) {
-              break;
-            }
-            const results = await repeatGenerator(context, signal);
-            resultList.push(...results);
-          }
-          return resultList;
-        };
-        break;
-      }
-      case 'if': {
-        const conditionGenerator = generateExpression(node.condition);
-        const thenGenerator = generateRawProgram(node.then);
-        const elseGenerator = generateRawProgram(node.else);
-        generator = async (context, signal) => {
-          const condition = await conditionGenerator(context, signal);
-          if (isConditionalTrue(condition)) {
-            return await thenGenerator(context, signal);
-          }
-          return await elseGenerator(context, signal);
-        };
-        break;
-      }
-      default: {
-        const expressionGenerator = generateExpression(node);
-        generator = async (context, signal) => [
-          await expressionGenerator(context, signal),
-        ];
-        break;
-      }
-    }
-
+    const immediate = generateBlockImmediate(node);
+    const generator: FunCityGeneratedBlock = (context, signal) =>
+      Promise.resolve(immediate(context, signal));
     blockCache.set(node, generator);
+    return generator;
+  };
+
+  const generateProgramImmediate = (
+    nodes: readonly FunCityBlockNode[]
+  ): FunCityGeneratedProgramImmediate => {
+    const cached = programImmediateCache.get(nodes);
+    if (cached) {
+      return cached;
+    }
+    const generatedBlocks = generateRawProgramImmediate(nodes);
+    const generator: FunCityGeneratedProgramImmediate = (context, signal) =>
+      resolveMaybePromise(generatedBlocks(context, signal), (results) =>
+        filterUndefined(results)
+      );
+    programImmediateCache.set(nodes, generator);
     return generator;
   };
 
@@ -460,26 +689,40 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     if (cached) {
       return cached;
     }
-
-    const generatedBlocks = generateRawProgram(nodes);
-    const generator: FunCityGeneratedProgram = async (context, signal) =>
-      filterUndefined(await generatedBlocks(context, signal));
+    const immediate = generateProgramImmediate(nodes);
+    const generator: FunCityGeneratedProgram = (context, signal) =>
+      Promise.resolve(immediate(context, signal));
     programCache.set(nodes, generator);
     return generator;
   };
 
-  const createExecutor = (): FunCityReducerExecutor => ({
-    reduceExpressionNode: (
+  const createExecutor = (): FunCityReducerExecutor => {
+    const reduceExpressionNodeImmediate = (
       context: FunCityReducerContext,
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
-    ) => generateExpression(node)(context, signal),
-    reduceNode: (
+    ) => generateExpressionImmediate(node)(context, signal);
+    const reduceNodeImmediate = (
       context: FunCityReducerContext,
       node: FunCityBlockNode,
       signal: AbortSignal | undefined
-    ) => generateBlock(node)(context, signal),
-  });
+    ) => generateBlockImmediate(node)(context, signal);
+    return {
+      reduceExpressionNode: (
+        context: FunCityReducerContext,
+        node: FunCityExpressionNode,
+        signal: AbortSignal | undefined
+      ) =>
+        Promise.resolve(reduceExpressionNodeImmediate(context, node, signal)),
+      reduceExpressionNodeImmediate,
+      reduceNode: (
+        context: FunCityReducerContext,
+        node: FunCityBlockNode,
+        signal: AbortSignal | undefined
+      ) => Promise.resolve(reduceNodeImmediate(context, node, signal)),
+      reduceNodeImmediate,
+    };
+  };
 
   return {
     generateExpression,
