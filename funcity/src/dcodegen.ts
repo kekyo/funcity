@@ -1609,14 +1609,30 @@ runtime.constants[${segmentsIndex}]
           if (specializedBuiltin !== undefined) {
             const bindingVar = allocateTemp(state, 'binding');
             const funcVar = allocateTemp(state, 'func');
-            const builtinArgsVar = allocateTemp(state, 'args');
             const callArgsVar = allocateTemp(state, 'args');
+            const builtinArgVars = node.args.map(() =>
+              allocateTemp(state, 'arg')
+            );
+            const builtinArgStatements = node.args
+              .map(
+                (arg, index) =>
+                  `const ${builtinArgVars[index]} = await (${compileExpressionSource(
+                    state,
+                    arg,
+                    scope
+                  )});`
+              )
+              .join('\n');
             return `(await (async () => {
 signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
-const ${builtinArgsVar} = ${argArraySource};
-return runtime.invokeBuiltin(runtime.constants[${applyNodeIndex}], runtime.standardBuiltins.${node.func.name}, ${builtinArgsVar});
+${builtinArgStatements}
+try {
+return await runtime.standardBuiltins.${node.func.name}(${builtinArgVars.join(', ')});
+} catch (error) {
+return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+}
 }
 const ${funcVar} = ${bindingVar}.isFound
 ? ${bindingVar}.value
