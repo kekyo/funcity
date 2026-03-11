@@ -55,7 +55,6 @@ export interface FunCityCompiledScript {
 
 const compilationCacheLimit = 64;
 const sharedSourceDCodegen = createDCodegen({ backend: 'source' });
-const sharedClosureDCodegen = createDCodegen({ backend: 'closure' });
 const compiledScriptCache = new Map<string, FunCityCompiledScript>();
 
 const toCompilationCacheKey = (
@@ -120,7 +119,7 @@ export const compileScriptCached = (
     nodes,
     logs: logs.slice(),
     program: sharedSourceDCodegen.generateProgram(nodes),
-    textProgram: sharedClosureDCodegen.generateTextProgram(nodes),
+    textProgram: sharedSourceDCodegen.generateTextProgram(nodes),
   };
   setCompiledScriptCache(cacheKey, compiled);
   return compiled;

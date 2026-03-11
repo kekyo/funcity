@@ -251,7 +251,7 @@ const createGeneratedRunner = (backend, scenario, nodes) => {
 };
 
 const createSelectedRunner = (scenario, nodes) => {
-  const backend = scenario.output === 'text' ? 'closure' : 'source';
+  const backend = 'source';
   const generated = createGeneratedRunner(backend, scenario, nodes);
   return {
     name: 'jit-selected',

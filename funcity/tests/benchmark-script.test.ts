@@ -60,6 +60,13 @@ describe('benchmark script test', () => {
     expect(
       summary.scenarios[0]?.benchmarks.map((result) => result.name)
     ).toEqual(['reducer', 'jit-closure', 'jit-source', 'jit-selected']);
+    expect(
+      summary.scenarios.map(
+        (scenario) =>
+          scenario.benchmarks.find((result) => result.name === 'jit-selected')
+            ?.backend
+      )
+    ).toEqual(['source', 'source', 'source', 'source']);
     expect(markdown).toContain('# JIT Benchmark Summary');
   });
 });
