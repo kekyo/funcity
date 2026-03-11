@@ -229,6 +229,68 @@ describe('dynamic code generator test', () => {
           ]);
           expect(generated.warningLogs).toEqual([]);
         });
+
+        it('uses non-shadowable collection symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              setNode('makeRange', variableNode('range')),
+              setNode('mapper', variableNode('map')),
+              applyNode('range', [numberNode(1), numberNode(4)]),
+              applyNode(variableNode('makeRange'), [
+                numberNode(2),
+                numberNode(3),
+              ]),
+              applyNode(variableNode('mapper'), [
+                funNode(
+                  ['x'],
+                  applyNode('mul', [variableNode('x'), numberNode(2)])
+                ),
+                applyNode('range', [numberNode(1), numberNode(4)]),
+              ]),
+              applyNode('filter', [
+                funNode(
+                  ['x'],
+                  applyNode('eq', [
+                    applyNode('mod', [variableNode('x'), numberNode(2)]),
+                    numberNode(0),
+                  ])
+                ),
+                applyNode('range', [numberNode(1), numberNode(6)]),
+              ]),
+              applyNode('reduce', [
+                numberNode(0),
+                funNode(
+                  ['acc', 'v'],
+                  applyNode('add', [variableNode('acc'), variableNode('v')])
+                ),
+                applyNode('range', [numberNode(1), numberNode(4)]),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              range: () => ['shadowed'],
+              map: async () => ['shadowed'],
+              filter: async () => ['shadowed'],
+              reduce: async () => 'shadowed',
+              mul: () => 0,
+              mod: () => 0,
+              eq: () => false,
+              add: () => 0,
+            }
+          );
+
+          expect(generated.result).toEqual([
+            [1, 2, 3, 4],
+            [2, 3, 4],
+            [2, 4, 6, 8],
+            [2, 4, 6],
+            10,
+          ]);
+          expect(generated.warningLogs).toEqual([]);
+        });
       }
 
       it('matches reducer on mixed root blocks', async () => {

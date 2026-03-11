@@ -1536,6 +1536,12 @@ const createSourceDCodegen = (
           standardVariables[name]
         )}]`;
       }
+      case 'range':
+      case 'map':
+      case 'filter':
+      case 'reduce': {
+        return `runtime.standardBuiltins.${name}`;
+      }
       default: {
         return undefined;
       }
@@ -1934,6 +1940,151 @@ return ${kind === 'and' ? 'true' : 'false'};`,
     );
   };
 
+  const compileDirectRangeApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string => {
+    const startVar = allocateTemp(state, 'start');
+    const countVar = allocateTemp(state, 'count');
+    const resultVar = allocateTemp(state, 'range');
+    const indexVar = allocateTemp(state, 'index');
+    const startSource =
+      node.args[0] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[0], scope),
+            canExpressionSuspend(node.args[0])
+          );
+    const countSource =
+      node.args[1] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[1], scope),
+            canExpressionSuspend(node.args[1])
+          );
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+const ${resultVar} = [];
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+${resultVar}.push(${startVar}++);
+}
+return ${resultVar};`,
+      (node.args[0] !== undefined && canExpressionSuspend(node.args[0])) ||
+        (node.args[1] !== undefined && canExpressionSuspend(node.args[1]))
+    );
+  };
+
+  const compileDirectCollectionApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    name: 'map' | 'filter' | 'reduce'
+  ): string => {
+    if (name === 'map') {
+      const mapperVar = allocateTemp(state, 'mapper');
+      const iterableVar = allocateTemp(state, 'iterable');
+      const resultVar = allocateTemp(state, 'mapped');
+      const itemVar = allocateTemp(state, 'item');
+      const mapperSource =
+        node.args[0] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[0], scope),
+              canExpressionSuspend(node.args[0])
+            );
+      const iterableSource =
+        node.args[1] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[1], scope),
+              canExpressionSuspend(node.args[1])
+            );
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+const ${mapperVar} = ${mapperSource};
+const ${iterableVar} = ${iterableSource};
+const ${resultVar} = [];
+for (const ${itemVar} of ${iterableVar}) {
+${resultVar}.push(await ${mapperVar}(${itemVar}));
+}
+return ${resultVar};`,
+        true
+      );
+    }
+    if (name === 'filter') {
+      const predicateVar = allocateTemp(state, 'predicate');
+      const iterableVar = allocateTemp(state, 'iterable');
+      const resultVar = allocateTemp(state, 'filtered');
+      const itemVar = allocateTemp(state, 'item');
+      const predicateSource =
+        node.args[0] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[0], scope),
+              canExpressionSuspend(node.args[0])
+            );
+      const iterableSource =
+        node.args[1] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[1], scope),
+              canExpressionSuspend(node.args[1])
+            );
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+const ${predicateVar} = ${predicateSource};
+const ${iterableVar} = ${iterableSource};
+const ${resultVar} = [];
+for (const ${itemVar} of ${iterableVar}) {
+if (runtime.isConditionalTrue(await ${predicateVar}(${itemVar}))) {
+${resultVar}.push(${itemVar});
+}
+}
+return ${resultVar};`,
+        true
+      );
+    }
+    const accVar = allocateTemp(state, 'acc');
+    const reducerVar = allocateTemp(state, 'reducer');
+    const iterableVar = allocateTemp(state, 'iterable');
+    const itemVar = allocateTemp(state, 'item');
+    const initialSource =
+      node.args[0] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[0], scope),
+            canExpressionSuspend(node.args[0])
+          );
+    const reducerSource =
+      node.args[1] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[1], scope),
+            canExpressionSuspend(node.args[1])
+          );
+    const iterableSource =
+      node.args[2] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[2], scope),
+            canExpressionSuspend(node.args[2])
+          );
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+let ${accVar} = ${initialSource};
+const ${reducerVar} = ${reducerSource};
+const ${iterableVar} = ${iterableSource};
+for (const ${itemVar} of ${iterableVar}) {
+${accVar} = await ${reducerVar}(${accVar}, ${itemVar});
+}
+return ${accVar};`,
+      true
+    );
+  };
+
   const compileAggressiveApplySource = (
     state: SourceCompileState,
     node: FunCityApplyNode,
@@ -1965,6 +2116,19 @@ return ${kind === 'and' ? 'true' : 'false'};`,
       case 'and':
       case 'or': {
         return compileDirectLogicalApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
+      }
+      case 'range': {
+        return compileDirectRangeApplySource(state, node, scope);
+      }
+      case 'map':
+      case 'filter':
+      case 'reduce': {
+        return compileDirectCollectionApplySource(
           state,
           node,
           scope,
