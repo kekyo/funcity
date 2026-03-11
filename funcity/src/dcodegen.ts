@@ -1486,6 +1486,41 @@ const createSourceDCodegen = (
       : `context.getValue(${JSON.stringify(name)}, signal)`;
   };
 
+  const resolveAggressiveCoreVariableSource = (
+    state: SourceCompileState,
+    name: string
+  ): string | undefined => {
+    if (!state.aggressiveOptimize) {
+      return undefined;
+    }
+    switch (name) {
+      case 'undefined': {
+        return 'undefined';
+      }
+      case 'null': {
+        return 'null';
+      }
+      case 'true': {
+        return 'true';
+      }
+      case 'false': {
+        return 'false';
+      }
+      case 'cond': {
+        return 'runtime.standardIntrinsics.cond';
+      }
+      case 'fun': {
+        return 'runtime.standardIntrinsics.fun';
+      }
+      case 'set': {
+        return 'runtime.standardIntrinsics.set';
+      }
+      default: {
+        return undefined;
+      }
+    }
+  };
+
   const canExpressionSuspend = (node: FunCityExpressionNode): boolean => {
     switch (node.kind) {
       case 'number':
@@ -2230,6 +2265,13 @@ return ${textVar};`,
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
+        const aggressiveSource = resolveAggressiveCoreVariableSource(
+          state,
+          variableResult.name
+        );
+        if (aggressiveSource !== undefined) {
+          return aggressiveSource;
+        }
         const localSlotRef = resolveLocalSlotRef(scope, variableResult.name);
         if (localSlotRef !== undefined) {
           return `context.getSlotValue(${localSlotRef}, signal)`;
@@ -2327,8 +2369,6 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
           );
           if (parameterNames !== undefined) {
             const boundName = node.args[0]!.name;
-            const setBindingVar = allocateTemp(state, 'binding');
-            const funBindingVar = allocateTemp(state, 'binding');
             const lambdaVar = allocateTemp(state, 'lambda');
             const lambdaSource = compileIntrinsicLambdaSource(
               state,
@@ -2341,6 +2381,17 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
                 bindingRef: lambdaVar,
               }
             );
+            if (state.aggressiveOptimize) {
+              return wrapSourceClosure(
+                `signal?.throwIfAborted();
+const ${lambdaVar} = ${lambdaSource};
+context.setValue(${JSON.stringify(boundName)}, ${lambdaVar}, signal);
+return undefined;`,
+                true
+              );
+            }
+            const setBindingVar = allocateTemp(state, 'binding');
+            const funBindingVar = allocateTemp(state, 'binding');
             return wrapSourceClosure(
               `signal?.throwIfAborted();
 const ${setBindingVar} = ${createLookupResultSource(scope, 'set')};
@@ -2354,6 +2405,28 @@ return ${compileGenericApplySource(state, node, scope)};`,
               true
             );
           }
+        }
+        if (
+          node.func.kind === 'variable' &&
+          state.aggressiveOptimize &&
+          node.func.name === 'set' &&
+          node.args.length === 2 &&
+          node.args[0]!.kind === 'variable'
+        ) {
+          const valueSource = compileExpressionSource(
+            state,
+            node.args[1]!,
+            scope
+          );
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
+context.setValue(${JSON.stringify(node.args[0]!.name)}, ${wrapAwaitedSource(
+              valueSource,
+              canExpressionSuspend(node.args[1]!)
+            )}, signal);
+return undefined;`,
+            canExpressionSuspend(node.args[1]!)
+          );
         }
         if (
           node.func.kind === 'variable' &&
@@ -2372,6 +2445,20 @@ return ${compileGenericApplySource(state, node, scope)};`,
           );
           const thenSource = compileExpressionSource(state, thenNode, scope);
           const elseSource = compileExpressionSource(state, elseNode, scope);
+          if (state.aggressiveOptimize) {
+            return wrapSourceClosure(
+              `signal?.throwIfAborted();
+const ${conditionVar} = ${wrapAwaitedSource(
+                conditionSource,
+                canExpressionSuspend(conditionNode)
+              )};
+if (runtime.isConditionalTrue(${conditionVar})) {
+return ${wrapAwaitedSource(thenSource, canExpressionSuspend(thenNode))};
+}
+return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};`,
+              true
+            );
+          }
           return wrapSourceClosure(
             `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'cond')};
@@ -2396,7 +2483,6 @@ return ${compileGenericApplySource(state, node, scope)};`,
         ) {
           const parameterNames = extractLambdaParameterNames(node.args[0]!);
           if (parameterNames !== undefined) {
-            const bindingVar = allocateTemp(state, 'binding');
             const lambdaSource = compileIntrinsicLambdaSource(
               state,
               node.range,
@@ -2405,6 +2491,10 @@ return ${compileGenericApplySource(state, node, scope)};`,
               scope,
               undefined
             );
+            if (state.aggressiveOptimize) {
+              return lambdaSource;
+            }
+            const bindingVar = allocateTemp(state, 'binding');
             return wrapSourceClosure(
               `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};

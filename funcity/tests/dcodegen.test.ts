@@ -88,6 +88,24 @@ const expectGeneratedMatchesReducerWithOptions = async (
   expect(warningLogs).toEqual(reducerWarnings);
 };
 
+const runGeneratedWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateProgram(nodes);
+  const result = await generated(reducerContext);
+  return { result, warningLogs };
+};
+
 describe('dynamic code generator test', () => {
   for (const backend of ['closure', 'source'] as const) {
     describe(`${backend} backend`, () => {
@@ -120,6 +138,42 @@ describe('dynamic code generator test', () => {
               aggressiveOptimize: true,
             }
           );
+        });
+
+        it('uses non-shadowable core symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              variableNode('true'),
+              variableNode('false'),
+              variableNode('null'),
+              variableNode('undefined'),
+              applyNode('cond', [
+                variableNode('true'),
+                stringNode('then'),
+                stringNode('else'),
+              ]),
+              setNode('value', numberNode(5)),
+              variableNode('value'),
+              setNode('id', funNode(['n'], variableNode('n'))),
+              applyNode(variableNode('id'), [numberNode(4)]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              true: false,
+              false: true,
+              null: 'shadowed',
+              undefined: 'shadowed',
+              cond: () => 'shadowed',
+              set: () => 'shadowed',
+              fun: () => 'shadowed',
+            }
+          );
+
+          expect(generated.result).toEqual([true, false, null, 'then', 5, 4]);
+          expect(generated.warningLogs).toEqual([]);
         });
       }
 
