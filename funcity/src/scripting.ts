@@ -4,16 +4,23 @@
 // https://github.com/kekyo/funcity/
 
 import {
+  FunCityExecutionBackend,
   FunCityOnceRunnerProps,
   FunCityReducerError,
   FunCityWarningEntry,
 } from './types';
-import { runTokenizer } from './tokenizer';
-import { runParser } from './parser';
-import { createReducerContext, reduceNode } from './reducer';
+import { createReducerContext } from './reducer';
+import {
+  compileScriptCached,
+  createSharedDCodegenExecutor,
+} from './compile-cache';
 import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
+
+const resolveExecutionBackend = (
+  backend: FunCityExecutionBackend | undefined
+): FunCityExecutionBackend => backend ?? 'source';
 
 /**
  * Simply runs a script once.
@@ -27,26 +34,37 @@ export const runScriptOnce = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<unknown[]> => {
-  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
+  const {
+    variables = buildCandidateVariables(),
+    backend,
+    logs = [],
+    sourceId,
+  } = props;
+  const executionBackend = resolveExecutionBackend(backend);
 
-  const tokens = runTokenizer(script, logs, sourceId);
-  const nodes = runParser(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(
+    script,
+    sourceId,
+    'template',
+    executionBackend
+  );
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return [];
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
-  const resultList: unknown[] = [];
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    executionBackend === 'reducer'
+      ? undefined
+      : createSharedDCodegenExecutor(executionBackend)
+  );
   try {
-    for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node, signal);
-      for (const result of results) {
-        if (result !== undefined) {
-          resultList.push(result);
-        }
-      }
-    }
+    const resultList = await compiled.program(reducerContext, signal);
+    logs.push(...warningLogs);
+    return resultList;
   } catch (error: unknown) {
     logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
@@ -55,9 +73,6 @@ export const runScriptOnce = async (
     }
     throw error;
   }
-
-  logs.push(...warningLogs);
-  return resultList;
 };
 
 /**
@@ -72,26 +87,37 @@ export const runScriptOnceToText = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<string | undefined> => {
-  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
+  const {
+    variables = buildCandidateVariables(),
+    backend,
+    logs = [],
+    sourceId,
+  } = props;
+  const executionBackend = resolveExecutionBackend(backend);
 
-  const tokens = runTokenizer(script, logs, sourceId);
-  const nodes = runParser(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(
+    script,
+    sourceId,
+    'template',
+    executionBackend
+  );
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return undefined;
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
-  const resultList: unknown[] = [];
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    executionBackend === 'reducer'
+      ? undefined
+      : createSharedDCodegenExecutor(executionBackend)
+  );
   try {
-    for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node, signal);
-      for (const result of results) {
-        if (result !== undefined) {
-          resultList.push(result);
-        }
-      }
-    }
+    const text = await compiled.textProgram(reducerContext, signal);
+    logs.push(...warningLogs);
+    return text;
   } catch (error: unknown) {
     logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
@@ -100,10 +126,4 @@ export const runScriptOnceToText = async (
     }
     throw error;
   }
-
-  logs.push(...warningLogs);
-  const text = resultList
-    .map((result) => reducerContext.convertToString(result))
-    .join('');
-  return text;
 };

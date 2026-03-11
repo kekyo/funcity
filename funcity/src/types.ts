@@ -98,6 +98,18 @@ export type FunCityLogEntry = FunCityWarningEntry | FunCityErrorEntry;
 
 //////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Value or promise-like value.
+ */
+export type FunCityMaybePromise<T> = T | Promise<T>;
+
+/**
+ * Script execution backend.
+ * @remarks `reducer` uses the interpreter, `closure` uses the closure-based
+ *   JIT, and `source` uses the source-generated JIT.
+ */
+export type FunCityExecutionBackend = 'reducer' | 'closure' | 'source';
+
 export interface FunCityRangedObject {
   /**
    * This object range.
@@ -606,6 +618,14 @@ export interface FunCityFunctionContext {
    */
   readonly reduce: (node: FunCityExpressionNode) => Promise<unknown>;
   /**
+   * Reduce expression node with this context and keep synchronous results synchronous.
+   * @param node - Target node
+   * @returns Reduced value or promise-like value.
+   */
+  readonly reduceImmediate: (
+    node: FunCityExpressionNode
+  ) => FunCityMaybePromise<unknown>;
+  /**
    * Reduce block node(s) with this context.
    * @param nodeOrNodes - Target block node or list
    * @returns Reduced values.
@@ -613,6 +633,68 @@ export interface FunCityFunctionContext {
   readonly reduceBlock: (
     nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
   ) => Promise<unknown[]>;
+  /**
+   * Reduce block node(s) with this context and keep synchronous results synchronous.
+   * @param nodeOrNodes - Target block node or list
+   * @returns Reduced values or promise-like value.
+   */
+  readonly reduceBlockImmediate: (
+    nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+  ) => FunCityMaybePromise<unknown[]>;
+}
+
+/**
+ * Node executor implementation used by reducer contexts.
+ */
+export interface FunCityReducerExecutor {
+  /**
+   * Reduce expression node.
+   * @param context - Reducer context
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value.
+   */
+  readonly reduceExpressionNode: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown>;
+  /**
+   * Reduce expression node while preserving synchronous results.
+   * @param context - Reducer context
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value or promise-like value.
+   */
+  readonly reduceExpressionNodeImmediate: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => FunCityMaybePromise<unknown>;
+  /**
+   * Reduce block node.
+   * @param context - Reducer context
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values.
+   */
+  readonly reduceNode: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown[]>;
+  /**
+   * Reduce block node while preserving synchronous results.
+   * @param context - Reducer context
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values or promise-like value.
+   */
+  readonly reduceNodeImmediate: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => FunCityMaybePromise<unknown[]>;
 }
 
 /**
@@ -659,11 +741,109 @@ export interface FunCityReducerContext {
    */
   readonly newScope: (signal: AbortSignal | undefined) => FunCityReducerContext;
   /**
+   * Create new scoped context with prefilled local slots.
+   * @param slotNames - Slot names in binding order.
+   * @param slotValues - Slot values aligned with `slotNames`.
+   * @param signal - AbortSignal when available.
+   * @returns New reducer context.
+   */
+  readonly newCallScope: (
+    slotNames: readonly string[],
+    slotValues: readonly unknown[],
+    signal: AbortSignal | undefined
+  ) => FunCityReducerContext;
+  /**
+   * Get current scope slot version.
+   * @returns Slot version.
+   */
+  readonly getSlotVersion: () => number;
+  /**
+   * Resolve a variable name to the current scope slot when available.
+   * @param name - Variable name
+   * @param signal - AbortSignal when available.
+   * @returns Slot index or undefined when the current scope does not own it.
+   */
+  readonly resolveLocalSlot: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => number | undefined;
+  /**
+   * Ensure the current scope owns the slot for a variable name.
+   * @param name - Variable name
+   * @param signal - AbortSignal when available.
+   * @returns Slot index.
+   */
+  readonly ensureLocalSlot: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => number;
+  /**
+   * Get a value from the current scope slot.
+   * @param slot - Slot index
+   * @param signal - AbortSignal when available.
+   * @returns Slot value.
+   */
+  readonly getSlotValue: (
+    slot: number,
+    signal: AbortSignal | undefined
+  ) => unknown;
+  /**
+   * Set a value to the current scope slot.
+   * @param slot - Slot index
+   * @param value - New value
+   * @param signal - AbortSignal when available.
+   */
+  readonly setSlotValue: (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ) => void;
+  /**
    * Convert a value to string.
    * @param v - A value
    * @returns String
    */
   readonly convertToString: (v: unknown) => string;
+  /**
+   * Reduce expression node with this context.
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value.
+   */
+  readonly reduceExpressionNode: (
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown>;
+  /**
+   * Reduce expression node with this context and keep synchronous results synchronous.
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value or promise-like value.
+   */
+  readonly reduceExpressionNodeImmediate: (
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => FunCityMaybePromise<unknown>;
+  /**
+   * Reduce block node with this context.
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values.
+   */
+  readonly reduceNode: (
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown[]>;
+  /**
+   * Reduce block node with this context and keep synchronous results synchronous.
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values or promise-like value.
+   */
+  readonly reduceNodeImmediate: (
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => FunCityMaybePromise<unknown[]>;
   /**
    * Check whether a function is constructable.
    * @param fn - Target function
@@ -692,6 +872,10 @@ export interface FunCityOnceRunnerProps {
    * Predefined variables.
    */
   variables?: FunCityVariables;
+  /**
+   * Execution backend.
+   */
+  backend?: FunCityExecutionBackend;
   /**
    * Source identifier (file path, URL, etc).
    */
