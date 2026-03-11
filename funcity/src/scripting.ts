@@ -37,6 +37,7 @@ export const runScriptOnce = async (
   const {
     variables = buildCandidateVariables(),
     backend,
+    aggressiveOptimize,
     logs = [],
     sourceId,
   } = props;
@@ -46,7 +47,8 @@ export const runScriptOnce = async (
     script,
     sourceId,
     'template',
-    executionBackend
+    executionBackend,
+    aggressiveOptimize
   );
   logs.push(...compiled.logs);
   if (compiled.logs.length >= 1) {
@@ -59,7 +61,7 @@ export const runScriptOnce = async (
     warningLogs,
     executionBackend === 'reducer'
       ? undefined
-      : createSharedDCodegenExecutor(executionBackend)
+      : createSharedDCodegenExecutor(executionBackend, aggressiveOptimize)
   );
   try {
     const resultList = await compiled.program(reducerContext, signal);
@@ -90,6 +92,7 @@ export const runScriptOnceToText = async (
   const {
     variables = buildCandidateVariables(),
     backend,
+    aggressiveOptimize,
     logs = [],
     sourceId,
   } = props;
@@ -99,7 +102,8 @@ export const runScriptOnceToText = async (
     script,
     sourceId,
     'template',
-    executionBackend
+    executionBackend,
+    aggressiveOptimize
   );
   logs.push(...compiled.logs);
   if (compiled.logs.length >= 1) {
@@ -112,7 +116,7 @@ export const runScriptOnceToText = async (
     warningLogs,
     executionBackend === 'reducer'
       ? undefined
-      : createSharedDCodegenExecutor(executionBackend)
+      : createSharedDCodegenExecutor(executionBackend, aggressiveOptimize)
   );
   try {
     const text = await compiled.textProgram(reducerContext, signal);

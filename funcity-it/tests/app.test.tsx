@@ -45,6 +45,12 @@ const selectExecutionBackend = async (
   fireEvent.click(await findByRole('option', { name: optionName }));
 };
 
+const toggleAggressiveOptimize = (
+  getByRole: ReturnType<typeof renderApp>['getByRole']
+) => {
+  fireEvent.click(getByRole('checkbox', { name: 'Aggressive optimize' }));
+};
+
 describe('funcity-it App', () => {
   beforeEach(() => {
     runScriptOnceToTextMock.mockReset();
@@ -118,6 +124,16 @@ describe('funcity-it App', () => {
     expect(getByRole('combobox', { name: 'Execution backend' })).toBeTruthy();
   });
 
+  it('shows an aggressiveOptimize checkbox in the toolbar', async () => {
+    const { getByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    expect(getByRole('checkbox', { name: 'Aggressive optimize' })).toBeTruthy();
+  });
+
   it('captures console output into Logs', async () => {
     runScriptOnceToTextMock.mockImplementation(async () => {
       console.log('console output');
@@ -156,6 +172,35 @@ describe('funcity-it App', () => {
         backend: 'reducer',
       });
     });
+  });
+
+  it('passes aggressiveOptimize to funcity when enabled', async () => {
+    runScriptOnceToTextMock.mockResolvedValue('script output');
+
+    const { getByRole } = renderApp();
+
+    toggleAggressiveOptimize(getByRole);
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(runScriptOnceToTextMock).toHaveBeenCalled();
+      expect(runScriptOnceToTextMock.mock.calls[0]?.[1]).toMatchObject({
+        aggressiveOptimize: true,
+      });
+    });
+  });
+
+  it('disables aggressiveOptimize when reducer backend is selected', async () => {
+    const { getByRole, findByRole } = renderApp();
+
+    const checkbox = getByRole('checkbox', { name: 'Aggressive optimize' });
+    expect(checkbox).toBeEnabled();
+
+    await selectExecutionBackend(getByRole, findByRole, 'Reducer');
+
+    expect(
+      getByRole('checkbox', { name: 'Aggressive optimize' })
+    ).toBeDisabled();
   });
 
   it('adds prefixes and styles for console levels', async () => {

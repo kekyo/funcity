@@ -10,6 +10,7 @@ import { createReducerContext, runReducer } from '../src/reducer';
 import {
   createDCodegen,
   type FunCityDynamicCodeGeneratorBackend,
+  type FunCityDynamicCodeGeneratorOptions,
 } from '../src/dcodegen';
 import { buildCandidateVariables } from '../src/variables/standard-variables';
 import {
@@ -62,9 +63,299 @@ const expectGeneratedMatchesReducer = async (
   expect(generated.warningLogs).toEqual(reducerWarnings);
 };
 
+const expectGeneratedMatchesReducerWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const reducerWarnings: FunCityWarningEntry[] = [];
+  const reduced = await runReducer(
+    nodes,
+    buildCandidateVariables(extra ?? {}),
+    reducerWarnings
+  );
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateProgram(nodes);
+  const result = await generated(reducerContext);
+  expect(result).toEqual(reduced);
+  expect(warningLogs).toEqual(reducerWarnings);
+};
+
+const runGeneratedWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateProgram(nodes);
+  const result = await generated(reducerContext);
+  return { result, warningLogs };
+};
+
+const runGeneratedTextWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateTextProgram(nodes);
+  const result = await generated(reducerContext);
+  return { result, warningLogs };
+};
+
 describe('dynamic code generator test', () => {
   for (const backend of ['closure', 'source'] as const) {
     describe(`${backend} backend`, () => {
+      if (backend === 'source') {
+        it('accepts aggressiveOptimize without changing semantics by default', async () => {
+          await expectGeneratedMatchesReducerWithOptions(
+            [
+              setNode(
+                'fib',
+                funNode(
+                  ['n'],
+                  applyNode('cond', [
+                    applyNode('le', [variableNode('n'), numberNode(1)]),
+                    variableNode('n'),
+                    applyNode('add', [
+                      applyNode(variableNode('fib'), [
+                        applyNode('sub', [variableNode('n'), numberNode(1)]),
+                      ]),
+                      applyNode(variableNode('fib'), [
+                        applyNode('sub', [variableNode('n'), numberNode(2)]),
+                      ]),
+                    ]),
+                  ])
+                )
+              ),
+              applyNode(variableNode('fib'), [numberNode(8)]),
+            ],
+            {
+              backend,
+              aggressiveOptimize: true,
+            }
+          );
+        });
+
+        it('uses non-shadowable core symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              variableNode('true'),
+              variableNode('false'),
+              variableNode('null'),
+              variableNode('undefined'),
+              applyNode('cond', [
+                variableNode('true'),
+                stringNode('then'),
+                stringNode('else'),
+              ]),
+              setNode('value', numberNode(5)),
+              variableNode('value'),
+              setNode('id', funNode(['n'], variableNode('n'))),
+              applyNode(variableNode('id'), [numberNode(4)]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              true: false,
+              false: true,
+              null: 'shadowed',
+              undefined: 'shadowed',
+              cond: () => 'shadowed',
+              set: () => 'shadowed',
+              fun: () => 'shadowed',
+            }
+          );
+
+          expect(generated.result).toEqual([true, false, null, 'then', 5, 4]);
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('uses non-shadowable numeric and logical symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              setNode('adder', variableNode('add')),
+              applyNode('add', [numberNode(1), numberNode(2), numberNode(3)]),
+              applyNode(variableNode('adder'), [numberNode(4), numberNode(5)]),
+              applyNode('lt', [numberNode(1), numberNode(2)]),
+              applyNode('not', [variableNode('false')]),
+              applyNode('and', [
+                variableNode('true'),
+                applyNode('lt', [numberNode(1), numberNode(2)]),
+                variableNode('false'),
+              ]),
+              applyNode('and', [
+                variableNode('false'),
+                applyNode(variableNode('explode'), []),
+              ]),
+              applyNode('or', [variableNode('false'), variableNode('true')]),
+              applyNode('or', [
+                variableNode('true'),
+                applyNode(variableNode('explode'), []),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              true: false,
+              false: true,
+              add: () => 'shadowed',
+              lt: () => false,
+              not: () => false,
+              and: () => 'shadowed',
+              or: () => 'shadowed',
+              explode: () => {
+                throw new Error('explode should not run');
+              },
+            }
+          );
+
+          expect(generated.result).toEqual([
+            6,
+            9,
+            true,
+            true,
+            false,
+            false,
+            true,
+            true,
+          ]);
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('uses non-shadowable collection symbols when aggressiveOptimize is enabled', async () => {
+          const generated = await runGeneratedWithOptions(
+            [
+              setNode('makeRange', variableNode('range')),
+              setNode('mapper', variableNode('map')),
+              applyNode('range', [numberNode(1), numberNode(4)]),
+              applyNode(variableNode('makeRange'), [
+                numberNode(2),
+                numberNode(3),
+              ]),
+              applyNode(variableNode('mapper'), [
+                funNode(
+                  ['x'],
+                  applyNode('mul', [variableNode('x'), numberNode(2)])
+                ),
+                applyNode('range', [numberNode(1), numberNode(4)]),
+              ]),
+              applyNode('filter', [
+                funNode(
+                  ['x'],
+                  applyNode('eq', [
+                    applyNode('mod', [variableNode('x'), numberNode(2)]),
+                    numberNode(0),
+                  ])
+                ),
+                applyNode('range', [numberNode(1), numberNode(6)]),
+              ]),
+              applyNode('reduce', [
+                numberNode(0),
+                funNode(
+                  ['acc', 'v'],
+                  applyNode('add', [variableNode('acc'), variableNode('v')])
+                ),
+                applyNode('range', [numberNode(1), numberNode(4)]),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              range: () => ['shadowed'],
+              map: async () => ['shadowed'],
+              filter: async () => ['shadowed'],
+              reduce: async () => 'shadowed',
+              mul: () => 0,
+              mod: () => 0,
+              eq: () => false,
+              add: () => 0,
+            }
+          );
+
+          expect(generated.result).toEqual([
+            [1, 2, 3, 4],
+            [2, 3, 4],
+            [2, 4, 6, 8],
+            [2, 4, 6],
+            10,
+          ]);
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('uses aggressive template text fast paths when enabled', async () => {
+          const generated = await runGeneratedTextWithOptions(
+            [
+              textNode('Values:'),
+              forNode('i', applyNode('range', [numberNode(1), numberNode(3)]), [
+                variableNode('i'),
+                textNode(','),
+              ]),
+              variableNode('null'),
+              variableNode('undefined'),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            },
+            {
+              range: () => ['shadowed'],
+              null: 'shadowed',
+              undefined: 'shadowed',
+            }
+          );
+
+          expect(generated.result).toBe('Values:1,2,3,(null)');
+          expect(generated.warningLogs).toEqual([]);
+        });
+
+        it('keeps mutable template loop bindings correct with aggressiveOptimize', async () => {
+          const generated = await runGeneratedTextWithOptions(
+            [
+              forNode('i', applyNode('range', [numberNode(1), numberNode(2)]), [
+                setNode('i', numberNode(99)),
+                variableNode('i'),
+                textNode(','),
+              ]),
+            ],
+            {
+              backend: 'source',
+              aggressiveOptimize: true,
+            }
+          );
+
+          expect(generated.result).toBe('99,99,');
+          expect(generated.warningLogs).toEqual([]);
+        });
+      }
+
       it('matches reducer on mixed root blocks', async () => {
         await expectGeneratedMatchesReducer(
           [

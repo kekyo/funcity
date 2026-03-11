@@ -704,7 +704,10 @@ If a script is parsed once and executed many times, you can create reusable func
 const blocks = runTokenizer(script, logs, sourceId);
 const nodes = runParser(blocks, logs);
 
-const dcodegen = createDCodegen({ backend: 'source' });
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: false, // optional, default: false
+});
 const variables = buildCandidateVariables();
 const warningLogs: FunCityWarningEntry[] = [];
 const context = createReducerContext(
@@ -722,8 +725,32 @@ logs.push(...warningLogs);
 - JIT generators work from parsed AST nodes, not directly from source text.
 - Always create the execution context with `createReducerContext(..., dcodegen.createExecutor())`.
 - `generateExpression()` executes one expression node, `generateProgram()` returns raw values, and `generateTextProgram()` returns concatenated text.
-- `createDCodegen()` defaults to `closure`. Pass `{ backend: 'source' }` when you need the source-generated backend explicitly.
+- `createDCodegen()` accepts `{ backend?: 'closure' | 'source', aggressiveOptimize?: boolean }`.
+- `createDCodegen()` defaults to `{ backend: 'closure', aggressiveOptimize: false }`. Pass `{ backend: 'source' }` when you need the source-generated backend explicitly.
+- `aggressiveOptimize` is only used by the opt-in source JIT path. `closure` ignores it.
 - If you only need code syntax instead of full template syntax, tokenize and parse with `runCodeTokenizer()` / `parseExpressions()` first, then generate expression or program runners from those nodes.
+
+### `aggressiveOptimize`
+
+`aggressiveOptimize` is an opt-in source JIT mode. It is disabled by default because it relaxes reducer compatibility assumptions in exchange for more direct JIT lowering.
+
+Use it only when your funcity scripts and predefined variables follow these constraints:
+
+- The following names must be treated as non-shadowable: `set`, `fun`, `true`, `false`, `undefined`, `null`, `cond`, `add`, `sub`, `mul`, `div`, `mod`, `and`, `or`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `not`, `range`, `map`, `filter`, `reduce`.
+- Do not bind your own values or functions to those names through predefined variables, `set`, or nested scopes if you expect reducer-compatible behavior.
+- If your scripts intentionally override any of those names, leave `aggressiveOptimize` disabled.
+
+Example:
+
+```typescript
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: true,
+});
+```
+
+- This option is currently available on `createDCodegen()`.
+- The one-shot high-level APIs such as `runScriptOnce()` and `runScriptOnceToText()` do not expose `aggressiveOptimize`.
 
 ### Executing Only Functional Language Syntax
 

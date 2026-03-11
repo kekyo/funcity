@@ -218,6 +218,12 @@ export interface FunCityDynamicCodeGeneratorOptions {
    *   on the closure fast path.
    */
   readonly backend?: FunCityDynamicCodeGeneratorBackend;
+  /**
+   * Allow aggressive source JIT assumptions that are not reducer-compatible.
+   * @remarks This is disabled by default and only affects opt-in source JIT
+   *   compilation paths.
+   */
+  readonly aggressiveOptimize?: boolean;
 }
 
 type FunCityGeneratedExpressionImmediate = (
@@ -1393,9 +1399,12 @@ const createAdaptiveSourceRunner = <T>(
       : runnerWithSignal(context, signal, runtime);
 };
 
-const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
+const createSourceDCodegen = (
+  options: FunCityDynamicCodeGeneratorOptions | undefined
+): FunCityDynamicCodeGenerator => {
   const closureGenerator = createClosureDCodegen();
   const closureExecutor = closureGenerator.createExecutor();
+  const aggressiveOptimize = options?.aggressiveOptimize ?? false;
 
   const expressionCache = new WeakMap<
     FunCityExpressionNode,
@@ -1408,10 +1417,12 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   interface SourceCompileState {
     nextTempId: number;
     constants: unknown[];
+    aggressiveOptimize: boolean;
   }
 
   interface SourceCompileScope {
     readonly localSlots: ReadonlyMap<string, string>;
+    readonly directBindings: ReadonlyMap<string, string>;
     readonly selfBindings: ReadonlyMap<string, string>;
   }
 
@@ -1427,6 +1438,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   const emptyCompileScope: SourceCompileScope = {
     localSlots: new Map(),
+    directBindings: new Map(),
     selfBindings: new Map(),
   };
 
@@ -1437,6 +1449,19 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   ): SourceCompileScope => {
     return {
       localSlots: new Map(scope.localSlots).set(name, slotVar),
+      directBindings: scope.directBindings,
+      selfBindings: scope.selfBindings,
+    };
+  };
+
+  const extendDirectBindingCompileScope = (
+    scope: SourceCompileScope,
+    name: string,
+    bindingRef: string
+  ): SourceCompileScope => {
+    return {
+      localSlots: scope.localSlots,
+      directBindings: new Map(scope.directBindings).set(name, bindingRef),
       selfBindings: scope.selfBindings,
     };
   };
@@ -1448,6 +1473,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   ): SourceCompileScope => {
     return {
       localSlots: scope.localSlots,
+      directBindings: scope.directBindings,
       selfBindings: new Map(scope.selfBindings).set(name, bindingRef),
     };
   };
@@ -1466,6 +1492,13 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     return scope.selfBindings.get(name);
   };
 
+  const resolveDirectBindingRef = (
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    return scope.directBindings.get(name);
+  };
+
   const createLookupResultSource = (
     scope: SourceCompileScope,
     name: string
@@ -1474,6 +1507,68 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     return localSlotRef !== undefined
       ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
       : `context.getValue(${JSON.stringify(name)}, signal)`;
+  };
+
+  const resolveAggressiveVariableSource = (
+    state: SourceCompileState,
+    name: string
+  ): string | undefined => {
+    if (!state.aggressiveOptimize) {
+      return undefined;
+    }
+    switch (name) {
+      case 'undefined': {
+        return 'undefined';
+      }
+      case 'null': {
+        return 'null';
+      }
+      case 'true': {
+        return 'true';
+      }
+      case 'false': {
+        return 'false';
+      }
+      case 'cond': {
+        return 'runtime.standardIntrinsics.cond';
+      }
+      case 'fun': {
+        return 'runtime.standardIntrinsics.fun';
+      }
+      case 'set': {
+        return 'runtime.standardIntrinsics.set';
+      }
+      case 'add':
+      case 'sub':
+      case 'mul':
+      case 'div':
+      case 'mod':
+      case 'eq':
+      case 'ne':
+      case 'lt':
+      case 'gt':
+      case 'le':
+      case 'ge':
+      case 'not': {
+        return `runtime.standardBuiltins.${name}`;
+      }
+      case 'and':
+      case 'or': {
+        return `runtime.constants[${addConstant(
+          state,
+          standardVariables[name]
+        )}]`;
+      }
+      case 'range':
+      case 'map':
+      case 'filter':
+      case 'reduce': {
+        return `runtime.standardBuiltins.${name}`;
+      }
+      default: {
+        return undefined;
+      }
+    }
   };
 
   const canExpressionSuspend = (node: FunCityExpressionNode): boolean => {
@@ -1533,6 +1628,89 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   const canBlockListSuspend = (nodes: readonly FunCityBlockNode[]): boolean => {
     return nodes.some((node) => canBlockSuspend(node));
+  };
+
+  const expressionContainsSetForName = (
+    node: FunCityExpressionNode,
+    name: string
+  ): boolean => {
+    switch (node.kind) {
+      case 'number':
+      case 'string':
+      case 'variable': {
+        return false;
+      }
+      case 'template': {
+        return blockListContainsSetForName(node.blocks, name);
+      }
+      case 'dot': {
+        return expressionContainsSetForName(node.base, name);
+      }
+      case 'apply': {
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'set' &&
+          node.args[0]?.kind === 'variable' &&
+          node.args[0].name === name
+        ) {
+          return true;
+        }
+        if (expressionContainsSetForName(node.func, name)) {
+          return true;
+        }
+        return node.args.some((arg) => expressionContainsSetForName(arg, name));
+      }
+      case 'list': {
+        return node.items.some((item) =>
+          expressionContainsSetForName(item, name)
+        );
+      }
+      case 'scope': {
+        return node.nodes.some((childNode) =>
+          blockContainsSetForName(childNode, name)
+        );
+      }
+    }
+  };
+
+  const blockContainsSetForName = (
+    node: FunCityBlockNode,
+    name: string
+  ): boolean => {
+    switch (node.kind) {
+      case 'text': {
+        return false;
+      }
+      case 'for': {
+        return (
+          expressionContainsSetForName(node.iterable, name) ||
+          blockListContainsSetForName(node.repeat, name)
+        );
+      }
+      case 'while': {
+        return (
+          expressionContainsSetForName(node.condition, name) ||
+          blockListContainsSetForName(node.repeat, name)
+        );
+      }
+      case 'if': {
+        return (
+          expressionContainsSetForName(node.condition, name) ||
+          blockListContainsSetForName(node.then, name) ||
+          blockListContainsSetForName(node.else, name)
+        );
+      }
+      default: {
+        return expressionContainsSetForName(node, name);
+      }
+    }
+  };
+
+  const blockListContainsSetForName = (
+    nodes: readonly FunCityBlockNode[],
+    name: string
+  ): boolean => {
+    return nodes.some((node) => blockContainsSetForName(node, name));
   };
 
   const wrapAwaitedSource = (source: string, canSuspend: boolean): string => {
@@ -1796,6 +1974,300 @@ return Array.from(__value).slice(__start, __end);
     }
   };
 
+  const compileDirectInlineBuiltinApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    const builtinArgVars = node.args.map(() => allocateTemp(state, 'arg'));
+    const inlineBuiltinSource = compileInlineStandardBuiltinSource(
+      name,
+      builtinArgVars
+    );
+    if (inlineBuiltinSource === undefined) {
+      return undefined;
+    }
+    const builtinArgStatements = node.args
+      .map((arg, index) => {
+        const argSource = compileExpressionSource(state, arg, scope);
+        return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+          argSource,
+          canExpressionSuspend(arg)
+        )};`;
+      })
+      .join('\n');
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+${builtinArgStatements}
+return ${inlineBuiltinSource};`,
+      node.args.some((arg) => canExpressionSuspend(arg))
+    );
+  };
+
+  const compileDirectLogicalApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    kind: 'and' | 'or'
+  ): string => {
+    const rangeIndex = addConstant(state, node.range);
+    if (node.args.length === 0) {
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+runtime.throwError({ description: 'empty arguments', range: runtime.constants[${rangeIndex}] });`,
+        false
+      );
+    }
+    const valueVars = node.args.map(() => allocateTemp(state, 'value'));
+    const body = node.args
+      .map((arg, index) => {
+        const valueVar = valueVars[index]!;
+        const argSource = compileExpressionSource(state, arg, scope);
+        const condition =
+          kind === 'and'
+            ? `!runtime.isConditionalTrue(${valueVar})`
+            : `runtime.isConditionalTrue(${valueVar})`;
+        const result = kind === 'and' ? 'false' : 'true';
+        return `const ${valueVar} = ${wrapAwaitedSource(
+          argSource,
+          canExpressionSuspend(arg)
+        )};
+if (${condition}) {
+return ${result};
+}`;
+      })
+      .join('\n');
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+${body}
+return ${kind === 'and' ? 'true' : 'false'};`,
+      node.args.some((arg) => canExpressionSuspend(arg))
+    );
+  };
+
+  const compileDirectRangeApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string => {
+    const startVar = allocateTemp(state, 'start');
+    const countVar = allocateTemp(state, 'count');
+    const resultVar = allocateTemp(state, 'range');
+    const indexVar = allocateTemp(state, 'index');
+    const startSource =
+      node.args[0] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[0], scope),
+            canExpressionSuspend(node.args[0])
+          );
+    const countSource =
+      node.args[1] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[1], scope),
+            canExpressionSuspend(node.args[1])
+          );
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+const ${resultVar} = [];
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+${resultVar}.push(${startVar}++);
+}
+return ${resultVar};`,
+      (node.args[0] !== undefined && canExpressionSuspend(node.args[0])) ||
+        (node.args[1] !== undefined && canExpressionSuspend(node.args[1]))
+    );
+  };
+
+  const compileDirectCollectionApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope,
+    name: 'map' | 'filter' | 'reduce'
+  ): string => {
+    if (name === 'map') {
+      const mapperVar = allocateTemp(state, 'mapper');
+      const iterableVar = allocateTemp(state, 'iterable');
+      const resultVar = allocateTemp(state, 'mapped');
+      const itemVar = allocateTemp(state, 'item');
+      const mapperSource =
+        node.args[0] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[0], scope),
+              canExpressionSuspend(node.args[0])
+            );
+      const iterableSource =
+        node.args[1] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[1], scope),
+              canExpressionSuspend(node.args[1])
+            );
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+const ${mapperVar} = ${mapperSource};
+const ${iterableVar} = ${iterableSource};
+const ${resultVar} = [];
+for (const ${itemVar} of ${iterableVar}) {
+${resultVar}.push(await ${mapperVar}(${itemVar}));
+}
+return ${resultVar};`,
+        true
+      );
+    }
+    if (name === 'filter') {
+      const predicateVar = allocateTemp(state, 'predicate');
+      const iterableVar = allocateTemp(state, 'iterable');
+      const resultVar = allocateTemp(state, 'filtered');
+      const itemVar = allocateTemp(state, 'item');
+      const predicateSource =
+        node.args[0] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[0], scope),
+              canExpressionSuspend(node.args[0])
+            );
+      const iterableSource =
+        node.args[1] === undefined
+          ? 'undefined'
+          : wrapAwaitedSource(
+              compileExpressionSource(state, node.args[1], scope),
+              canExpressionSuspend(node.args[1])
+            );
+      return wrapSourceClosure(
+        `signal?.throwIfAborted();
+const ${predicateVar} = ${predicateSource};
+const ${iterableVar} = ${iterableSource};
+const ${resultVar} = [];
+for (const ${itemVar} of ${iterableVar}) {
+if (runtime.isConditionalTrue(await ${predicateVar}(${itemVar}))) {
+${resultVar}.push(${itemVar});
+}
+}
+return ${resultVar};`,
+        true
+      );
+    }
+    const accVar = allocateTemp(state, 'acc');
+    const reducerVar = allocateTemp(state, 'reducer');
+    const iterableVar = allocateTemp(state, 'iterable');
+    const itemVar = allocateTemp(state, 'item');
+    const initialSource =
+      node.args[0] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[0], scope),
+            canExpressionSuspend(node.args[0])
+          );
+    const reducerSource =
+      node.args[1] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[1], scope),
+            canExpressionSuspend(node.args[1])
+          );
+    const iterableSource =
+      node.args[2] === undefined
+        ? 'undefined'
+        : wrapAwaitedSource(
+            compileExpressionSource(state, node.args[2], scope),
+            canExpressionSuspend(node.args[2])
+          );
+    return wrapSourceClosure(
+      `signal?.throwIfAborted();
+let ${accVar} = ${initialSource};
+const ${reducerVar} = ${reducerSource};
+const ${iterableVar} = ${iterableSource};
+for (const ${itemVar} of ${iterableVar}) {
+${accVar} = await ${reducerVar}(${accVar}, ${itemVar});
+}
+return ${accVar};`,
+      true
+    );
+  };
+
+  const compileAggressiveApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string | undefined => {
+    if (!state.aggressiveOptimize || node.func.kind !== 'variable') {
+      return undefined;
+    }
+    switch (node.func.name) {
+      case 'add':
+      case 'sub':
+      case 'mul':
+      case 'div':
+      case 'mod':
+      case 'eq':
+      case 'ne':
+      case 'lt':
+      case 'gt':
+      case 'le':
+      case 'ge':
+      case 'not': {
+        return compileDirectInlineBuiltinApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
+      }
+      case 'and':
+      case 'or': {
+        return compileDirectLogicalApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
+      }
+      case 'range': {
+        return compileDirectRangeApplySource(state, node, scope);
+      }
+      case 'map':
+      case 'filter':
+      case 'reduce': {
+        return compileDirectCollectionApplySource(
+          state,
+          node,
+          scope,
+          node.func.name
+        );
+      }
+      default: {
+        return undefined;
+      }
+    }
+  };
+
+  const deconstructAggressiveRangeLoop = (
+    state: SourceCompileState,
+    node: FunCityExpressionNode
+  ):
+    | {
+        readonly startNode: FunCityExpressionNode | undefined;
+        readonly countNode: FunCityExpressionNode | undefined;
+      }
+    | undefined => {
+    if (!state.aggressiveOptimize || node.kind !== 'apply') {
+      return undefined;
+    }
+    if (node.func.kind !== 'variable' || node.func.name !== 'range') {
+      return undefined;
+    }
+    return {
+      startNode: node.args[0],
+      countNode: node.args[1],
+    };
+  };
+
   const toNumberLiteral = (
     state: SourceCompileState,
     value: number
@@ -1971,6 +2443,75 @@ ${
         return `${targetVar} += ${JSON.stringify(node.text)};\n`;
       }
       case 'for': {
+        const aggressiveRangeLoop = deconstructAggressiveRangeLoop(
+          state,
+          node.iterable
+        );
+        if (aggressiveRangeLoop !== undefined) {
+          const startVar = allocateTemp(state, 'start');
+          const countVar = allocateTemp(state, 'count');
+          const indexVar = allocateTemp(state, 'index');
+          const itemVar = allocateTemp(state, 'item');
+          const startSource =
+            aggressiveRangeLoop.startNode === undefined
+              ? 'undefined'
+              : wrapAwaitedSource(
+                  compileExpressionSource(
+                    state,
+                    aggressiveRangeLoop.startNode,
+                    scope
+                  ),
+                  canExpressionSuspend(aggressiveRangeLoop.startNode)
+                );
+          const countSource =
+            aggressiveRangeLoop.countNode === undefined
+              ? 'undefined'
+              : wrapAwaitedSource(
+                  compileExpressionSource(
+                    state,
+                    aggressiveRangeLoop.countNode,
+                    scope
+                  ),
+                  canExpressionSuspend(aggressiveRangeLoop.countNode)
+                );
+          const canUseDirectBinding = !blockListContainsSetForName(
+            node.repeat,
+            node.bind.name
+          );
+          if (canUseDirectBinding) {
+            return `{
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+const ${itemVar} = ${startVar}++;
+${compileTextBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  extendDirectBindingCompileScope(scope, node.bind.name, itemVar)
+)}
+}
+}\n`;
+          }
+          const slotVar = allocateTemp(state, 'slot');
+          return `{
+let ${startVar} = Number(${startSource});
+const ${countVar} = Number(${countSource});
+const ${slotVar} = context.ensureLocalSlot(${JSON.stringify(
+            node.bind.name
+          )}, signal);
+for (let ${indexVar} = 0; ${indexVar} < ${countVar}; ${indexVar}++) {
+const ${itemVar} = ${startVar}++;
+context.setSlotValue(${slotVar}, ${itemVar}, signal);
+${compileTextBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  extendCompileScope(scope, node.bind.name, slotVar)
+)}
+}
+}\n`;
+        }
         const iterableVar = allocateTemp(state, 'iterable');
         const slotVar = allocateTemp(state, 'slot');
         const itemVar = allocateTemp(state, 'item');
@@ -2033,6 +2574,34 @@ ${compileTextBlockListStatements(state, node.else, targetVar, scope)}
       default: {
         const valueVar = allocateTemp(state, 'value');
         const valueSource = compileExpressionSource(state, node, scope);
+        if (state.aggressiveOptimize) {
+          return `{
+const ${valueVar} = ${wrapAwaitedSource(
+            valueSource,
+            canExpressionSuspend(node)
+          )};
+if (${valueVar} !== undefined) {
+if (${valueVar} === null) {
+${targetVar} += '(null)';
+} else {
+switch (typeof ${valueVar}) {
+case 'string':
+${targetVar} += ${valueVar};
+break;
+case 'boolean':
+case 'number':
+case 'bigint':
+case 'symbol':
+${targetVar} += ${valueVar}.toString();
+break;
+default:
+${targetVar} += context.convertToString(${valueVar});
+break;
+}
+}
+}
+}\n`;
+        }
         return `{
 const ${valueVar} = ${wrapAwaitedSource(
           valueSource,
@@ -2220,9 +2789,23 @@ return ${textVar};`,
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
+        const aggressiveSource = resolveAggressiveVariableSource(
+          state,
+          variableResult.name
+        );
+        if (aggressiveSource !== undefined) {
+          return aggressiveSource;
+        }
         const localSlotRef = resolveLocalSlotRef(scope, variableResult.name);
         if (localSlotRef !== undefined) {
           return `context.getSlotValue(${localSlotRef}, signal)`;
+        }
+        const directBindingRef = resolveDirectBindingRef(
+          scope,
+          variableResult.name
+        );
+        if (directBindingRef !== undefined) {
+          return directBindingRef;
         }
         const selfBindingRef = resolveSelfBindingRef(
           scope,
@@ -2317,8 +2900,6 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
           );
           if (parameterNames !== undefined) {
             const boundName = node.args[0]!.name;
-            const setBindingVar = allocateTemp(state, 'binding');
-            const funBindingVar = allocateTemp(state, 'binding');
             const lambdaVar = allocateTemp(state, 'lambda');
             const lambdaSource = compileIntrinsicLambdaSource(
               state,
@@ -2331,6 +2912,17 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
                 bindingRef: lambdaVar,
               }
             );
+            if (state.aggressiveOptimize) {
+              return wrapSourceClosure(
+                `signal?.throwIfAborted();
+const ${lambdaVar} = ${lambdaSource};
+context.setValue(${JSON.stringify(boundName)}, ${lambdaVar}, signal);
+return undefined;`,
+                true
+              );
+            }
+            const setBindingVar = allocateTemp(state, 'binding');
+            const funBindingVar = allocateTemp(state, 'binding');
             return wrapSourceClosure(
               `signal?.throwIfAborted();
 const ${setBindingVar} = ${createLookupResultSource(scope, 'set')};
@@ -2344,6 +2936,28 @@ return ${compileGenericApplySource(state, node, scope)};`,
               true
             );
           }
+        }
+        if (
+          node.func.kind === 'variable' &&
+          state.aggressiveOptimize &&
+          node.func.name === 'set' &&
+          node.args.length === 2 &&
+          node.args[0]!.kind === 'variable'
+        ) {
+          const valueSource = compileExpressionSource(
+            state,
+            node.args[1]!,
+            scope
+          );
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
+context.setValue(${JSON.stringify(node.args[0]!.name)}, ${wrapAwaitedSource(
+              valueSource,
+              canExpressionSuspend(node.args[1]!)
+            )}, signal);
+return undefined;`,
+            canExpressionSuspend(node.args[1]!)
+          );
         }
         if (
           node.func.kind === 'variable' &&
@@ -2362,6 +2976,20 @@ return ${compileGenericApplySource(state, node, scope)};`,
           );
           const thenSource = compileExpressionSource(state, thenNode, scope);
           const elseSource = compileExpressionSource(state, elseNode, scope);
+          if (state.aggressiveOptimize) {
+            return wrapSourceClosure(
+              `signal?.throwIfAborted();
+const ${conditionVar} = ${wrapAwaitedSource(
+                conditionSource,
+                canExpressionSuspend(conditionNode)
+              )};
+if (runtime.isConditionalTrue(${conditionVar})) {
+return ${wrapAwaitedSource(thenSource, canExpressionSuspend(thenNode))};
+}
+return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};`,
+              true
+            );
+          }
           return wrapSourceClosure(
             `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'cond')};
@@ -2386,7 +3014,6 @@ return ${compileGenericApplySource(state, node, scope)};`,
         ) {
           const parameterNames = extractLambdaParameterNames(node.args[0]!);
           if (parameterNames !== undefined) {
-            const bindingVar = allocateTemp(state, 'binding');
             const lambdaSource = compileIntrinsicLambdaSource(
               state,
               node.range,
@@ -2395,6 +3022,10 @@ return ${compileGenericApplySource(state, node, scope)};`,
               scope,
               undefined
             );
+            if (state.aggressiveOptimize) {
+              return lambdaSource;
+            }
+            const bindingVar = allocateTemp(state, 'binding');
             return wrapSourceClosure(
               `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};
@@ -2405,6 +3036,14 @@ return ${compileGenericApplySource(state, node, scope)};`,
               true
             );
           }
+        }
+        const aggressiveApplySource = compileAggressiveApplySource(
+          state,
+          node,
+          scope
+        );
+        if (aggressiveApplySource !== undefined) {
+          return aggressiveApplySource;
         }
         return compileGenericApplySource(state, node, scope);
       }
@@ -2451,6 +3090,7 @@ return ${resultVar};`,
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const runner = createAdaptiveSourceRunner<unknown>(`const {
 constants,
@@ -2480,6 +3120,7 @@ return ${compileExpressionSource(state, node, emptyCompileScope)};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const resultVar = allocateTemp(state, 'result');
     const runner = createAdaptiveSourceRunner<unknown[]>(`const {
@@ -2514,6 +3155,7 @@ return ${resultVar};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const resultVar = allocateTemp(state, 'result');
     const runner = createAdaptiveSourceRunner<unknown[]>(`const {
@@ -2548,6 +3190,7 @@ return ${resultVar};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const textVar = allocateTemp(state, 'text');
     const runner = createAdaptiveSourceRunner<string>(`const {
@@ -2603,7 +3246,7 @@ export const createDCodegen = (
 ): FunCityDynamicCodeGenerator => {
   switch (options?.backend) {
     case 'source':
-      return createSourceDCodegen();
+      return createSourceDCodegen(options);
     case 'closure':
     case undefined:
       return createClosureDCodegen();

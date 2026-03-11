@@ -13,6 +13,7 @@ import { combineVariables, runScriptOnceToText } from 'funcity';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Container from '@mui/material/Container';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -20,6 +21,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
 import InputLabel from '@mui/material/InputLabel';
 import Link from '@mui/material/Link';
@@ -162,6 +164,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const [executionBackend, setExecutionBackend] =
     useState<FunCityExecutionBackend>('source');
+  const [aggressiveOptimize, setAggressiveOptimize] = useState(false);
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [samplesLoading, setSamplesLoading] = useState(
     sampleFileNames.length > 0
@@ -388,6 +391,10 @@ const App = ({ mode, onToggleMode }: AppProps) => {
     setExecutionBackend(value as FunCityExecutionBackend);
   }, []);
 
+  const handleAggressiveOptimizeChange = useCallback((checked: boolean) => {
+    setAggressiveOptimize(checked);
+  }, []);
+
   const formatConsoleValue = useCallback((value: unknown) => {
     if (typeof value === 'string') {
       return value;
@@ -501,6 +508,7 @@ const App = ({ mode, onToggleMode }: AppProps) => {
         script,
         {
           backend: executionBackend,
+          aggressiveOptimize,
           variables: runtimeVariables,
           logs,
           sourceId,
@@ -609,6 +617,39 @@ const App = ({ mode, onToggleMode }: AppProps) => {
                 ))}
               </Select>
             </FormControl>
+            <FormControlLabel
+              label="Aggressive optimize"
+              sx={{
+                ml: 0,
+                color: 'inherit',
+                '& .MuiFormControlLabel-label': {
+                  color: 'inherit',
+                },
+              }}
+              control={
+                <Checkbox
+                  checked={aggressiveOptimize}
+                  disabled={executionBackend === 'reducer'}
+                  onChange={(event) =>
+                    handleAggressiveOptimizeChange(event.target.checked)
+                  }
+                  sx={{
+                    color: 'inherit',
+                    '&.Mui-checked': {
+                      color: 'inherit',
+                    },
+                    '&.Mui-disabled': {
+                      color: 'rgba(255, 255, 255, 0.45)',
+                    },
+                  }}
+                  slotProps={{
+                    input: {
+                      'aria-label': 'Aggressive optimize',
+                    },
+                  }}
+                />
+              }
+            />
             <Button
               id="samples-button"
               variant="contained"
