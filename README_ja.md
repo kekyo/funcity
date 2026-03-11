@@ -704,7 +704,10 @@ const text = await runScriptOnceToText(script, {
 const blocks = runTokenizer(script, logs, sourceId);
 const nodes = runParser(blocks, logs);
 
-const dcodegen = createDCodegen({ backend: 'source' });
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: false, // 省略可能、既定値は false
+});
 const variables = buildCandidateVariables();
 const warningLogs: FunCityWarningEntry[] = [];
 const context = createReducerContext(
@@ -722,8 +725,32 @@ logs.push(...warningLogs);
 - JITジェネレータはソース文字列を直接実行するのではなく、パース済みのASTノードを入力に取ります。
 - 実行コンテキストは、必ず `createReducerContext(..., dcodegen.createExecutor())` で作成してください。
 - `generateExpression()` は単一式、`generateProgram()` は生の値配列、`generateTextProgram()` は連結済みテキストを返す関数を生成します。
-- `createDCodegen()` の既定値は `closure` です。source-generated backend を明示したい場合は `{ backend: 'source' }` を渡してください。
+- `createDCodegen()` は `{ backend?: 'closure' | 'source', aggressiveOptimize?: boolean }` を受け取ります。
+- `createDCodegen()` の既定値は `{ backend: 'closure', aggressiveOptimize: false }` です。source-generated backend を明示したい場合は `{ backend: 'source' }` を渡してください。
+- `aggressiveOptimize` は opt-in の source JIT 経路でのみ使用され、`closure` backend では無視されます。
 - テンプレート構文ではなくコード構文だけを扱う場合は、先に `runCodeTokenizer()` / `parseExpressions()` でノード化してから、式またはプログラム用の runner を生成してください。
+
+### `aggressiveOptimize`
+
+`aggressiveOptimize` は、source JIT 向けの opt-in オプションです。既定値は `false` で、これを有効にすると reducer 互換の前提を一部緩める代わりに、より直接的な JIT 最適化を行います。
+
+有効化する場合は、funcity スクリプトと事前定義変数が次の制約を満たしている必要があります:
+
+- 次の名前は shadow されない前提で扱われます: `set`, `fun`, `true`, `false`, `undefined`, `null`, `cond`, `add`, `sub`, `mul`, `div`, `mod`, `and`, `or`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `not`, `range`, `map`, `filter`, `reduce`
+- reducer 互換の動作を期待する場合、これらの名前に対して `set`、ネストしたスコープ、事前定義変数で独自の値や関数を束縛してはいけません。
+- これらの名前を意図的に上書きするスクリプトでは、`aggressiveOptimize` を無効のまま使用してください。
+
+例:
+
+```typescript
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: true,
+});
+```
+
+- このオプションは現在 `createDCodegen()` でのみ指定できます。
+- `runScriptOnce()` や `runScriptOnceToText()` などの高水準 API では `aggressiveOptimize` は公開されていません。
 
 ### 関数型言語構文のみを実行する
 
