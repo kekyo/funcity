@@ -1376,6 +1376,23 @@ const createSourceRunner = <T>(
   ) as FunCitySourceGeneratedRunner<T>;
 };
 
+const stripAbortChecksFromSource = (body: string): string => {
+  return body.replace(/(^|\n)signal\?\.throwIfAborted\(\);\n?/g, '$1');
+};
+
+const createAdaptiveSourceRunner = <T>(
+  body: string
+): FunCitySourceGeneratedRunner<T> => {
+  const runnerWithSignal = createSourceRunner<T>(body);
+  const runnerWithoutSignal = createSourceRunner<T>(
+    stripAbortChecksFromSource(body)
+  );
+  return (context, signal, runtime) =>
+    signal === undefined
+      ? runnerWithoutSignal(context, undefined, runtime)
+      : runnerWithSignal(context, signal, runtime);
+};
+
 const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   const closureGenerator = createClosureDCodegen();
   const closureExecutor = closureGenerator.createExecutor();
@@ -2257,7 +2274,7 @@ return ${resultVar};`,
       nextTempId: 0,
       constants: [],
     };
-    const runner = createSourceRunner<unknown>(`const {
+    const runner = createAdaptiveSourceRunner<unknown>(`const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2287,7 +2304,7 @@ return ${compileExpressionSource(state, node, emptyCompileScope)};`);
       constants: [],
     };
     const resultVar = allocateTemp(state, 'result');
-    const runner = createSourceRunner<unknown[]>(`const {
+    const runner = createAdaptiveSourceRunner<unknown[]>(`const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2321,7 +2338,7 @@ return ${resultVar};`);
       constants: [],
     };
     const resultVar = allocateTemp(state, 'result');
-    const runner = createSourceRunner<unknown[]>(`const {
+    const runner = createAdaptiveSourceRunner<unknown[]>(`const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2355,7 +2372,7 @@ return ${resultVar};`);
       constants: [],
     };
     const textVar = allocateTemp(state, 'text');
-    const runner = createSourceRunner<string>(`const {
+    const runner = createAdaptiveSourceRunner<string>(`const {
 constants,
 standardBuiltins,
 asIterable,
