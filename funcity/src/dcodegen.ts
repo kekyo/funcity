@@ -24,6 +24,7 @@ import {
   isFunCityFunction,
   isPromiseLike,
 } from './utils';
+import { standardVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +213,76 @@ const resolveMaybePromise = <T, U>(
   return onResolved(value);
 };
 
+const specializableStandardCallTargets = Object.freeze({
+  toString: standardVariables.toString as Function,
+  toBoolean: standardVariables.toBoolean as Function,
+  toNumber: standardVariables.toNumber as Function,
+  toBigInt: standardVariables.toBigInt as Function,
+  typeof: standardVariables.typeof as Function,
+  add: standardVariables.add as Function,
+  sub: standardVariables.sub as Function,
+  mul: standardVariables.mul as Function,
+  div: standardVariables.div as Function,
+  mod: standardVariables.mod as Function,
+  eq: standardVariables.eq as Function,
+  ne: standardVariables.ne as Function,
+  lt: standardVariables.lt as Function,
+  gt: standardVariables.gt as Function,
+  le: standardVariables.le as Function,
+  ge: standardVariables.ge as Function,
+  now: standardVariables.now as Function,
+  randomf: standardVariables.randomf as Function,
+  concat: standardVariables.concat as Function,
+  join: standardVariables.join as Function,
+  trim: standardVariables.trim as Function,
+  toUpper: standardVariables.toUpper as Function,
+  toLower: standardVariables.toLower as Function,
+  length: standardVariables.length as Function,
+  not: standardVariables.not as Function,
+  at: standardVariables.at as Function,
+  first: standardVariables.first as Function,
+  last: standardVariables.last as Function,
+  range: standardVariables.range as Function,
+  slice: standardVariables.slice as Function,
+  sort: standardVariables.sort as Function,
+  reverse: standardVariables.reverse as Function,
+  map: standardVariables.map as Function,
+  flatMap: standardVariables.flatMap as Function,
+  flatten: standardVariables.flatten as Function,
+  filter: standardVariables.filter as Function,
+  collect: standardVariables.collect as Function,
+  distinct: standardVariables.distinct as Function,
+  distinctBy: standardVariables.distinctBy as Function,
+  union: standardVariables.union as Function,
+  unionBy: standardVariables.unionBy as Function,
+  intersection: standardVariables.intersection as Function,
+  intersectionBy: standardVariables.intersectionBy as Function,
+  difference: standardVariables.difference as Function,
+  differenceBy: standardVariables.differenceBy as Function,
+  symmetricDifference: standardVariables.symmetricDifference as Function,
+  symmetricDifferenceBy: standardVariables.symmetricDifferenceBy as Function,
+  isSubsetOf: standardVariables.isSubsetOf as Function,
+  isSubsetOfBy: standardVariables.isSubsetOfBy as Function,
+  isSupersetOf: standardVariables.isSupersetOf as Function,
+  isSupersetOfBy: standardVariables.isSupersetOfBy as Function,
+  isDisjointFrom: standardVariables.isDisjointFrom as Function,
+  isDisjointFromBy: standardVariables.isDisjointFromBy as Function,
+  reduce: standardVariables.reduce as Function,
+  match: standardVariables.match as Function,
+  replace: standardVariables.replace as Function,
+  regex: standardVariables.regex as Function,
+  bind: standardVariables.bind as Function,
+  url: standardVariables.url as Function,
+} as const);
+
+const toSpecializableStandardCallTarget = (
+  name: string
+): Function | undefined => {
+  return specializableStandardCallTargets[
+    name as keyof typeof specializableStandardCallTargets
+  ];
+};
+
 const createRawBlockRunnerImmediate = (
   generators: readonly FunCityGeneratedBlockImmediate[]
 ): FunCityGeneratedBlockImmediate => {
@@ -296,6 +367,20 @@ const collectExpressionValues = (
     resultList.push(result);
   }
   return resultList;
+};
+
+const handleApplyError = (node: FunCityApplyNode, error: unknown): never => {
+  if (error instanceof FunCityReducerError) {
+    throw error;
+  }
+  if (error instanceof Error && error.name === 'AbortError') {
+    throw error;
+  }
+  throw new FunCityReducerError({
+    type: 'error',
+    description: fromError(error),
+    range: node.range,
+  });
 };
 
 /**
@@ -434,19 +519,6 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     const resolvedArgs = isSpecial
       ? node.args
       : collectExpressionValues(compiledArgs, context, signal);
-    const handleApplyError = (error: unknown): never => {
-      if (error instanceof FunCityReducerError) {
-        throw error;
-      }
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw error;
-      }
-      throw new FunCityReducerError({
-        type: 'error',
-        description: fromError(error),
-        range: node.range,
-      });
-    };
 
     const invokeCallable = (args: readonly unknown[]) => {
       const shouldConstruct = !isSpecial && context.isConstructable(callable);
@@ -457,7 +529,7 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
         const thisProxy = context.createFunctionContext(node, signal);
         return callable.call(thisProxy, ...args);
       } catch (error: unknown) {
-        handleApplyError(error);
+        handleApplyError(node, error);
       }
     };
 
@@ -465,7 +537,31 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
       invokeCallable(args as readonly unknown[])
     );
     if (isPromiseLike(result)) {
-      return result.catch((error: unknown) => handleApplyError(error));
+      return result.catch((error: unknown) => handleApplyError(node, error));
+    }
+    return result;
+  };
+
+  const applySpecializedStandardFunction = (
+    context: FunCityReducerContext,
+    node: FunCityApplyNode,
+    signal: AbortSignal | undefined,
+    builtin: Function,
+    compiledArgs: readonly FunCityGeneratedExpressionImmediate[]
+  ): FunCityMaybePromise<unknown> => {
+    const invokeBuiltin = (args: readonly unknown[]) => {
+      try {
+        return builtin(...args);
+      } catch (error: unknown) {
+        handleApplyError(node, error);
+      }
+    };
+    const result = resolveMaybePromise(
+      collectExpressionValues(compiledArgs, context, signal),
+      (args) => invokeBuiltin(args as readonly unknown[])
+    );
+    if (isPromiseLike(result)) {
+      return result.catch((error: unknown) => handleApplyError(node, error));
     }
     return result;
   };
@@ -540,8 +636,41 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
       case 'apply': {
         const compiledFunc = generateExpressionImmediate(node.func);
         const compiledArgs = node.args.map(generateExpressionImmediate);
-        generator = (context, signal) =>
-          applyFunction(context, node, signal, compiledFunc, compiledArgs);
+        const specializedBuiltinName =
+          node.func.kind === 'variable' ? node.func.name : undefined;
+        const specializedBuiltin =
+          specializedBuiltinName !== undefined
+            ? toSpecializableStandardCallTarget(specializedBuiltinName)
+            : undefined;
+        generator =
+          specializedBuiltin === undefined
+            ? (context, signal) =>
+                applyFunction(context, node, signal, compiledFunc, compiledArgs)
+            : (context, signal) => {
+                const boundFunction = context.getValue(
+                  specializedBuiltinName!,
+                  signal
+                );
+                if (
+                  boundFunction.isFound &&
+                  boundFunction.value === specializedBuiltin
+                ) {
+                  return applySpecializedStandardFunction(
+                    context,
+                    node,
+                    signal,
+                    specializedBuiltin,
+                    compiledArgs
+                  );
+                }
+                return applyFunction(
+                  context,
+                  node,
+                  signal,
+                  compiledFunc,
+                  compiledArgs
+                );
+              };
         break;
       }
       case 'list': {

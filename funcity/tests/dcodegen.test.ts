@@ -163,4 +163,13 @@ describe('dynamic code generator test', () => {
     await expect(generatedText(reducerContext)).resolves.toBe('Hello World!');
     expect(warningLogs).toEqual([]);
   });
+
+  it('falls back when a specializable builtin is shadowed', async () => {
+    await expectGeneratedMatchesReducer(
+      [applyNode('add', [numberNode(1), numberNode(2)])],
+      {
+        add: (lhs: number, rhs: number) => lhs * rhs,
+      }
+    );
+  });
 });
