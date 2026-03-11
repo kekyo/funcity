@@ -354,20 +354,34 @@ interface FunCitySourceRuntime {
   readonly resolveDotSegments: typeof resolveSourceDotSegments;
   readonly invokeCallable: typeof invokeSourceCallable;
   readonly invokeBuiltin: typeof invokeSourceBuiltin;
+  readonly awaitSync: <T>(value: FunCityMaybePromise<T>) => T;
+  readonly requestAsyncFallback: () => never;
 }
 
 type FunCitySourceGeneratedRunner<T> = (
   context: FunCityReducerContext,
   signal: AbortSignal | undefined,
   runtime: FunCitySourceRuntime
-) => Promise<T>;
+) => FunCityMaybePromise<T>;
 
 interface FunCityAsyncFunctionConstructor {
   new (...args: string[]): (...args: unknown[]) => Promise<unknown>;
 }
 
+interface FunCitySyncFunctionConstructor {
+  new (...args: string[]): (...args: unknown[]) => unknown;
+}
+
 const AsyncFunction = Object.getPrototypeOf(async () => {})
   .constructor as FunCityAsyncFunctionConstructor;
+const SyncFunction = Function as unknown as FunCitySyncFunctionConstructor;
+const sourceSyncFallback = Object.freeze({
+  kind: 'funcity-source-sync-fallback',
+});
+
+const isSourceSyncFallback = (error: unknown): boolean => {
+  return error === sourceSyncFallback;
+};
 
 const createRawBlockRunnerImmediate = (
   generators: readonly FunCityGeneratedBlockImmediate[]
@@ -550,6 +564,17 @@ const invokeSourceBuiltin = async (
   } catch (error: unknown) {
     return handleApplyError(node, error);
   }
+};
+
+const awaitSourceSync = <T>(value: FunCityMaybePromise<T>): T => {
+  if (isPromiseLike(value)) {
+    throw sourceSyncFallback;
+  }
+  return value;
+};
+
+const requestSourceAsyncFallback = (): never => {
+  throw sourceSyncFallback;
 };
 
 /**
@@ -1527,6 +1552,17 @@ const createSourceRunner = <T>(
   ) as FunCitySourceGeneratedRunner<T>;
 };
 
+const createSyncSourceRunner = <T>(
+  body: string
+): FunCitySourceGeneratedRunner<T> => {
+  return new SyncFunction(
+    'context',
+    'signal',
+    'runtime',
+    `'use strict';\n${body}`
+  ) as FunCitySourceGeneratedRunner<T>;
+};
+
 const stripAbortChecksFromSource = (body: string): string => {
   return body.replace(/(^|\n)signal\?\.throwIfAborted\(\);\n?/g, '$1');
 };
@@ -1544,6 +1580,47 @@ const createAdaptiveSourceRunner = <T>(
       : runnerWithSignal(context, signal, runtime);
 };
 
+const createSyncPreferredSourceRunner = <T>(options: {
+  readonly asyncBody: string;
+  readonly asyncRuntime: FunCitySourceRuntime;
+  readonly syncBody: string | undefined;
+  readonly syncRuntime: FunCitySourceRuntime | undefined;
+}) => {
+  const asyncRunner = createAdaptiveSourceRunner<T>(options.asyncBody);
+  if (options.syncBody === undefined || options.syncRuntime === undefined) {
+    return (context: FunCityReducerContext, signal?: AbortSignal) =>
+      Promise.resolve(asyncRunner(context, signal, options.asyncRuntime));
+  }
+  const syncRunnerWithSignal = createSyncSourceRunner<T>(options.syncBody);
+  const syncRunnerWithoutSignal = createSyncSourceRunner<T>(
+    stripAbortChecksFromSource(options.syncBody)
+  );
+  return (context: FunCityReducerContext, signal?: AbortSignal) => {
+    try {
+      return signal === undefined
+        ? Promise.resolve(
+            syncRunnerWithoutSignal(
+              context,
+              undefined,
+              options.syncRuntime as FunCitySourceRuntime
+            )
+          )
+        : Promise.resolve(
+            syncRunnerWithSignal(
+              context,
+              signal,
+              options.syncRuntime as FunCitySourceRuntime
+            )
+          );
+    } catch (error) {
+      if (!isSourceSyncFallback(error)) {
+        throw error;
+      }
+    }
+    return Promise.resolve(asyncRunner(context, signal, options.asyncRuntime));
+  };
+};
+
 const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   const closureGenerator = createClosureDCodegen();
   const closureExecutor = closureGenerator.createExecutor();
@@ -1559,6 +1636,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   interface SourceCompileState {
     nextTempId: number;
     constants: unknown[];
+    mode: 'async' | 'sync';
   }
 
   interface SourceCompileScope {
@@ -1712,6 +1790,195 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     }
   };
 
+  const hasSyncInlineStandardBuiltin = (name: string): boolean => {
+    return (
+      compileInlineStandardBuiltinSource(name, [
+        '__arg0',
+        '__arg1',
+        '__arg2',
+      ]) !== undefined
+    );
+  };
+
+  const canCompileSyncExpressionSource = (
+    node: FunCityExpressionNode,
+    scope: SourceCompileScope
+  ): boolean => {
+    switch (node.kind) {
+      case 'number':
+      case 'string':
+      case 'variable': {
+        return true;
+      }
+      case 'template': {
+        return canCompileSyncBlockListSource(node.blocks, scope);
+      }
+      case 'dot': {
+        return canCompileSyncExpressionSource(node.base, scope);
+      }
+      case 'list': {
+        return node.items.every((item) =>
+          canCompileSyncExpressionSource(item, scope)
+        );
+      }
+      case 'scope': {
+        return node.nodes.every((childNode) =>
+          canCompileSyncExpressionSource(childNode, scope)
+        );
+      }
+      case 'apply': {
+        if (node.func.kind !== 'variable') {
+          return false;
+        }
+        if (resolveSelfBindingRef(scope, node.func.name) !== undefined) {
+          return node.args.every((arg) =>
+            canCompileSyncExpressionSource(arg, scope)
+          );
+        }
+        if (
+          resolveDirectLocalRef(scope, node.func.name) !== undefined ||
+          resolveLocalSlotRef(scope, node.func.name) !== undefined
+        ) {
+          return false;
+        }
+        switch (node.func.name) {
+          case 'cond': {
+            return (
+              node.args.length === 3 &&
+              node.args.every((arg) =>
+                canCompileSyncExpressionSource(arg, scope)
+              )
+            );
+          }
+          case 'defaults': {
+            return (
+              node.args.length === 2 &&
+              node.args.every((arg) =>
+                canCompileSyncExpressionSource(arg, scope)
+              )
+            );
+          }
+          case 'and':
+          case 'or': {
+            return node.args.every((arg) =>
+              canCompileSyncExpressionSource(arg, scope)
+            );
+          }
+          case 'set': {
+            if (node.args.length !== 2 || node.args[0]!.kind !== 'variable') {
+              return false;
+            }
+            if (
+              node.args[1]!.kind === 'apply' &&
+              node.args[1]!.func.kind === 'variable' &&
+              node.args[1]!.func.name === 'fun' &&
+              node.args[1]!.args.length === 2
+            ) {
+              const parameterNames = extractLambdaParameterNames(
+                node.args[1]!.args[0]!
+              );
+              if (parameterNames === undefined) {
+                return false;
+              }
+              let lambdaScope = parameterNames.reduce(
+                (currentScope, parameterName, index) =>
+                  extendDirectLocalCompileScope(
+                    currentScope,
+                    parameterName,
+                    `__syncParam${index}`
+                  ),
+                scope
+              );
+              lambdaScope = extendSelfBindingCompileScope(
+                lambdaScope,
+                node.args[0]!.name,
+                '__syncSelf'
+              );
+              return canCompileSyncExpressionSource(
+                node.args[1]!.args[1]!,
+                lambdaScope
+              );
+            }
+            return canCompileSyncExpressionSource(node.args[1]!, scope);
+          }
+          case 'fun': {
+            if (node.args.length !== 2) {
+              return false;
+            }
+            const parameterNames = extractLambdaParameterNames(node.args[0]!);
+            if (parameterNames === undefined) {
+              return false;
+            }
+            const lambdaScope = parameterNames.reduce(
+              (currentScope, parameterName, index) =>
+                extendDirectLocalCompileScope(
+                  currentScope,
+                  parameterName,
+                  `__syncParam${index}`
+                ),
+              scope
+            );
+            return canCompileSyncExpressionSource(node.args[1]!, lambdaScope);
+          }
+          default: {
+            return (
+              toSpecializableStandardCallTarget(node.func.name) !== undefined &&
+              hasSyncInlineStandardBuiltin(node.func.name) &&
+              node.args.every((arg) =>
+                canCompileSyncExpressionSource(arg, scope)
+              )
+            );
+          }
+        }
+      }
+    }
+  };
+
+  const canCompileSyncBlockSource = (
+    node: FunCityBlockNode,
+    scope: SourceCompileScope
+  ): boolean => {
+    switch (node.kind) {
+      case 'text': {
+        return true;
+      }
+      case 'for': {
+        const repeatScope = extendDirectLocalCompileScope(
+          scope,
+          node.bind.name,
+          '__syncItem'
+        );
+        return (
+          canCompileSyncExpressionSource(node.iterable, scope) &&
+          canCompileSyncBlockListSource(node.repeat, repeatScope)
+        );
+      }
+      case 'while': {
+        return (
+          canCompileSyncExpressionSource(node.condition, scope) &&
+          canCompileSyncBlockListSource(node.repeat, scope)
+        );
+      }
+      case 'if': {
+        return (
+          canCompileSyncExpressionSource(node.condition, scope) &&
+          canCompileSyncBlockListSource(node.then, scope) &&
+          canCompileSyncBlockListSource(node.else, scope)
+        );
+      }
+      default: {
+        return canCompileSyncExpressionSource(node, scope);
+      }
+    }
+  };
+
+  const canCompileSyncBlockListSource = (
+    nodes: readonly FunCityBlockNode[],
+    scope: SourceCompileScope
+  ): boolean => {
+    return nodes.every((node) => canCompileSyncBlockSource(node, scope));
+  };
+
   const canBlockSuspend = (node: FunCityBlockNode): boolean => {
     switch (node.kind) {
       case 'text': {
@@ -1746,11 +2013,25 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     return nodes.some((node) => canBlockSuspend(node));
   };
 
-  const wrapAwaitedSource = (source: string, canSuspend: boolean): string => {
+  const wrapAwaitedSource = (
+    state: SourceCompileState,
+    source: string,
+    canSuspend: boolean
+  ): string => {
+    if (state.mode === 'sync') {
+      return canSuspend ? `runtime.awaitSync(${source})` : `(${source})`;
+    }
     return canSuspend ? `await (${source})` : `(${source})`;
   };
 
-  const wrapSourceClosure = (body: string, canSuspend: boolean): string => {
+  const wrapSourceClosure = (
+    state: SourceCompileState,
+    body: string,
+    canSuspend: boolean
+  ): string => {
+    if (state.mode === 'sync') {
+      return `(() => {\n${body}\n})()`;
+    }
     return canSuspend
       ? `(async () => {\n${body}\n})()`
       : `(() => {\n${body}\n})()`;
@@ -2043,6 +2324,8 @@ return Array.from(__value).slice(__start, __end);
       resolveDotSegments: resolveSourceDotSegments,
       invokeCallable: invokeSourceCallable,
       invokeBuiltin: invokeSourceBuiltin,
+      awaitSync: awaitSourceSync,
+      requestAsyncFallback: requestSourceAsyncFallback,
     };
   };
 
@@ -2069,6 +2352,7 @@ return Array.from(__value).slice(__start, __end);
         );
         return `{
 const ${iterableVar} = runtime.asIterable(${wrapAwaitedSource(
+          state,
           iterableSource,
           canExpressionSuspend(node.iterable)
         )});
@@ -2097,6 +2381,7 @@ ${compileBlockListStatements(
           scope
         );
         return `while (runtime.isConditionalTrue(${wrapAwaitedSource(
+          state,
           conditionSource,
           canExpressionSuspend(node.condition)
         )})) {
@@ -2116,6 +2401,7 @@ ${compileBlockListStatements(
           scope
         );
         return `if (runtime.isConditionalTrue(${wrapAwaitedSource(
+          state,
           conditionSource,
           canExpressionSuspend(node.condition)
         )})) {
@@ -2141,6 +2427,7 @@ ${compileBlockListStatements(
         const valueSource = compileExpressionSource(state, node, scope);
         return `{
 const ${valueVar} = ${wrapAwaitedSource(
+          state,
           valueSource,
           canExpressionSuspend(node)
         )};
@@ -2196,6 +2483,7 @@ ${
         );
         return `{
 const ${iterableVar} = runtime.asIterable(${wrapAwaitedSource(
+          state,
           iterableSource,
           canExpressionSuspend(node.iterable)
         )});
@@ -2223,6 +2511,7 @@ ${compileTextBlockListStatements(
           scope
         );
         return `while (runtime.isConditionalTrue(${wrapAwaitedSource(
+          state,
           conditionSource,
           canExpressionSuspend(node.condition)
         )})) {
@@ -2236,6 +2525,7 @@ ${compileTextBlockListStatements(state, node.repeat, targetVar, scope)}
           scope
         );
         return `if (runtime.isConditionalTrue(${wrapAwaitedSource(
+          state,
           conditionSource,
           canExpressionSuspend(node.condition)
         )})) {
@@ -2249,6 +2539,7 @@ ${compileTextBlockListStatements(state, node.else, targetVar, scope)}
         const valueSource = compileExpressionSource(state, node, scope);
         return `{
 const ${valueVar} = ${wrapAwaitedSource(
+          state,
           valueSource,
           canExpressionSuspend(node)
         )};
@@ -2356,6 +2647,7 @@ return ${bodySource};
     const bindingVar = allocateTemp(state, 'binding');
     if (node.args.length === 0) {
       return wrapSourceClosure(
+        state,
         `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
@@ -2374,6 +2666,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
         const valueVar = allocateTemp(state, 'value');
         const argSource = compileExpressionSource(state, arg, scope);
         const awaitedSource = wrapAwaitedSource(
+          state,
           argSource,
           canExpressionSuspend(arg)
         );
@@ -2390,6 +2683,7 @@ return true;
       })
       .join('\n');
     return wrapSourceClosure(
+      state,
       `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, JSON.stringify(mode))};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.${mode}) {
@@ -2412,6 +2706,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
     const argArraySource = `[${node.args
       .map((arg) =>
         wrapAwaitedSource(
+          state,
           compileExpressionSource(state, arg, scope),
           canExpressionSuspend(arg)
         )
@@ -2423,17 +2718,48 @@ return ${compileGenericApplySource(state, node, scope)};`,
       );
       if (specializedBuiltin !== undefined) {
         const bindingVar = allocateTemp(state, 'binding');
-        const funcVar = allocateTemp(state, 'func');
-        const callArgsVar = allocateTemp(state, 'args');
         const builtinArgVars = node.args.map(() => allocateTemp(state, 'arg'));
         const inlineBuiltinSource = compileInlineStandardBuiltinSource(
           node.func.name,
           builtinArgVars
         );
+        if (state.mode === 'sync') {
+          if (inlineBuiltinSource === undefined) {
+            return 'runtime.requestAsyncFallback()';
+          }
+          const builtinArgStatements = node.args
+            .map((arg, index) => {
+              const argSource = compileExpressionSource(state, arg, scope);
+              return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+                state,
+                argSource,
+                canExpressionSuspend(arg)
+              )};`;
+            })
+            .join('\n');
+          return wrapSourceClosure(
+            state,
+            `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
+${builtinArgStatements}
+try {
+return ${inlineBuiltinSource};
+} catch (error) {
+return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+}
+}
+return runtime.requestAsyncFallback();`,
+            node.args.some((arg) => canExpressionSuspend(arg))
+          );
+        }
+        const funcVar = allocateTemp(state, 'func');
+        const callArgsVar = allocateTemp(state, 'args');
         const builtinArgStatements = node.args
           .map((arg, index) => {
             const argSource = compileExpressionSource(state, arg, scope);
             return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+              state,
               argSource,
               canExpressionSuspend(arg)
             )};`;
@@ -2472,12 +2798,16 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
 })()`;
       }
     }
+    if (state.mode === 'sync') {
+      return 'runtime.requestAsyncFallback()';
+    }
     const funcVar = allocateTemp(state, 'func');
     const argsVar = allocateTemp(state, 'args');
     const funcSource = compileExpressionSource(state, node.func, scope);
     return `(async () => {
 signal?.throwIfAborted();
 const ${funcVar} = ${wrapAwaitedSource(
+      state,
       funcSource,
       canExpressionSuspend(node.func)
     )};
@@ -2507,6 +2837,7 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
       case 'template': {
         const textVar = allocateTemp(state, 'text');
         return wrapSourceClosure(
+          state,
           `let ${textVar} = '';
 ${compileTextBlockListStatements(state, node.blocks, textVar, scope)}
 return ${textVar};`,
@@ -2555,6 +2886,7 @@ return ${textVar};`,
           const baseRangeIndex = addConstant(state, node.base.range);
           const baseValueVar = allocateTemp(state, 'base');
           return wrapSourceClosure(
+            state,
             `signal?.throwIfAborted();
 const ${baseValueVar} = ${
               directLocalRef !== undefined
@@ -2578,10 +2910,11 @@ return runtime.resolveDotSegments(context, ${baseValueVar}.value, runtime.consta
         }
         const baseSource = compileExpressionSource(state, node.base, scope);
         return wrapSourceClosure(
+          state,
           `signal?.throwIfAborted();
 return runtime.resolveDotSegments(
 context,
-${wrapAwaitedSource(baseSource, canExpressionSuspend(node.base))},
+${wrapAwaitedSource(state, baseSource, canExpressionSuspend(node.base))},
 runtime.constants[${segmentsIndex}]
 );`,
           canExpressionSuspend(node.base)
@@ -2597,11 +2930,13 @@ runtime.constants[${segmentsIndex}]
           if (selfBindingRef !== undefined) {
             const selfArgSources = node.args.map((arg) =>
               wrapAwaitedSource(
+                state,
                 compileExpressionSource(state, arg, scope),
                 canExpressionSuspend(arg)
               )
             );
             return wrapSourceClosure(
+              state,
               `signal?.throwIfAborted();
 return ${selfBindingRef}(${selfArgSources.join(', ')});`,
               node.args.some((arg) => canExpressionSuspend(arg))
@@ -2638,6 +2973,7 @@ return ${selfBindingRef}(${selfArgSources.join(', ')});`,
               }
             );
             return wrapSourceClosure(
+              state,
               `signal?.throwIfAborted();
 const ${setBindingVar} = ${createLookupResultSource(scope, 'set')};
 const ${funBindingVar} = ${createLookupResultSource(scope, 'fun')};
@@ -2664,10 +3000,12 @@ return ${compileGenericApplySource(state, node, scope)};`,
             scope
           );
           return wrapSourceClosure(
+            state,
             `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'set')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.set) {
 context.setValue(${JSON.stringify(node.args[0]!.name)}, ${wrapAwaitedSource(
+              state,
               valueSource,
               canExpressionSuspend(node.args[1]!)
             )}, signal);
@@ -2695,17 +3033,19 @@ return ${compileGenericApplySource(state, node, scope)};`,
           const thenSource = compileExpressionSource(state, thenNode, scope);
           const elseSource = compileExpressionSource(state, elseNode, scope);
           return wrapSourceClosure(
+            state,
             `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'cond')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.cond) {
 const ${conditionVar} = ${wrapAwaitedSource(
+              state,
               conditionSource,
               canExpressionSuspend(conditionNode)
             )};
 if (runtime.isConditionalTrue(${conditionVar})) {
-return ${wrapAwaitedSource(thenSource, canExpressionSuspend(thenNode))};
+return ${wrapAwaitedSource(state, thenSource, canExpressionSuspend(thenNode))};
 }
-return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};
+return ${wrapAwaitedSource(state, elseSource, canExpressionSuspend(elseNode))};
 }
 return ${compileGenericApplySource(state, node, scope)};`,
             true
@@ -2729,10 +3069,12 @@ return ${compileGenericApplySource(state, node, scope)};`,
             scope
           );
           return wrapSourceClosure(
+            state,
             `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'defaults')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.defaults) {
 const ${valueVar} = ${wrapAwaitedSource(
+              state,
               primarySource,
               canExpressionSuspend(node.args[0]!)
             )};
@@ -2740,6 +3082,7 @@ if (${valueVar} !== undefined && ${valueVar} !== null) {
 return ${valueVar};
 }
 return ${wrapAwaitedSource(
+              state,
               fallbackSource,
               canExpressionSuspend(node.args[1]!)
             )};
@@ -2776,6 +3119,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
               undefined
             );
             return wrapSourceClosure(
+              state,
               `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.fun) {
@@ -2792,6 +3136,7 @@ return ${compileGenericApplySource(state, node, scope)};`,
         return `[${node.items
           .map((item) =>
             wrapAwaitedSource(
+              state,
               compileExpressionSource(state, item, scope),
               canExpressionSuspend(item)
             )
@@ -2804,11 +3149,13 @@ return ${compileGenericApplySource(state, node, scope)};`,
         }
         const resultVar = allocateTemp(state, 'result');
         return wrapSourceClosure(
+          state,
           `let ${resultVar} = undefined;
 ${node.nodes
   .map((childNode) => {
     const childSource = compileExpressionSource(state, childNode, scope);
     return `${resultVar} = ${wrapAwaitedSource(
+      state,
       childSource,
       canExpressionSuspend(childNode)
     )};`;
@@ -2828,11 +3175,12 @@ return ${resultVar};`,
     if (cached) {
       return cached;
     }
-    const state: SourceCompileState = {
+    const asyncState: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      mode: 'async',
     };
-    const runner = createAdaptiveSourceRunner<unknown>(`const {
+    const asyncBody = `const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2844,10 +3192,39 @@ resolveDotSegments,
 invokeCallable,
 invokeBuiltin
 } = runtime;
-return ${compileExpressionSource(state, node, emptyCompileScope)};`);
-    const runtime = createRuntime(state.constants);
-    const generated: FunCityGeneratedExpression = (context, signal) =>
-      runner(context, signal, runtime);
+return ${compileExpressionSource(asyncState, node, emptyCompileScope)};`;
+    const syncState = canCompileSyncExpressionSource(node, emptyCompileScope)
+      ? ({
+          nextTempId: 0,
+          constants: [],
+          mode: 'sync',
+        } satisfies SourceCompileState)
+      : undefined;
+    const syncBody =
+      syncState === undefined
+        ? undefined
+        : `const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+return ${compileExpressionSource(syncState, node, emptyCompileScope)};`;
+    const generated = createSyncPreferredSourceRunner<unknown>({
+      asyncBody,
+      asyncRuntime: createRuntime(asyncState.constants),
+      syncBody,
+      syncRuntime:
+        syncState === undefined
+          ? undefined
+          : createRuntime(syncState.constants),
+    });
     expressionCache.set(node, generated);
     return generated;
   };
@@ -2857,12 +3234,13 @@ return ${compileExpressionSource(state, node, emptyCompileScope)};`);
     if (cached) {
       return cached;
     }
-    const state: SourceCompileState = {
+    const asyncState: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      mode: 'async',
     };
-    const resultVar = allocateTemp(state, 'result');
-    const runner = createAdaptiveSourceRunner<unknown[]>(`const {
+    const asyncResultVar = allocateTemp(asyncState, 'result');
+    const asyncBody = `const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2874,12 +3252,46 @@ resolveDotSegments,
 invokeCallable,
 invokeBuiltin
 } = runtime;
-const ${resultVar} = [];
-${compileBlockStatements(state, node, resultVar, false, emptyCompileScope)}
-return ${resultVar};`);
-    const runtime = createRuntime(state.constants);
-    const generated: FunCityGeneratedBlock = (context, signal) =>
-      runner(context, signal, runtime);
+const ${asyncResultVar} = [];
+${compileBlockStatements(asyncState, node, asyncResultVar, false, emptyCompileScope)}
+return ${asyncResultVar};`;
+    const syncState = canCompileSyncBlockSource(node, emptyCompileScope)
+      ? ({
+          nextTempId: 0,
+          constants: [],
+          mode: 'sync',
+        } satisfies SourceCompileState)
+      : undefined;
+    const syncBody =
+      syncState === undefined
+        ? undefined
+        : (() => {
+            const syncResultVar = allocateTemp(syncState, 'result');
+            return `const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+const ${syncResultVar} = [];
+${compileBlockStatements(syncState, node, syncResultVar, false, emptyCompileScope)}
+return ${syncResultVar};`;
+          })();
+    const generated = createSyncPreferredSourceRunner<unknown[]>({
+      asyncBody,
+      asyncRuntime: createRuntime(asyncState.constants),
+      syncBody,
+      syncRuntime:
+        syncState === undefined
+          ? undefined
+          : createRuntime(syncState.constants),
+    });
     blockCache.set(node, generated);
     return generated;
   };
@@ -2891,12 +3303,13 @@ return ${resultVar};`);
     if (cached) {
       return cached;
     }
-    const state: SourceCompileState = {
+    const asyncState: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      mode: 'async',
     };
-    const resultVar = allocateTemp(state, 'result');
-    const runner = createAdaptiveSourceRunner<unknown[]>(`const {
+    const asyncResultVar = allocateTemp(asyncState, 'result');
+    const asyncBody = `const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2908,12 +3321,46 @@ resolveDotSegments,
 invokeCallable,
 invokeBuiltin
 } = runtime;
-const ${resultVar} = [];
-${compileBlockListStatements(state, nodes, resultVar, true, emptyCompileScope)}
-return ${resultVar};`);
-    const runtime = createRuntime(state.constants);
-    const generated: FunCityGeneratedProgram = (context, signal) =>
-      runner(context, signal, runtime);
+const ${asyncResultVar} = [];
+${compileBlockListStatements(asyncState, nodes, asyncResultVar, true, emptyCompileScope)}
+return ${asyncResultVar};`;
+    const syncState = canCompileSyncBlockListSource(nodes, emptyCompileScope)
+      ? ({
+          nextTempId: 0,
+          constants: [],
+          mode: 'sync',
+        } satisfies SourceCompileState)
+      : undefined;
+    const syncBody =
+      syncState === undefined
+        ? undefined
+        : (() => {
+            const syncResultVar = allocateTemp(syncState, 'result');
+            return `const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+const ${syncResultVar} = [];
+${compileBlockListStatements(syncState, nodes, syncResultVar, true, emptyCompileScope)}
+return ${syncResultVar};`;
+          })();
+    const generated = createSyncPreferredSourceRunner<unknown[]>({
+      asyncBody,
+      asyncRuntime: createRuntime(asyncState.constants),
+      syncBody,
+      syncRuntime:
+        syncState === undefined
+          ? undefined
+          : createRuntime(syncState.constants),
+    });
     programCache.set(nodes, generated);
     return generated;
   };
@@ -2925,12 +3372,13 @@ return ${resultVar};`);
     if (cached) {
       return cached;
     }
-    const state: SourceCompileState = {
+    const asyncState: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      mode: 'async',
     };
-    const textVar = allocateTemp(state, 'text');
-    const runner = createAdaptiveSourceRunner<string>(`const {
+    const asyncTextVar = allocateTemp(asyncState, 'text');
+    const asyncBody = `const {
 constants,
 standardBuiltins,
 asIterable,
@@ -2942,12 +3390,46 @@ resolveDotSegments,
 invokeCallable,
 invokeBuiltin
 } = runtime;
-let ${textVar} = '';
-${compileTextBlockListStatements(state, nodes, textVar, emptyCompileScope)}
-return ${textVar};`);
-    const runtime = createRuntime(state.constants);
-    const generated: FunCityGeneratedTextProgram = (context, signal) =>
-      runner(context, signal, runtime);
+let ${asyncTextVar} = '';
+${compileTextBlockListStatements(asyncState, nodes, asyncTextVar, emptyCompileScope)}
+return ${asyncTextVar};`;
+    const syncState = canCompileSyncBlockListSource(nodes, emptyCompileScope)
+      ? ({
+          nextTempId: 0,
+          constants: [],
+          mode: 'sync',
+        } satisfies SourceCompileState)
+      : undefined;
+    const syncBody =
+      syncState === undefined
+        ? undefined
+        : (() => {
+            const syncTextVar = allocateTemp(syncState, 'text');
+            return `const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+let ${syncTextVar} = '';
+${compileTextBlockListStatements(syncState, nodes, syncTextVar, emptyCompileScope)}
+return ${syncTextVar};`;
+          })();
+    const generated = createSyncPreferredSourceRunner<string>({
+      asyncBody,
+      asyncRuntime: createRuntime(asyncState.constants),
+      syncBody,
+      syncRuntime:
+        syncState === undefined
+          ? undefined
+          : createRuntime(syncState.constants),
+    });
     textProgramCache.set(nodes, generated);
     return generated;
   };
