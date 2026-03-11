@@ -145,6 +145,45 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('matches reducer when lambda parameters shadow outer values', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            setNode('value', numberNode(40)),
+            setNode(
+              'bump',
+              funNode(
+                ['value'],
+                applyNode('add', [variableNode('value'), numberNode(2)])
+              )
+            ),
+            applyNode(variableNode('bump'), [numberNode(5)]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
+      it('matches reducer on dot access from lambda parameters', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            setNode(
+              'readValue',
+              funNode(
+                ['record'],
+                dotNode(variableNode('record'), [{ name: 'value' }])
+              )
+            ),
+            applyNode(variableNode('readValue'), [variableNode('record')]),
+          ],
+          {
+            record: {
+              value: 12,
+            },
+          },
+          backend
+        );
+      });
+
       it('keeps cond lazy when intrinsic path is used', async () => {
         await expectGeneratedMatchesReducer(
           [

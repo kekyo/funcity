@@ -1412,6 +1412,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   interface SourceCompileScope {
     readonly localSlots: ReadonlyMap<string, string>;
+    readonly directLocals: ReadonlyMap<string, string>;
     readonly selfBindings: ReadonlyMap<string, string>;
   }
 
@@ -1427,6 +1428,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   const emptyCompileScope: SourceCompileScope = {
     localSlots: new Map(),
+    directLocals: new Map(),
     selfBindings: new Map(),
   };
 
@@ -1437,6 +1439,19 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   ): SourceCompileScope => {
     return {
       localSlots: new Map(scope.localSlots).set(name, slotVar),
+      directLocals: scope.directLocals,
+      selfBindings: scope.selfBindings,
+    };
+  };
+
+  const extendDirectLocalCompileScope = (
+    scope: SourceCompileScope,
+    name: string,
+    localRef: string
+  ): SourceCompileScope => {
+    return {
+      localSlots: scope.localSlots,
+      directLocals: new Map(scope.directLocals).set(name, localRef),
       selfBindings: scope.selfBindings,
     };
   };
@@ -1448,6 +1463,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   ): SourceCompileScope => {
     return {
       localSlots: scope.localSlots,
+      directLocals: scope.directLocals,
       selfBindings: new Map(scope.selfBindings).set(name, bindingRef),
     };
   };
@@ -1457,6 +1473,13 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     name: string
   ): string | undefined => {
     return scope.localSlots.get(name);
+  };
+
+  const resolveDirectLocalRef = (
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    return scope.directLocals.get(name);
   };
 
   const resolveSelfBindingRef = (
@@ -1470,10 +1493,47 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     scope: SourceCompileScope,
     name: string
   ): string => {
+    const directLocalRef = resolveDirectLocalRef(scope, name);
     const localSlotRef = resolveLocalSlotRef(scope, name);
+    if (directLocalRef !== undefined) {
+      return `{ isFound: true, value: ${directLocalRef} }`;
+    }
     return localSlotRef !== undefined
       ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
       : `context.getValue(${JSON.stringify(name)}, signal)`;
+  };
+
+  const canElideLambdaFrame = (node: FunCityExpressionNode): boolean => {
+    switch (node.kind) {
+      case 'number':
+      case 'string':
+      case 'variable': {
+        return true;
+      }
+      case 'template': {
+        return false;
+      }
+      case 'dot': {
+        return canElideLambdaFrame(node.base);
+      }
+      case 'apply': {
+        if (node.func.kind === 'variable') {
+          if (node.func.name === 'set' || node.func.name === 'fun') {
+            return false;
+          }
+        }
+        return (
+          canElideLambdaFrame(node.func) &&
+          node.args.every((arg) => canElideLambdaFrame(arg))
+        );
+      }
+      case 'list': {
+        return node.items.every((item) => canElideLambdaFrame(item));
+      }
+      case 'scope': {
+        return node.nodes.every((childNode) => canElideLambdaFrame(childNode));
+      }
+    }
   };
 
   const canExpressionSuspend = (node: FunCityExpressionNode): boolean => {
@@ -2071,8 +2131,41 @@ ${targetVar} += context.convertToString(${valueVar});
       | undefined
   ): string => {
     const lambdaArgsVar = allocateTemp(state, 'args');
-    const lambdaContextVar = allocateTemp(state, 'context');
     const rangeIndex = addConstant(state, lambdaRange);
+    const canElideFrame = canElideLambdaFrame(bodyNode);
+    const scopedBase =
+      selfBinding === undefined
+        ? scope
+        : extendSelfBindingCompileScope(
+            scope,
+            selfBinding.name,
+            selfBinding.bindingRef
+          );
+    if (canElideFrame) {
+      const directParameterRefs = new Map<string, string>();
+      for (let index = 0; index < parameterNames.length; index++) {
+        directParameterRefs.set(
+          parameterNames[index]!,
+          `${lambdaArgsVar}[${index}]`
+        );
+      }
+      const lambdaScope = Array.from(directParameterRefs.entries()).reduce(
+        (currentScope, [parameterName, localRef]) =>
+          extendDirectLocalCompileScope(currentScope, parameterName, localRef),
+        scopedBase
+      );
+      const bodySource = compileExpressionSource(state, bodyNode, lambdaScope);
+      return `(...${lambdaArgsVar}) => {
+if (${lambdaArgsVar}.length < ${parameterNames.length}) {
+runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar}.length + ' < ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+if (${lambdaArgsVar}.length > ${parameterNames.length}) {
+context.appendWarning({ type: 'warning', description: 'Too many arguments: ' + ${lambdaArgsVar}.length + ' > ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+return ${bodySource};
+}`;
+    }
+    const lambdaContextVar = allocateTemp(state, 'context');
     const parameterNamesIndex = addConstant(state, [...parameterNames]);
     const parameterSlotRefs = new Map<string, string>();
     for (const parameterName of parameterNames) {
@@ -2083,13 +2176,7 @@ ${targetVar} += context.convertToString(${valueVar});
     const lambdaScope = Array.from(parameterSlotRefs.entries()).reduce(
       (currentScope, [parameterName, slotRef]) =>
         extendCompileScope(currentScope, parameterName, slotRef),
-      selfBinding === undefined
-        ? scope
-        : extendSelfBindingCompileScope(
-            scope,
-            selfBinding.name,
-            selfBinding.bindingRef
-          )
+      scopedBase
     );
     const bodySource = compileExpressionSource(state, bodyNode, lambdaScope);
     return `(...${lambdaArgsVar}) => {
@@ -2220,6 +2307,13 @@ return ${textVar};`,
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
+        const directLocalRef = resolveDirectLocalRef(
+          scope,
+          variableResult.name
+        );
+        if (directLocalRef !== undefined) {
+          return directLocalRef;
+        }
         const localSlotRef = resolveLocalSlotRef(scope, variableResult.name);
         if (localSlotRef !== undefined) {
           return `context.getSlotValue(${localSlotRef}, signal)`;
@@ -2248,15 +2342,18 @@ return ${textVar};`,
         const segmentsIndex = addConstant(state, segments);
         if (node.base.kind === 'variable') {
           const baseResult = deconstructConditionalCombine(node.base.name);
+          const directLocalRef = resolveDirectLocalRef(scope, baseResult.name);
           const localSlotRef = resolveLocalSlotRef(scope, baseResult.name);
           const baseRangeIndex = addConstant(state, node.base.range);
           const baseValueVar = allocateTemp(state, 'base');
           return wrapSourceClosure(
             `signal?.throwIfAborted();
 const ${baseValueVar} = ${
-              localSlotRef !== undefined
-                ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
-                : createLookupResultSource(scope, baseResult.name)
+              directLocalRef !== undefined
+                ? `{ isFound: true, value: ${directLocalRef} }`
+                : localSlotRef !== undefined
+                  ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
+                  : createLookupResultSource(scope, baseResult.name)
             };
 if (!${baseValueVar}.isFound) {
 ${
@@ -2285,6 +2382,7 @@ runtime.constants[${segmentsIndex}]
       case 'apply': {
         if (
           node.func.kind === 'variable' &&
+          resolveDirectLocalRef(scope, node.func.name) === undefined &&
           resolveLocalSlotRef(scope, node.func.name) === undefined
         ) {
           const selfBindingRef = resolveSelfBindingRef(scope, node.func.name);
