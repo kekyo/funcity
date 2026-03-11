@@ -314,6 +314,9 @@ interface FunCitySourceDotSegmentInfo {
 interface FunCitySourceRuntime {
   readonly constants: readonly unknown[];
   readonly standardBuiltins: typeof specializableStandardCallTargets;
+  readonly standardIntrinsics: {
+    readonly cond: Function;
+  };
   readonly asIterable: typeof asIterable;
   readonly isConditionalTrue: typeof isConditionalTrue;
   readonly isFunCityFunction: typeof isFunCityFunction;
@@ -774,14 +777,40 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
       case 'apply': {
         const compiledFunc = generateExpressionImmediate(node.func);
         const compiledArgs = node.args.map(generateExpressionImmediate);
+        const isIntrinsicCond =
+          node.func.kind === 'variable' &&
+          node.func.name === 'cond' &&
+          node.args.length === 3;
         const specializedBuiltinName =
           node.func.kind === 'variable' ? node.func.name : undefined;
         const specializedBuiltin =
           specializedBuiltinName !== undefined
             ? toSpecializableStandardCallTarget(specializedBuiltinName)
             : undefined;
-        generator =
-          specializedBuiltin === undefined
+        generator = isIntrinsicCond
+          ? (context, signal) => {
+              const boundFunction = context.getValue('cond', signal);
+              if (
+                boundFunction.isFound &&
+                boundFunction.value === standardVariables.cond
+              ) {
+                return resolveMaybePromise(
+                  compiledArgs[0]!(context, signal),
+                  (condition): FunCityMaybePromise<unknown> =>
+                    isConditionalTrue(condition)
+                      ? compiledArgs[1]!(context, signal)
+                      : compiledArgs[2]!(context, signal)
+                );
+              }
+              return applyFunction(
+                context,
+                node,
+                signal,
+                compiledFunc,
+                compiledArgs
+              );
+            }
+          : specializedBuiltin === undefined
             ? (context, signal) =>
                 applyFunction(context, node, signal, compiledFunc, compiledArgs)
             : (context, signal) => {
@@ -1462,6 +1491,9 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     return {
       constants,
       standardBuiltins: specializableStandardCallTargets,
+      standardIntrinsics: {
+        cond: standardVariables.cond as Function,
+      },
       asIterable,
       isConditionalTrue,
       isFunCityFunction,
@@ -1699,6 +1731,97 @@ ${targetVar} += context.convertToString(${valueVar});
       .join('');
   };
 
+  const compileGenericApplySource = (
+    state: SourceCompileState,
+    node: FunCityApplyNode,
+    scope: SourceCompileScope
+  ): string => {
+    const applyNodeIndex = addConstant(state, node);
+    const rangeIndex = addConstant(state, node.range);
+    const argsNodeIndex = addConstant(state, node.args);
+    const argArraySource = `[${node.args
+      .map((arg) =>
+        wrapAwaitedSource(
+          compileExpressionSource(state, arg, scope),
+          canExpressionSuspend(arg)
+        )
+      )
+      .join(', ')}]`;
+    if (node.func.kind === 'variable') {
+      const specializedBuiltin = toSpecializableStandardCallTarget(
+        node.func.name
+      );
+      if (specializedBuiltin !== undefined) {
+        const bindingVar = allocateTemp(state, 'binding');
+        const funcVar = allocateTemp(state, 'func');
+        const callArgsVar = allocateTemp(state, 'args');
+        const builtinArgVars = node.args.map(() => allocateTemp(state, 'arg'));
+        const inlineBuiltinSource = compileInlineStandardBuiltinSource(
+          node.func.name,
+          builtinArgVars
+        );
+        const builtinArgStatements = node.args
+          .map((arg, index) => {
+            const argSource = compileExpressionSource(state, arg, scope);
+            return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+              argSource,
+              canExpressionSuspend(arg)
+            )};`;
+          })
+          .join('\n');
+        return `(async () => {
+signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
+${builtinArgStatements}
+try {
+return ${
+          inlineBuiltinSource ??
+          `await runtime.standardBuiltins.${node.func.name}(${builtinArgVars.join(', ')})`
+        };
+} catch (error) {
+return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+}
+}
+const ${funcVar} = ${bindingVar}.isFound
+? ${bindingVar}.value
+: runtime.resolveVariable(context, ${JSON.stringify(
+          node.func.name
+        )}, false, runtime.constants[${addConstant(
+          state,
+          node.func.range
+        )}], signal);
+if (typeof ${funcVar} !== 'function') {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+if (runtime.isFunCityFunction(${funcVar})) {
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
+}
+const ${callArgsVar} = ${argArraySource};
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${callArgsVar}, false);
+})()`;
+      }
+    }
+    const funcVar = allocateTemp(state, 'func');
+    const argsVar = allocateTemp(state, 'args');
+    const funcSource = compileExpressionSource(state, node.func, scope);
+    return `(async () => {
+signal?.throwIfAborted();
+const ${funcVar} = ${wrapAwaitedSource(
+      funcSource,
+      canExpressionSuspend(node.func)
+    )};
+if (typeof ${funcVar} !== 'function') {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+if (runtime.isFunCityFunction(${funcVar})) {
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
+}
+const ${argsVar} = ${argArraySource};
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${argsVar}, false);
+})()`;
+  };
+
   const compileExpressionSource = (
     state: SourceCompileState,
     node: FunCityExpressionNode,
@@ -1778,92 +1901,41 @@ runtime.constants[${segmentsIndex}]
         );
       }
       case 'apply': {
-        const applyNodeIndex = addConstant(state, node);
-        const rangeIndex = addConstant(state, node.range);
-        const argsNodeIndex = addConstant(state, node.args);
-        const argArraySource = `[${node.args
-          .map((arg) =>
-            wrapAwaitedSource(
-              compileExpressionSource(state, arg, scope),
-              canExpressionSuspend(arg)
-            )
-          )
-          .join(', ')}]`;
-        if (node.func.kind === 'variable') {
-          const specializedBuiltin = toSpecializableStandardCallTarget(
-            node.func.name
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'cond' &&
+          node.args.length === 3
+        ) {
+          const conditionNode = node.args[0]!;
+          const thenNode = node.args[1]!;
+          const elseNode = node.args[2]!;
+          const bindingVar = allocateTemp(state, 'binding');
+          const conditionVar = allocateTemp(state, 'condition');
+          const conditionSource = compileExpressionSource(
+            state,
+            conditionNode,
+            scope
           );
-          if (specializedBuiltin !== undefined) {
-            const bindingVar = allocateTemp(state, 'binding');
-            const funcVar = allocateTemp(state, 'func');
-            const callArgsVar = allocateTemp(state, 'args');
-            const builtinArgVars = node.args.map(() =>
-              allocateTemp(state, 'arg')
-            );
-            const inlineBuiltinSource = compileInlineStandardBuiltinSource(
-              node.func.name,
-              builtinArgVars
-            );
-            const builtinArgStatements = node.args
-              .map((arg, index) => {
-                const argSource = compileExpressionSource(state, arg, scope);
-                return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
-                  argSource,
-                  canExpressionSuspend(arg)
-                )};`;
-              })
-              .join('\n');
-            return `(async () => {
-signal?.throwIfAborted();
-const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
-if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
-${builtinArgStatements}
-try {
-return ${
-              inlineBuiltinSource ??
-              `await runtime.standardBuiltins.${node.func.name}(${builtinArgVars.join(', ')})`
-            };
-} catch (error) {
-return runtime.handleApplyError(runtime.constants[${applyNodeIndex}], error);
+          const thenSource = compileExpressionSource(state, thenNode, scope);
+          const elseSource = compileExpressionSource(state, elseNode, scope);
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, 'cond')};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.cond) {
+const ${conditionVar} = ${wrapAwaitedSource(
+              conditionSource,
+              canExpressionSuspend(conditionNode)
+            )};
+if (runtime.isConditionalTrue(${conditionVar})) {
+return ${wrapAwaitedSource(thenSource, canExpressionSuspend(thenNode))};
 }
+return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};
 }
-const ${funcVar} = ${bindingVar}.isFound
-? ${bindingVar}.value
-: runtime.resolveVariable(context, ${JSON.stringify(
-              node.func.name
-            )}, false, runtime.constants[${addConstant(
-              state,
-              node.func.range
-            )}], signal);
-if (typeof ${funcVar} !== 'function') {
-runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
-}
-if (runtime.isFunCityFunction(${funcVar})) {
-return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
-}
-const ${callArgsVar} = ${argArraySource};
-return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${callArgsVar}, false);
-})()`;
-          }
+return ${compileGenericApplySource(state, node, scope)};`,
+            true
+          );
         }
-        const funcVar = allocateTemp(state, 'func');
-        const argsVar = allocateTemp(state, 'args');
-        const funcSource = compileExpressionSource(state, node.func, scope);
-        return `(async () => {
-signal?.throwIfAborted();
-const ${funcVar} = ${wrapAwaitedSource(
-          funcSource,
-          canExpressionSuspend(node.func)
-        )};
-if (typeof ${funcVar} !== 'function') {
-runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
-}
-if (runtime.isFunCityFunction(${funcVar})) {
-return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
-}
-const ${argsVar} = ${argArraySource};
-return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${argsVar}, false);
-})()`;
+        return compileGenericApplySource(state, node, scope);
       }
       case 'list': {
         return `[${node.items

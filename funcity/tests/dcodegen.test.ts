@@ -145,6 +145,20 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('keeps cond lazy when intrinsic path is used', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('cond', [
+              variableNode('true'),
+              stringNode('then'),
+              applyNode(variableNode('missingElseBranch'), []),
+            ]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
       it('exposes generated expression and block functions', async () => {
         const warningLogs: FunCityWarningEntry[] = [];
         const variables = buildCandidateVariables();
@@ -195,6 +209,26 @@ describe('dynamic code generator test', () => {
           [applyNode('add', [numberNode(1), numberNode(2)])],
           {
             add: (lhs: number, rhs: number) => lhs * rhs,
+          },
+          backend
+        );
+      });
+
+      it('falls back when cond is shadowed', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('cond', [
+              variableNode('true'),
+              stringNode('then'),
+              stringNode('else'),
+            ]),
+          ],
+          {
+            cond: (
+              _condition: unknown,
+              whenTrue: unknown,
+              _whenFalse: unknown
+            ) => `shadow:${String(whenTrue)}`,
           },
           backend
         );
