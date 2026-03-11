@@ -340,6 +340,7 @@ interface FunCitySourceRuntime {
   readonly standardIntrinsics: {
     readonly cond: Function;
     readonly fun: Function;
+    readonly set: Function;
   };
   readonly asIterable: typeof asIterable;
   readonly isConditionalTrue: typeof isConditionalTrue;
@@ -1401,6 +1402,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   interface SourceCompileScope {
     readonly localSlots: ReadonlyMap<string, string>;
+    readonly selfBindings: ReadonlyMap<string, string>;
   }
 
   const addConstant = (state: SourceCompileState, value: unknown): number => {
@@ -1415,6 +1417,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   const emptyCompileScope: SourceCompileScope = {
     localSlots: new Map(),
+    selfBindings: new Map(),
   };
 
   const extendCompileScope = (
@@ -1424,6 +1427,18 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   ): SourceCompileScope => {
     return {
       localSlots: new Map(scope.localSlots).set(name, slotVar),
+      selfBindings: scope.selfBindings,
+    };
+  };
+
+  const extendSelfBindingCompileScope = (
+    scope: SourceCompileScope,
+    name: string,
+    bindingRef: string
+  ): SourceCompileScope => {
+    return {
+      localSlots: scope.localSlots,
+      selfBindings: new Map(scope.selfBindings).set(name, bindingRef),
     };
   };
 
@@ -1432,6 +1447,13 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     name: string
   ): string | undefined => {
     return scope.localSlots.get(name);
+  };
+
+  const resolveSelfBindingRef = (
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    return scope.selfBindings.get(name);
   };
 
   const createLookupResultSource = (
@@ -1608,6 +1630,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       standardIntrinsics: {
         cond: standardVariables.cond as Function,
         fun: standardVariables.fun as Function,
+        set: standardVariables.set as Function,
       },
       asIterable,
       isConditionalTrue,
@@ -1846,6 +1869,61 @@ ${targetVar} += context.convertToString(${valueVar});
       .join('');
   };
 
+  const compileIntrinsicLambdaSource = (
+    state: SourceCompileState,
+    lambdaRange: FunCityRange,
+    parameterNames: readonly string[],
+    bodyNode: FunCityExpressionNode,
+    scope: SourceCompileScope,
+    selfBinding:
+      | {
+          readonly name: string;
+          readonly bindingRef: string;
+        }
+      | undefined
+  ): string => {
+    const lambdaArgsVar = allocateTemp(state, 'args');
+    const lambdaContextVar = allocateTemp(state, 'context');
+    const rangeIndex = addConstant(state, lambdaRange);
+    const parameterSlots = parameterNames.map((name) => ({
+      name,
+      slotVar: allocateTemp(state, 'slot'),
+    }));
+    const lambdaScope = parameterSlots.reduce(
+      (currentScope, parameter) =>
+        extendCompileScope(currentScope, parameter.name, parameter.slotVar),
+      selfBinding === undefined
+        ? scope
+        : extendSelfBindingCompileScope(
+            scope,
+            selfBinding.name,
+            selfBinding.bindingRef
+          )
+    );
+    const bodySource = compileExpressionSource(state, bodyNode, lambdaScope);
+    const bindingStatements = parameterSlots
+      .map(
+        (parameter, index) => `const ${
+          parameter.slotVar
+        } = context.ensureLocalSlot(${JSON.stringify(parameter.name)}, signal);
+context.setSlotValue(${parameter.slotVar}, ${lambdaArgsVar}[${index}], signal);`
+      )
+      .join('\n');
+    return `(...${lambdaArgsVar}) => {
+if (${lambdaArgsVar}.length < ${parameterNames.length}) {
+runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar}.length + ' < ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+if (${lambdaArgsVar}.length > ${parameterNames.length}) {
+context.appendWarning({ type: 'warning', description: 'Too many arguments: ' + ${lambdaArgsVar}.length + ' > ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+const ${lambdaContextVar} = context.newScope(signal);
+return ((context) => {
+${bindingStatements}
+return ${bodySource};
+})(${lambdaContextVar});
+}`;
+  };
+
   const compileGenericApplySource = (
     state: SourceCompileState,
     node: FunCityApplyNode,
@@ -1964,6 +2042,13 @@ return ${textVar};`,
         if (localSlotRef !== undefined) {
           return `context.getSlotValue(${localSlotRef}, signal)`;
         }
+        const selfBindingRef = resolveSelfBindingRef(
+          scope,
+          variableResult.name
+        );
+        if (selfBindingRef !== undefined) {
+          return selfBindingRef;
+        }
         const rangeIndex = addConstant(state, node.range);
         return `runtime.resolveVariable(context, ${JSON.stringify(
           variableResult.name
@@ -2018,6 +2103,68 @@ runtime.constants[${segmentsIndex}]
       case 'apply': {
         if (
           node.func.kind === 'variable' &&
+          resolveLocalSlotRef(scope, node.func.name) === undefined
+        ) {
+          const selfBindingRef = resolveSelfBindingRef(scope, node.func.name);
+          if (selfBindingRef !== undefined) {
+            const selfArgSources = node.args.map((arg) =>
+              wrapAwaitedSource(
+                compileExpressionSource(state, arg, scope),
+                canExpressionSuspend(arg)
+              )
+            );
+            return wrapSourceClosure(
+              `signal?.throwIfAborted();
+return ${selfBindingRef}(${selfArgSources.join(', ')});`,
+              node.args.some((arg) => canExpressionSuspend(arg))
+            );
+          }
+        }
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'set' &&
+          node.args.length === 2 &&
+          node.args[0]!.kind === 'variable' &&
+          node.args[1]!.kind === 'apply' &&
+          node.args[1]!.func.kind === 'variable' &&
+          node.args[1]!.func.name === 'fun' &&
+          node.args[1]!.args.length === 2
+        ) {
+          const parameterNames = extractLambdaParameterNames(
+            node.args[1]!.args[0]!
+          );
+          if (parameterNames !== undefined) {
+            const boundName = node.args[0]!.name;
+            const setBindingVar = allocateTemp(state, 'binding');
+            const funBindingVar = allocateTemp(state, 'binding');
+            const lambdaVar = allocateTemp(state, 'lambda');
+            const lambdaSource = compileIntrinsicLambdaSource(
+              state,
+              node.args[1]!.range,
+              parameterNames,
+              node.args[1]!.args[1]!,
+              scope,
+              {
+                name: boundName,
+                bindingRef: lambdaVar,
+              }
+            );
+            return wrapSourceClosure(
+              `signal?.throwIfAborted();
+const ${setBindingVar} = ${createLookupResultSource(scope, 'set')};
+const ${funBindingVar} = ${createLookupResultSource(scope, 'fun')};
+if (${setBindingVar}.isFound && ${setBindingVar}.value === runtime.standardIntrinsics.set && ${funBindingVar}.isFound && ${funBindingVar}.value === runtime.standardIntrinsics.fun) {
+const ${lambdaVar} = ${lambdaSource};
+context.setValue(${JSON.stringify(boundName)}, ${lambdaVar}, signal);
+return undefined;
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+              true
+            );
+          }
+        }
+        if (
+          node.func.kind === 'variable' &&
           node.func.name === 'cond' &&
           node.args.length === 3
         ) {
@@ -2057,56 +2204,20 @@ return ${compileGenericApplySource(state, node, scope)};`,
         ) {
           const parameterNames = extractLambdaParameterNames(node.args[0]!);
           if (parameterNames !== undefined) {
-            const bodyNode = node.args[1]!;
             const bindingVar = allocateTemp(state, 'binding');
-            const lambdaArgsVar = allocateTemp(state, 'args');
-            const lambdaContextVar = allocateTemp(state, 'context');
-            const rangeIndex = addConstant(state, node.range);
-            const parameterSlots = parameterNames.map((name) => ({
-              name,
-              slotVar: allocateTemp(state, 'slot'),
-            }));
-            const lambdaScope = parameterSlots.reduce(
-              (currentScope, parameter) =>
-                extendCompileScope(
-                  currentScope,
-                  parameter.name,
-                  parameter.slotVar
-                ),
-              scope
-            );
-            const bodySource = compileExpressionSource(
+            const lambdaSource = compileIntrinsicLambdaSource(
               state,
-              bodyNode,
-              lambdaScope
+              node.range,
+              parameterNames,
+              node.args[1]!,
+              scope,
+              undefined
             );
-            const bindingStatements = parameterSlots
-              .map(
-                (parameter, index) => `const ${
-                  parameter.slotVar
-                } = context.ensureLocalSlot(${JSON.stringify(
-                  parameter.name
-                )}, signal);
-context.setSlotValue(${parameter.slotVar}, ${lambdaArgsVar}[${index}], signal);`
-              )
-              .join('\n');
             return wrapSourceClosure(
               `signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.fun) {
-return (...${lambdaArgsVar}) => {
-if (${lambdaArgsVar}.length < ${parameterNames.length}) {
-runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar}.length + ' < ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
-}
-if (${lambdaArgsVar}.length > ${parameterNames.length}) {
-context.appendWarning({ type: 'warning', description: 'Too many arguments: ' + ${lambdaArgsVar}.length + ' > ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
-}
-const ${lambdaContextVar} = context.newScope(signal);
-return ((context) => {
-${bindingStatements}
-return ${bodySource};
-})(${lambdaContextVar});
-};
+return ${lambdaSource};
 }
 return ${compileGenericApplySource(state, node, scope)};`,
               true
