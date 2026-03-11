@@ -1252,6 +1252,10 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     constants: unknown[];
   }
 
+  interface SourceCompileScope {
+    readonly localSlots: ReadonlyMap<string, string>;
+  }
+
   const addConstant = (state: SourceCompileState, value: unknown): number => {
     const index = state.constants.length;
     state.constants.push(value);
@@ -1260,6 +1264,37 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
 
   const allocateTemp = (state: SourceCompileState, prefix: string): string => {
     return `__${prefix}${state.nextTempId++}`;
+  };
+
+  const emptyCompileScope: SourceCompileScope = {
+    localSlots: new Map(),
+  };
+
+  const extendCompileScope = (
+    scope: SourceCompileScope,
+    name: string,
+    slotVar: string
+  ): SourceCompileScope => {
+    return {
+      localSlots: new Map(scope.localSlots).set(name, slotVar),
+    };
+  };
+
+  const resolveLocalSlotRef = (
+    scope: SourceCompileScope,
+    name: string
+  ): string | undefined => {
+    return scope.localSlots.get(name);
+  };
+
+  const createLookupResultSource = (
+    scope: SourceCompileScope,
+    name: string
+  ): string => {
+    const localSlotRef = resolveLocalSlotRef(scope, name);
+    return localSlotRef !== undefined
+      ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
+      : `context.getValue(${JSON.stringify(name)}, signal)`;
   };
 
   const toNumberLiteral = (
@@ -1297,7 +1332,8 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     state: SourceCompileState,
     node: FunCityBlockNode,
     targetVar: string,
-    filterUndefinedValues: boolean
+    filterUndefinedValues: boolean,
+    scope: SourceCompileScope
   ): string => {
     switch (node.kind) {
       case 'text': {
@@ -1311,7 +1347,8 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
         return `{
 const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
           state,
-          node.iterable
+          node.iterable,
+          scope
         )}));
 if (!${iterableVar}) {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
@@ -1325,7 +1362,8 @@ ${compileBlockListStatements(
   state,
   node.repeat,
   targetVar,
-  filterUndefinedValues
+  filterUndefinedValues,
+  extendCompileScope(scope, node.bind.name, slotVar)
 )}
 }
 }\n`;
@@ -1333,40 +1371,45 @@ ${compileBlockListStatements(
       case 'while': {
         return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
           state,
-          node.condition
+          node.condition,
+          scope
         )}))) {
 ${compileBlockListStatements(
   state,
   node.repeat,
   targetVar,
-  filterUndefinedValues
+  filterUndefinedValues,
+  scope
 )}
 }\n`;
       }
       case 'if': {
         return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
           state,
-          node.condition
+          node.condition,
+          scope
         )}))) {
 ${compileBlockListStatements(
   state,
   node.then,
   targetVar,
-  filterUndefinedValues
+  filterUndefinedValues,
+  scope
 )}
 } else {
 ${compileBlockListStatements(
   state,
   node.else,
   targetVar,
-  filterUndefinedValues
+  filterUndefinedValues,
+  scope
 )}
 }\n`;
       }
       default: {
         const valueVar = allocateTemp(state, 'value');
         return `{
-const ${valueVar} = await (${compileExpressionSource(state, node)});
+const ${valueVar} = await (${compileExpressionSource(state, node, scope)});
 ${
   filterUndefinedValues
     ? `if (${valueVar} !== undefined) { ${targetVar}.push(${valueVar}); }`
@@ -1381,11 +1424,18 @@ ${
     state: SourceCompileState,
     nodes: readonly FunCityBlockNode[],
     targetVar: string,
-    filterUndefinedValues: boolean
+    filterUndefinedValues: boolean,
+    scope: SourceCompileScope
   ): string => {
     return nodes
       .map((node) =>
-        compileBlockStatements(state, node, targetVar, filterUndefinedValues)
+        compileBlockStatements(
+          state,
+          node,
+          targetVar,
+          filterUndefinedValues,
+          scope
+        )
       )
       .join('');
   };
@@ -1393,7 +1443,8 @@ ${
   const compileTextBlockStatements = (
     state: SourceCompileState,
     node: FunCityBlockNode,
-    targetVar: string
+    targetVar: string,
+    scope: SourceCompileScope
   ): string => {
     switch (node.kind) {
       case 'text': {
@@ -1407,7 +1458,8 @@ ${
         return `{
 const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
           state,
-          node.iterable
+          node.iterable,
+          scope
         )}));
 if (!${iterableVar}) {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
@@ -1417,32 +1469,39 @@ const ${slotVar} = context.ensureLocalSlot(${JSON.stringify(
         )}, signal);
 for (const ${itemVar} of ${iterableVar}) {
 context.setSlotValue(${slotVar}, ${itemVar}, signal);
-${compileTextBlockListStatements(state, node.repeat, targetVar)}
+${compileTextBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  extendCompileScope(scope, node.bind.name, slotVar)
+)}
 }
 }\n`;
       }
       case 'while': {
         return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
           state,
-          node.condition
+          node.condition,
+          scope
         )}))) {
-${compileTextBlockListStatements(state, node.repeat, targetVar)}
+${compileTextBlockListStatements(state, node.repeat, targetVar, scope)}
 }\n`;
       }
       case 'if': {
         return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
           state,
-          node.condition
+          node.condition,
+          scope
         )}))) {
-${compileTextBlockListStatements(state, node.then, targetVar)}
+${compileTextBlockListStatements(state, node.then, targetVar, scope)}
 } else {
-${compileTextBlockListStatements(state, node.else, targetVar)}
+${compileTextBlockListStatements(state, node.else, targetVar, scope)}
 }\n`;
       }
       default: {
         const valueVar = allocateTemp(state, 'value');
         return `{
-const ${valueVar} = await (${compileExpressionSource(state, node)});
+const ${valueVar} = await (${compileExpressionSource(state, node, scope)});
 if (${valueVar} !== undefined) {
 ${targetVar} += context.convertToString(${valueVar});
 }
@@ -1454,16 +1513,18 @@ ${targetVar} += context.convertToString(${valueVar});
   const compileTextBlockListStatements = (
     state: SourceCompileState,
     nodes: readonly FunCityBlockNode[],
-    targetVar: string
+    targetVar: string,
+    scope: SourceCompileScope
   ): string => {
     return nodes
-      .map((node) => compileTextBlockStatements(state, node, targetVar))
+      .map((node) => compileTextBlockStatements(state, node, targetVar, scope))
       .join('');
   };
 
   const compileExpressionSource = (
     state: SourceCompileState,
-    node: FunCityExpressionNode
+    node: FunCityExpressionNode,
+    scope: SourceCompileScope
   ): string => {
     switch (node.kind) {
       case 'number': {
@@ -1476,12 +1537,16 @@ ${targetVar} += context.convertToString(${valueVar});
         const textVar = allocateTemp(state, 'text');
         return `(await (async () => {
 let ${textVar} = '';
-${compileTextBlockListStatements(state, node.blocks, textVar)}
+${compileTextBlockListStatements(state, node.blocks, textVar, scope)}
 return ${textVar};
 })())`;
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
+        const localSlotRef = resolveLocalSlotRef(scope, variableResult.name);
+        if (localSlotRef !== undefined) {
+          return `context.getSlotValue(${localSlotRef}, signal)`;
+        }
         const rangeIndex = addConstant(state, node.range);
         return `runtime.resolveVariable(context, ${JSON.stringify(
           variableResult.name
@@ -1499,13 +1564,16 @@ return ${textVar};
         const segmentsIndex = addConstant(state, segments);
         if (node.base.kind === 'variable') {
           const baseResult = deconstructConditionalCombine(node.base.name);
+          const localSlotRef = resolveLocalSlotRef(scope, baseResult.name);
           const baseRangeIndex = addConstant(state, node.base.range);
           const baseValueVar = allocateTemp(state, 'base');
           return `(await (async () => {
 signal?.throwIfAborted();
-const ${baseValueVar} = context.getValue(${JSON.stringify(
-            baseResult.name
-          )}, signal);
+const ${baseValueVar} = ${
+            localSlotRef !== undefined
+              ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
+              : createLookupResultSource(scope, baseResult.name)
+          };
 if (!${baseValueVar}.isFound) {
 ${
   baseResult.canIgnore || (node.segments[0]?.optional ?? false)
@@ -1522,7 +1590,7 @@ return runtime.resolveDotSegments(context, ${baseValueVar}.value, runtime.consta
 signal?.throwIfAborted();
 return runtime.resolveDotSegments(
 context,
-await (${compileExpressionSource(state, node.base)}),
+await (${compileExpressionSource(state, node.base, scope)}),
 runtime.constants[${segmentsIndex}]
 );
 })())`;
@@ -1532,7 +1600,7 @@ runtime.constants[${segmentsIndex}]
         const rangeIndex = addConstant(state, node.range);
         const argsNodeIndex = addConstant(state, node.args);
         const argArraySource = `[${node.args
-          .map((arg) => `await (${compileExpressionSource(state, arg)})`)
+          .map((arg) => `await (${compileExpressionSource(state, arg, scope)})`)
           .join(', ')}]`;
         if (node.func.kind === 'variable') {
           const specializedBuiltin = toSpecializableStandardCallTarget(
@@ -1545,9 +1613,7 @@ runtime.constants[${segmentsIndex}]
             const callArgsVar = allocateTemp(state, 'args');
             return `(await (async () => {
 signal?.throwIfAborted();
-const ${bindingVar} = context.getValue(${JSON.stringify(
-              node.func.name
-            )}, signal);
+const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
 const ${builtinArgsVar} = ${argArraySource};
 return runtime.invokeBuiltin(runtime.constants[${applyNodeIndex}], runtime.standardBuiltins.${node.func.name}, ${builtinArgsVar});
@@ -1575,7 +1641,7 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
         const argsVar = allocateTemp(state, 'args');
         return `(await (async () => {
 signal?.throwIfAborted();
-const ${funcVar} = await (${compileExpressionSource(state, node.func)});
+const ${funcVar} = await (${compileExpressionSource(state, node.func, scope)});
 if (typeof ${funcVar} !== 'function') {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
 }
@@ -1588,7 +1654,9 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
       }
       case 'list': {
         return `[${node.items
-          .map((item) => `await (${compileExpressionSource(state, item)})`)
+          .map(
+            (item) => `await (${compileExpressionSource(state, item, scope)})`
+          )
           .join(', ')}]`;
       }
       case 'scope': {
@@ -1601,7 +1669,11 @@ let ${resultVar} = undefined;
 ${node.nodes
   .map(
     (childNode) =>
-      `${resultVar} = await (${compileExpressionSource(state, childNode)});`
+      `${resultVar} = await (${compileExpressionSource(
+        state,
+        childNode,
+        scope
+      )});`
   )
   .join('\n')}
 return ${resultVar};
@@ -1633,7 +1705,7 @@ resolveDotSegments,
 invokeCallable,
 invokeBuiltin
 } = runtime;
-return ${compileExpressionSource(state, node)};`);
+return ${compileExpressionSource(state, node, emptyCompileScope)};`);
     const runtime = createRuntime(state.constants);
     const generated: FunCityGeneratedExpression = (context, signal) =>
       runner(context, signal, runtime);
@@ -1664,7 +1736,7 @@ invokeCallable,
 invokeBuiltin
 } = runtime;
 const ${resultVar} = [];
-${compileBlockStatements(state, node, resultVar, false)}
+${compileBlockStatements(state, node, resultVar, false, emptyCompileScope)}
 return ${resultVar};`);
     const runtime = createRuntime(state.constants);
     const generated: FunCityGeneratedBlock = (context, signal) =>
@@ -1698,7 +1770,7 @@ invokeCallable,
 invokeBuiltin
 } = runtime;
 const ${resultVar} = [];
-${compileBlockListStatements(state, nodes, resultVar, true)}
+${compileBlockListStatements(state, nodes, resultVar, true, emptyCompileScope)}
 return ${resultVar};`);
     const runtime = createRuntime(state.constants);
     const generated: FunCityGeneratedProgram = (context, signal) =>
@@ -1732,7 +1804,7 @@ invokeCallable,
 invokeBuiltin
 } = runtime;
 let ${textVar} = '';
-${compileTextBlockListStatements(state, nodes, textVar)}
+${compileTextBlockListStatements(state, nodes, textVar, emptyCompileScope)}
 return ${textVar};`);
     const runtime = createRuntime(state.constants);
     const generated: FunCityGeneratedTextProgram = (context, signal) =>
