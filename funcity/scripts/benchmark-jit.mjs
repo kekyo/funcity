@@ -271,6 +271,17 @@ const runRuntimeComparison = async (scenario) => {
   const closureRunner = createApiRunner('closure', scenario);
   const sourceRunner = createApiRunner('source', scenario);
   const selectedRunner = createApiRunner('source', scenario);
+  const { nodes } = parseScenario({
+    ...scenario,
+    mode: 'template',
+    output: 'text',
+  });
+  const aggressiveRunner = createGeneratedRunner(
+    'source',
+    { ...scenario, output: 'text' },
+    nodes,
+    true
+  );
 
   const nativeResult = await benchmark(
     scenario.iterations,
@@ -292,9 +303,18 @@ const runRuntimeComparison = async (scenario) => {
     scenario.warmups,
     selectedRunner.run
   );
+  const aggressiveResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    aggressiveRunner.run
+  );
 
   const sourceResultJson = stringifyResult(sourceResult.result);
-  for (const benchmarkResult of [closureResult, selectedResult]) {
+  for (const benchmarkResult of [
+    closureResult,
+    selectedResult,
+    aggressiveResult,
+  ]) {
     if (stringifyResult(benchmarkResult.result) !== sourceResultJson) {
       throw new Error(`benchmark result mismatch: ${scenario.name}`);
     }
@@ -331,6 +351,16 @@ const runRuntimeComparison = async (scenario) => {
         ),
       },
       {
+        name: 'jit-source-aggressive',
+        backend: 'source',
+        aggressiveOptimize: true,
+        compileElapsedMs: aggressiveRunner.compileElapsedMs,
+        elapsedMs: aggressiveResult.elapsedMs,
+        relativeToNative: Number(
+          (aggressiveResult.elapsedMs / nativeResult.elapsedMs).toFixed(3)
+        ),
+      },
+      {
         name: 'jit-selected',
         backend: 'source',
         compileElapsedMs: selectedRunner.compileElapsedMs,
@@ -361,9 +391,14 @@ const createReducerTextRunner = (nodes) => {
   };
 };
 
-const createGeneratedRunner = (backend, scenario, nodes) => {
+const createGeneratedRunner = (
+  backend,
+  scenario,
+  nodes,
+  aggressiveOptimize = false
+) => {
   const startedAt = performance.now();
-  const dcodegen = createDCodegen({ backend });
+  const dcodegen = createDCodegen({ backend, aggressiveOptimize });
   const executor = dcodegen.createExecutor();
   const generator =
     scenario.output === 'text'
@@ -394,6 +429,17 @@ const createSelectedRunner = (scenario, nodes) => {
   };
 };
 
+const createAggressiveSourceRunner = (scenario, nodes) => {
+  const backend = 'source';
+  const generated = createGeneratedRunner(backend, scenario, nodes, true);
+  return {
+    name: 'jit-source-aggressive',
+    backend,
+    aggressiveOptimize: true,
+    ...generated,
+  };
+};
+
 const stringifyResult = (result) => JSON.stringify(result);
 
 const runScenario = async (scenario) => {
@@ -405,6 +451,7 @@ const runScenario = async (scenario) => {
       : createReducerProgramRunner(nodes);
   const closure = createGeneratedRunner('closure', scenario, nodes);
   const sourceRunner = createGeneratedRunner('source', scenario, nodes);
+  const aggressiveSourceRunner = createAggressiveSourceRunner(scenario, nodes);
   const selectedRunner = createSelectedRunner(scenario, nodes);
 
   const reducer = await benchmark(
@@ -422,6 +469,11 @@ const runScenario = async (scenario) => {
     scenario.warmups,
     sourceRunner.run
   );
+  const aggressiveSourceResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    aggressiveSourceRunner.run
+  );
   const selectedResult = await benchmark(
     scenario.iterations,
     scenario.warmups,
@@ -429,7 +481,12 @@ const runScenario = async (scenario) => {
   );
 
   const reducerResultJson = stringifyResult(reducer.result);
-  for (const benchmarkResult of [closureResult, sourceResult, selectedResult]) {
+  for (const benchmarkResult of [
+    closureResult,
+    sourceResult,
+    aggressiveSourceResult,
+    selectedResult,
+  ]) {
     if (stringifyResult(benchmarkResult.result) !== reducerResultJson) {
       throw new Error(`benchmark result mismatch: ${scenario.name}`);
     }
@@ -465,6 +522,16 @@ const runScenario = async (scenario) => {
         elapsedMs: sourceResult.elapsedMs,
         speedupVsReducer: Number(
           (reducer.elapsedMs / sourceResult.elapsedMs).toFixed(3)
+        ),
+      },
+      {
+        name: aggressiveSourceRunner.name,
+        backend: aggressiveSourceRunner.backend,
+        aggressiveOptimize: true,
+        compileElapsedMs: aggressiveSourceRunner.compileElapsedMs,
+        elapsedMs: aggressiveSourceResult.elapsedMs,
+        speedupVsReducer: Number(
+          (reducer.elapsedMs / aggressiveSourceResult.elapsedMs).toFixed(3)
         ),
       },
       {

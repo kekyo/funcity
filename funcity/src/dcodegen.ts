@@ -218,6 +218,12 @@ export interface FunCityDynamicCodeGeneratorOptions {
    *   on the closure fast path.
    */
   readonly backend?: FunCityDynamicCodeGeneratorBackend;
+  /**
+   * Allow aggressive source JIT assumptions that are not reducer-compatible.
+   * @remarks This is disabled by default and only affects opt-in source JIT
+   *   compilation paths.
+   */
+  readonly aggressiveOptimize?: boolean;
 }
 
 type FunCityGeneratedExpressionImmediate = (
@@ -1393,9 +1399,12 @@ const createAdaptiveSourceRunner = <T>(
       : runnerWithSignal(context, signal, runtime);
 };
 
-const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
+const createSourceDCodegen = (
+  options: FunCityDynamicCodeGeneratorOptions | undefined
+): FunCityDynamicCodeGenerator => {
   const closureGenerator = createClosureDCodegen();
   const closureExecutor = closureGenerator.createExecutor();
+  const aggressiveOptimize = options?.aggressiveOptimize ?? false;
 
   const expressionCache = new WeakMap<
     FunCityExpressionNode,
@@ -1408,6 +1417,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
   interface SourceCompileState {
     nextTempId: number;
     constants: unknown[];
+    aggressiveOptimize: boolean;
   }
 
   interface SourceCompileScope {
@@ -2451,6 +2461,7 @@ return ${resultVar};`,
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const runner = createAdaptiveSourceRunner<unknown>(`const {
 constants,
@@ -2480,6 +2491,7 @@ return ${compileExpressionSource(state, node, emptyCompileScope)};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const resultVar = allocateTemp(state, 'result');
     const runner = createAdaptiveSourceRunner<unknown[]>(`const {
@@ -2514,6 +2526,7 @@ return ${resultVar};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const resultVar = allocateTemp(state, 'result');
     const runner = createAdaptiveSourceRunner<unknown[]>(`const {
@@ -2548,6 +2561,7 @@ return ${resultVar};`);
     const state: SourceCompileState = {
       nextTempId: 0,
       constants: [],
+      aggressiveOptimize,
     };
     const textVar = allocateTemp(state, 'text');
     const runner = createAdaptiveSourceRunner<string>(`const {
@@ -2603,7 +2617,7 @@ export const createDCodegen = (
 ): FunCityDynamicCodeGenerator => {
   switch (options?.backend) {
     case 'source':
-      return createSourceDCodegen();
+      return createSourceDCodegen(options);
     case 'closure':
     case undefined:
       return createClosureDCodegen();

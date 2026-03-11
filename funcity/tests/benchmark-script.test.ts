@@ -60,7 +60,20 @@ describe('benchmark script test', () => {
     expect(summary.scenarios).toHaveLength(4);
     expect(
       summary.runtimeComparisons[0]?.benchmarks.map((result) => result.name)
-    ).toEqual(['native-node', 'jit-closure', 'jit-source', 'jit-selected']);
+    ).toEqual([
+      'native-node',
+      'jit-closure',
+      'jit-source',
+      'jit-source-aggressive',
+      'jit-selected',
+    ]);
+    expect(
+      summary.scenarios.map((scenario) =>
+        scenario.benchmarks.some(
+          (result) => result.name === 'jit-source-aggressive'
+        )
+      )
+    ).toEqual([true, true, true, true]);
     expect(
       summary.scenarios.map(
         (scenario) =>

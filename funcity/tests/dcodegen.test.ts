@@ -10,6 +10,7 @@ import { createReducerContext, runReducer } from '../src/reducer';
 import {
   createDCodegen,
   type FunCityDynamicCodeGeneratorBackend,
+  type FunCityDynamicCodeGeneratorOptions,
 } from '../src/dcodegen';
 import { buildCandidateVariables } from '../src/variables/standard-variables';
 import {
@@ -62,9 +63,66 @@ const expectGeneratedMatchesReducer = async (
   expect(generated.warningLogs).toEqual(reducerWarnings);
 };
 
+const expectGeneratedMatchesReducerWithOptions = async (
+  nodes: readonly FunCityBlockNode[],
+  options: FunCityDynamicCodeGeneratorOptions,
+  extra?: Record<string, unknown>
+) => {
+  const reducerWarnings: FunCityWarningEntry[] = [];
+  const reduced = await runReducer(
+    nodes,
+    buildCandidateVariables(extra ?? {}),
+    reducerWarnings
+  );
+  const warningLogs: FunCityWarningEntry[] = [];
+  const variables = buildCandidateVariables(extra ?? {});
+  const dcodegen = createDCodegen(options);
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generated = dcodegen.generateProgram(nodes);
+  const result = await generated(reducerContext);
+  expect(result).toEqual(reduced);
+  expect(warningLogs).toEqual(reducerWarnings);
+};
+
 describe('dynamic code generator test', () => {
   for (const backend of ['closure', 'source'] as const) {
     describe(`${backend} backend`, () => {
+      if (backend === 'source') {
+        it('accepts aggressiveOptimize without changing semantics by default', async () => {
+          await expectGeneratedMatchesReducerWithOptions(
+            [
+              setNode(
+                'fib',
+                funNode(
+                  ['n'],
+                  applyNode('cond', [
+                    applyNode('le', [variableNode('n'), numberNode(1)]),
+                    variableNode('n'),
+                    applyNode('add', [
+                      applyNode(variableNode('fib'), [
+                        applyNode('sub', [variableNode('n'), numberNode(1)]),
+                      ]),
+                      applyNode(variableNode('fib'), [
+                        applyNode('sub', [variableNode('n'), numberNode(2)]),
+                      ]),
+                    ]),
+                  ])
+                )
+              ),
+              applyNode(variableNode('fib'), [numberNode(8)]),
+            ],
+            {
+              backend,
+              aggressiveOptimize: true,
+            }
+          );
+        });
+      }
+
       it('matches reducer on mixed root blocks', async () => {
         await expectGeneratedMatchesReducer(
           [
