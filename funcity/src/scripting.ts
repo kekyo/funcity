@@ -8,10 +8,11 @@ import {
   FunCityReducerError,
   FunCityWarningEntry,
 } from './types';
-import { runTokenizer } from './tokenizer';
-import { runParser } from './parser';
 import { createReducerContext } from './reducer';
-import { createDCodegen } from './dcodegen';
+import {
+  compileScriptCached,
+  createSharedDCodegenExecutor,
+} from './compile-cache';
 import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -30,22 +31,20 @@ export const runScriptOnce = async (
 ): Promise<unknown[]> => {
   const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
 
-  const tokens = runTokenizer(script, logs, sourceId);
-  const nodes = runParser(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(script, sourceId, 'template');
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return [];
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
-  const generator = dcodegen.generateProgram(nodes);
   try {
-    const resultList = await generator(reducerContext, signal);
+    const resultList = await compiled.program(reducerContext, signal);
     logs.push(...warningLogs);
     return resultList;
   } catch (error: unknown) {
@@ -72,22 +71,20 @@ export const runScriptOnceToText = async (
 ): Promise<string | undefined> => {
   const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
 
-  const tokens = runTokenizer(script, logs, sourceId);
-  const nodes = runParser(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(script, sourceId, 'template');
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return undefined;
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
-  const generator = dcodegen.generateTextProgram(nodes);
   try {
-    const text = await generator(reducerContext, signal);
+    const text = await compiled.textProgram(reducerContext, signal);
     logs.push(...warningLogs);
     return text;
   } catch (error: unknown) {

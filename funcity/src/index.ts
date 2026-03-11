@@ -8,6 +8,7 @@ export * from './tokenizer';
 export * from './parser';
 export * from './reducer';
 export * from './dcodegen';
+export * from './compile-cache';
 export * from './scripting';
 export * from './variables/standard-variables';
 export * from './variables/object-variables';

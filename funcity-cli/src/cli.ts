@@ -21,18 +21,15 @@ import {
 } from 'funcity';
 import {
   buildCandidateVariables,
+  compileScriptCached,
   convertToString,
   createIncludeFunction,
-  createDCodegen,
   createReducerContext,
+  createSharedDCodegenExecutor,
   emptyRange,
   fetchVariables,
   objectVariables,
   outputErrors,
-  parseExpressions,
-  runParser,
-  runCodeTokenizer,
-  runTokenizer,
 } from 'funcity';
 import { createRequireFunction, nodeJsVariables } from 'funcity/node';
 
@@ -314,15 +311,19 @@ const runCodeWithContext = async (
   });
   context.setValue('include', include, signal);
   context.setValue('tryInclude', tryInclude, signal);
-  const tokens = runCodeTokenizer(script, logs, sourceId);
-  const nodes = parseExpressions(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(script, sourceId, 'code');
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return { output: undefined, logs };
   }
 
   try {
     warningLogs.length = 0;
-    const results = await reduceAndCollectResults(context, nodes, signal);
+    const results = await reduceAndCollectResults(
+      context,
+      compiled.nodes,
+      signal
+    );
     const output =
       results.length > 0
         ? results.map((result) => context.convertToString(result)).join('\n')
@@ -358,22 +359,20 @@ const runScriptWithContext = async (
   });
   context.setValue('include', include, signal);
   context.setValue('tryInclude', tryInclude, signal);
-  const tokens = runTokenizer(script, logs, sourceId);
-  const nodes = runParser(tokens, logs);
-  if (logs.length >= 1) {
+  const compiled = compileScriptCached(script, sourceId, 'template');
+  logs.push(...compiled.logs);
+  if (compiled.logs.length >= 1) {
     return { output: undefined, logs };
   }
 
   try {
     warningLogs.length = 0;
     if (!onOutput) {
-      const dcodegen = createDCodegen();
-      const generator = dcodegen.generateTextProgram(nodes);
-      const output = await generator(context, signal);
+      const output = await compiled.textProgram(context, signal);
       return { output, logs: [...warningLogs] };
     }
     const outputChunks: string[] = [];
-    await reduceAndCollectResults(context, nodes, signal, {
+    await reduceAndCollectResults(context, compiled.nodes, signal, {
       onResult: (result) => {
         const chunk = context.convertToString(result);
         outputChunks.push(chunk);
@@ -431,11 +430,10 @@ export const createReplSession = (
   );
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
 
   const evaluateLine = async (
@@ -461,9 +459,13 @@ export const createReplSession = (
     });
     reducerContext.setValue('include', include, signal);
     reducerContext.setValue('tryInclude', tryInclude, signal);
-    const tokens = runCodeTokenizer(line, logs, options?.sourceId ?? '<repl>');
-    const nodes = parseExpressions(tokens, logs);
-    if (logs.length >= 1) {
+    const compiled = compileScriptCached(
+      line,
+      options?.sourceId ?? '<repl>',
+      'code'
+    );
+    logs.push(...compiled.logs);
+    if (compiled.logs.length >= 1) {
       return {
         output: undefined,
         logs,
@@ -476,7 +478,7 @@ export const createReplSession = (
       warningLogs.length = 0;
       const results = await reduceAndCollectResults(
         reducerContext,
-        nodes,
+        compiled.nodes,
         signal,
         { includeUndefined: true }
       );
@@ -713,11 +715,10 @@ export const runScriptToText = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
   const { output, logs } = await runScriptWithContext(
     reducerContext,
@@ -745,11 +746,10 @@ export const runScriptToTextStreaming = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
   const { output, logs } = await runScriptWithContext(
     reducerContext,
@@ -809,11 +809,10 @@ const runScript = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const dcodegen = createDCodegen();
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    dcodegen.createExecutor()
+    createSharedDCodegenExecutor()
   );
 
   if (loadRc) {
