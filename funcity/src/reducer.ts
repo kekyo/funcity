@@ -14,6 +14,7 @@ import {
   type FunCityApplyNode,
   type FunCityDotNode,
   type FunCityRange,
+  type FunCityReducerExecutor,
   FunCityReducerError,
   FunCityWarningEntry,
 } from './types';
@@ -327,9 +328,23 @@ export const reduceNode = async (
 
 //////////////////////////////////////////////////////////////////////////////
 
+const defaultReducerExecutor: FunCityReducerExecutor = {
+  reduceExpressionNode: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => reduceExpressionNode(context, node, signal),
+  reduceNode: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => reduceNode(context, node, signal),
+};
+
 const createScopedReducerContext = (
   parent: FunCityReducerContext,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  executor: FunCityReducerExecutor
 ): FunCityReducerContext => {
   signal?.throwIfAborted();
 
@@ -370,7 +385,7 @@ const createScopedReducerContext = (
       const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
       const resultList: unknown[] = [];
       for (const node of nodes) {
-        const results = await reduceNode(thisContext, node, signal);
+        const results = await thisContext.reduceNode(node, signal);
         for (const result of results) {
           if (result !== undefined) {
             resultList.push(result);
@@ -386,10 +401,10 @@ const createScopedReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning: parent.appendWarning,
       getBoundFunction: parent.getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal),
+      newScope: () => createScopedReducerContext(thisContext, signal, executor),
       convertToString: parent.convertToString,
       reduce: (node: FunCityExpressionNode) =>
-        reduceExpressionNode(thisContext, node, signal),
+        thisContext.reduceExpressionNode(node, signal),
       reduceBlock,
     };
   };
@@ -400,8 +415,14 @@ const createScopedReducerContext = (
     getBoundFunction: parent.getBoundFunction,
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal),
+      createScopedReducerContext(thisContext, signal, executor),
     convertToString: parent.convertToString,
+    reduceExpressionNode: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
+      executor.reduceNode(thisContext, node, signal),
     isConstructable: parent.isConstructable,
     createFunctionContext,
   };
@@ -415,7 +436,8 @@ const createScopedReducerContext = (
  */
 export const createReducerContext = (
   variables: FunCityVariables,
-  warningLogs: FunCityWarningEntry[]
+  warningLogs: FunCityWarningEntry[],
+  executor: FunCityReducerExecutor = defaultReducerExecutor
 ): FunCityReducerContext => {
   let thisVars: Map<string, unknown> | undefined;
   let thisContext: FunCityReducerContext;
@@ -498,7 +520,7 @@ export const createReducerContext = (
       const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
       const resultList: unknown[] = [];
       for (const node of nodes) {
-        const results = await reduceNode(thisContext, node, signal);
+        const results = await thisContext.reduceNode(node, signal);
         for (const result of results) {
           if (result !== undefined) {
             resultList.push(result);
@@ -514,10 +536,10 @@ export const createReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning,
       getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal),
+      newScope: () => createScopedReducerContext(thisContext, signal, executor),
       convertToString,
       reduce: (node: FunCityExpressionNode) =>
-        reduceExpressionNode(thisContext, node, signal),
+        thisContext.reduceExpressionNode(node, signal),
       reduceBlock,
     };
   };
@@ -528,8 +550,14 @@ export const createReducerContext = (
     getBoundFunction,
     appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal),
+      createScopedReducerContext(thisContext, signal, executor),
     convertToString,
+    reduceExpressionNode: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
+      executor.reduceNode(thisContext, node, signal),
     isConstructable,
     createFunctionContext,
   };

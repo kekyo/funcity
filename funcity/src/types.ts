@@ -616,6 +616,36 @@ export interface FunCityFunctionContext {
 }
 
 /**
+ * Node executor implementation used by reducer contexts.
+ */
+export interface FunCityReducerExecutor {
+  /**
+   * Reduce expression node.
+   * @param context - Reducer context
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value.
+   */
+  readonly reduceExpressionNode: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown>;
+  /**
+   * Reduce block node.
+   * @param context - Reducer context
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values.
+   */
+  readonly reduceNode: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown[]>;
+}
+
+/**
  * The reducer context.
  */
 export interface FunCityReducerContext {
@@ -664,6 +694,26 @@ export interface FunCityReducerContext {
    * @returns String
    */
   readonly convertToString: (v: unknown) => string;
+  /**
+   * Reduce expression node with this context.
+   * @param node - Target expression node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native value.
+   */
+  readonly reduceExpressionNode: (
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown>;
+  /**
+   * Reduce block node with this context.
+   * @param node - Target block node
+   * @param signal - AbortSignal when available.
+   * @returns Reduced native values.
+   */
+  readonly reduceNode: (
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise<unknown[]>;
   /**
    * Check whether a function is constructable.
    * @param fn - Target function

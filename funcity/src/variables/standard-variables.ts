@@ -15,7 +15,6 @@ import {
 } from '../types';
 import { runCodeTokenizer, runTokenizer } from '../tokenizer';
 import { parseExpressions, runParser } from '../parser';
-import { reduceExpressionNode, reduceNode } from '../reducer';
 import {
   asIterable,
   combineVariables,
@@ -177,8 +176,7 @@ const _fun = makeFunCityFunction(async function (
         this.abortSignal
       );
     }
-    const result = await reduceExpressionNode(
-      newContext,
+    const result = await newContext.reduceExpressionNode(
       bodyNode,
       this.abortSignal
     );
@@ -1194,11 +1192,7 @@ export const createIncludeFunction = (
     const scopedContext = context.newScope();
     const resultList: unknown[] = [];
     for (const node of nodes) {
-      const results = await reduceNode(
-        scopedContext,
-        node,
-        context.abortSignal
-      );
+      const results = await scopedContext.reduceNode(node, context.abortSignal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);

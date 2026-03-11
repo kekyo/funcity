@@ -10,7 +10,8 @@ import {
 } from './types';
 import { runTokenizer } from './tokenizer';
 import { runParser } from './parser';
-import { createReducerContext, reduceNode } from './reducer';
+import { createReducerContext } from './reducer';
+import { createDCodegen } from './dcodegen';
 import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -36,17 +37,17 @@ export const runScriptOnce = async (
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
-  const resultList: unknown[] = [];
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generator = dcodegen.generateProgram(nodes);
   try {
-    for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node, signal);
-      for (const result of results) {
-        if (result !== undefined) {
-          resultList.push(result);
-        }
-      }
-    }
+    const resultList = await generator(reducerContext, signal);
+    logs.push(...warningLogs);
+    return resultList;
   } catch (error: unknown) {
     logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
@@ -55,9 +56,6 @@ export const runScriptOnce = async (
     }
     throw error;
   }
-
-  logs.push(...warningLogs);
-  return resultList;
 };
 
 /**
@@ -81,17 +79,20 @@ export const runScriptOnceToText = async (
   }
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
-  const resultList: unknown[] = [];
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
+  const generator = dcodegen.generateProgram(nodes);
   try {
-    for (const node of nodes) {
-      const results = await reduceNode(reducerContext, node, signal);
-      for (const result of results) {
-        if (result !== undefined) {
-          resultList.push(result);
-        }
-      }
-    }
+    const resultList = await generator(reducerContext, signal);
+    logs.push(...warningLogs);
+    const text = resultList
+      .map((result) => reducerContext.convertToString(result))
+      .join('');
+    return text;
   } catch (error: unknown) {
     logs.push(...warningLogs);
     if (error instanceof FunCityReducerError) {
@@ -100,10 +101,4 @@ export const runScriptOnceToText = async (
     }
     throw error;
   }
-
-  logs.push(...warningLogs);
-  const text = resultList
-    .map((result) => reducerContext.convertToString(result))
-    .join('');
-  return text;
 };

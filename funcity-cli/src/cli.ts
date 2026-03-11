@@ -23,14 +23,13 @@ import {
   buildCandidateVariables,
   convertToString,
   createIncludeFunction,
+  createDCodegen,
   createReducerContext,
   emptyRange,
   fetchVariables,
   objectVariables,
   outputErrors,
   parseExpressions,
-  reduceExpressionNode,
-  reduceNode,
   runParser,
   runCodeTokenizer,
   runTokenizer,
@@ -281,7 +280,7 @@ const reduceAndCollectResults = async (
   const resultList: unknown[] = [];
   const includeUndefined = options.includeUndefined ?? false;
   for (const node of nodes) {
-    const results = await reduceNode(context, node, signal);
+    const results = await context.reduceNode(node, signal);
     for (const result of results) {
       if (result !== undefined || includeUndefined) {
         if (result !== undefined) {
@@ -426,7 +425,12 @@ export const createReplSession = (
   );
 
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
 
   const evaluateLine = async (
     line: string,
@@ -507,11 +511,14 @@ export const createReplSession = (
   };
 
   const getPrompt = async () => {
-    const prompt = await reduceExpressionNode(reducerContext, {
-      kind: 'variable',
-      name: 'prompt',
-      range: emptyRange,
-    });
+    const prompt = await reducerContext.reduceExpressionNode(
+      {
+        kind: 'variable',
+        name: 'prompt',
+        range: emptyRange,
+      },
+      undefined
+    );
     return reducerContext.convertToString(prompt);
   };
 
@@ -700,7 +707,12 @@ export const runScriptToText = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
   const { output, logs } = await runScriptWithContext(
     reducerContext,
     warningLogs,
@@ -727,7 +739,12 @@ export const runScriptToTextStreaming = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
   const { output, logs } = await runScriptWithContext(
     reducerContext,
     warningLogs,
@@ -786,7 +803,12 @@ const runScript = async (
     }
   );
   const warningLogs: FunCityWarningEntry[] = [];
-  const reducerContext = createReducerContext(variables, warningLogs);
+  const dcodegen = createDCodegen();
+  const reducerContext = createReducerContext(
+    variables,
+    warningLogs,
+    dcodegen.createExecutor()
+  );
 
   if (loadRc) {
     await loadRcForContext(reducerContext, warningLogs);
