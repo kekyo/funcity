@@ -175,6 +175,24 @@ export interface FunCityDynamicCodeGenerator {
   readonly createExecutor: () => FunCityReducerExecutor;
 }
 
+/**
+ * Dynamic code generator backend.
+ */
+export type FunCityDynamicCodeGeneratorBackend = 'closure' | 'source';
+
+/**
+ * Dynamic code generator options.
+ */
+export interface FunCityDynamicCodeGeneratorOptions {
+  /**
+   * Target backend.
+   * @remarks `closure` preserves the original closure-based JIT and `source`
+   *   uses source-generated async runners while keeping the immediate executor
+   *   on the closure fast path.
+   */
+  readonly backend?: FunCityDynamicCodeGeneratorBackend;
+}
+
 type FunCityGeneratedExpressionImmediate = (
   context: FunCityReducerContext,
   signal?: AbortSignal
@@ -283,6 +301,39 @@ const toSpecializableStandardCallTarget = (
   ];
 };
 
+interface FunCitySourceDotSegmentInfo {
+  readonly name: string;
+  readonly canIgnore: boolean;
+  readonly range: FunCityRange;
+}
+
+interface FunCitySourceRuntime {
+  readonly constants: readonly unknown[];
+  readonly standardBuiltins: typeof specializableStandardCallTargets;
+  readonly asIterable: typeof asIterable;
+  readonly isConditionalTrue: typeof isConditionalTrue;
+  readonly isFunCityFunction: typeof isFunCityFunction;
+  readonly throwError: typeof throwError;
+  readonly handleApplyError: typeof handleApplyError;
+  readonly resolveVariable: typeof resolveSourceVariable;
+  readonly resolveDotSegments: typeof resolveSourceDotSegments;
+  readonly invokeCallable: typeof invokeSourceCallable;
+  readonly invokeBuiltin: typeof invokeSourceBuiltin;
+}
+
+type FunCitySourceGeneratedRunner<T> = (
+  context: FunCityReducerContext,
+  signal: AbortSignal | undefined,
+  runtime: FunCitySourceRuntime
+) => Promise<T>;
+
+interface FunCityAsyncFunctionConstructor {
+  new (...args: string[]): (...args: unknown[]) => Promise<unknown>;
+}
+
+const AsyncFunction = Object.getPrototypeOf(async () => {})
+  .constructor as FunCityAsyncFunctionConstructor;
+
 const createRawBlockRunnerImmediate = (
   generators: readonly FunCityGeneratedBlockImmediate[]
 ): FunCityGeneratedBlockImmediate => {
@@ -383,11 +434,94 @@ const handleApplyError = (node: FunCityApplyNode, error: unknown): never => {
   });
 };
 
+const resolveSourceVariable = (
+  context: FunCityReducerContext,
+  name: string,
+  canIgnore: boolean,
+  range: FunCityRange,
+  signal: AbortSignal | undefined
+): unknown => {
+  const valueResult = context.getValue(name, signal);
+  if (!valueResult.isFound) {
+    if (!canIgnore) {
+      throwError({
+        description: `variable is not bound: ${name}`,
+        range,
+      });
+    }
+    return undefined;
+  }
+  return valueResult.value;
+};
+
+const resolveSourceDotSegments = (
+  context: FunCityReducerContext,
+  baseValue: unknown,
+  segments: readonly FunCitySourceDotSegmentInfo[]
+): unknown => {
+  let value = baseValue;
+  let parent: object | undefined;
+  for (const segment of segments) {
+    if (
+      value !== null &&
+      (typeof value === 'object' || typeof value === 'function')
+    ) {
+      const record = value as Record<string, unknown>;
+      parent = value as object;
+      value = record[segment.name];
+      continue;
+    }
+    if (!segment.canIgnore) {
+      throwError({
+        description: `variable is not bound: ${segment.name}`,
+        range: segment.range,
+      });
+    }
+    return undefined;
+  }
+  if (parent && typeof value === 'function' && !isFunCityFunction(value)) {
+    return context.getBoundFunction(parent, value);
+  }
+  return value;
+};
+
+const invokeSourceCallable = async (
+  context: FunCityReducerContext,
+  node: FunCityApplyNode,
+  signal: AbortSignal | undefined,
+  callable: Function,
+  args: readonly unknown[],
+  isSpecial: boolean
+): Promise<unknown> => {
+  const shouldConstruct = !isSpecial && context.isConstructable(callable);
+  try {
+    if (shouldConstruct) {
+      return Reflect.construct(callable, args);
+    }
+    const thisProxy = context.createFunctionContext(node, signal);
+    return await callable.call(thisProxy, ...args);
+  } catch (error: unknown) {
+    return handleApplyError(node, error);
+  }
+};
+
+const invokeSourceBuiltin = async (
+  node: FunCityApplyNode,
+  builtin: Function,
+  args: readonly unknown[]
+): Promise<unknown> => {
+  try {
+    return await builtin(...args);
+  } catch (error: unknown) {
+    return handleApplyError(node, error);
+  }
+};
+
 /**
  * Create a dynamic code generator.
  * @returns Dynamic code generator instance.
  */
-export const createDCodegen = (): FunCityDynamicCodeGenerator => {
+const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
   const expressionImmediateCache = new WeakMap<
     FunCityExpressionNode,
     FunCityGeneratedExpressionImmediate
@@ -1088,6 +1222,561 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     generateTextProgram,
     createExecutor,
   };
+};
+
+const createSourceRunner = <T>(
+  body: string
+): FunCitySourceGeneratedRunner<T> => {
+  return new AsyncFunction(
+    'context',
+    'signal',
+    'runtime',
+    `'use strict';\n${body}`
+  ) as FunCitySourceGeneratedRunner<T>;
+};
+
+const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
+  const closureGenerator = createClosureDCodegen();
+  const closureExecutor = closureGenerator.createExecutor();
+
+  const expressionCache = new WeakMap<
+    FunCityExpressionNode,
+    FunCityGeneratedExpression
+  >();
+  const blockCache = new WeakMap<FunCityBlockNode, FunCityGeneratedBlock>();
+  const programCache = new WeakMap<object, FunCityGeneratedProgram>();
+  const textProgramCache = new WeakMap<object, FunCityGeneratedTextProgram>();
+
+  interface SourceCompileState {
+    nextTempId: number;
+    constants: unknown[];
+  }
+
+  const addConstant = (state: SourceCompileState, value: unknown): number => {
+    const index = state.constants.length;
+    state.constants.push(value);
+    return index;
+  };
+
+  const allocateTemp = (state: SourceCompileState, prefix: string): string => {
+    return `__${prefix}${state.nextTempId++}`;
+  };
+
+  const toNumberLiteral = (
+    state: SourceCompileState,
+    value: number
+  ): string => {
+    if (Object.is(value, -0)) {
+      return '-0';
+    }
+    if (Number.isFinite(value)) {
+      return String(value);
+    }
+    return `runtime.constants[${addConstant(state, value)}]`;
+  };
+
+  const createRuntime = (
+    constants: readonly unknown[]
+  ): FunCitySourceRuntime => {
+    return {
+      constants,
+      standardBuiltins: specializableStandardCallTargets,
+      asIterable,
+      isConditionalTrue,
+      isFunCityFunction,
+      throwError,
+      handleApplyError,
+      resolveVariable: resolveSourceVariable,
+      resolveDotSegments: resolveSourceDotSegments,
+      invokeCallable: invokeSourceCallable,
+      invokeBuiltin: invokeSourceBuiltin,
+    };
+  };
+
+  const compileBlockStatements = (
+    state: SourceCompileState,
+    node: FunCityBlockNode,
+    targetVar: string,
+    filterUndefinedValues: boolean
+  ): string => {
+    switch (node.kind) {
+      case 'text': {
+        return `${targetVar}.push(${JSON.stringify(node.text)});\n`;
+      }
+      case 'for': {
+        const iterableVar = allocateTemp(state, 'iterable');
+        const slotVar = allocateTemp(state, 'slot');
+        const itemVar = allocateTemp(state, 'item');
+        const rangeIndex = addConstant(state, node.range);
+        return `{
+const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
+          state,
+          node.iterable
+        )}));
+if (!${iterableVar}) {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+const ${slotVar} = context.ensureLocalSlot(${JSON.stringify(
+          node.bind.name
+        )}, signal);
+for (const ${itemVar} of ${iterableVar}) {
+context.setSlotValue(${slotVar}, ${itemVar}, signal);
+${compileBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  filterUndefinedValues
+)}
+}
+}\n`;
+      }
+      case 'while': {
+        return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
+          state,
+          node.condition
+        )}))) {
+${compileBlockListStatements(
+  state,
+  node.repeat,
+  targetVar,
+  filterUndefinedValues
+)}
+}\n`;
+      }
+      case 'if': {
+        return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
+          state,
+          node.condition
+        )}))) {
+${compileBlockListStatements(
+  state,
+  node.then,
+  targetVar,
+  filterUndefinedValues
+)}
+} else {
+${compileBlockListStatements(
+  state,
+  node.else,
+  targetVar,
+  filterUndefinedValues
+)}
+}\n`;
+      }
+      default: {
+        const valueVar = allocateTemp(state, 'value');
+        return `{
+const ${valueVar} = await (${compileExpressionSource(state, node)});
+${
+  filterUndefinedValues
+    ? `if (${valueVar} !== undefined) { ${targetVar}.push(${valueVar}); }`
+    : `${targetVar}.push(${valueVar});`
+}
+}\n`;
+      }
+    }
+  };
+
+  const compileBlockListStatements = (
+    state: SourceCompileState,
+    nodes: readonly FunCityBlockNode[],
+    targetVar: string,
+    filterUndefinedValues: boolean
+  ): string => {
+    return nodes
+      .map((node) =>
+        compileBlockStatements(state, node, targetVar, filterUndefinedValues)
+      )
+      .join('');
+  };
+
+  const compileTextBlockStatements = (
+    state: SourceCompileState,
+    node: FunCityBlockNode,
+    targetVar: string
+  ): string => {
+    switch (node.kind) {
+      case 'text': {
+        return `${targetVar} += ${JSON.stringify(node.text)};\n`;
+      }
+      case 'for': {
+        const iterableVar = allocateTemp(state, 'iterable');
+        const slotVar = allocateTemp(state, 'slot');
+        const itemVar = allocateTemp(state, 'item');
+        const rangeIndex = addConstant(state, node.range);
+        return `{
+const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
+          state,
+          node.iterable
+        )}));
+if (!${iterableVar}) {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+const ${slotVar} = context.ensureLocalSlot(${JSON.stringify(
+          node.bind.name
+        )}, signal);
+for (const ${itemVar} of ${iterableVar}) {
+context.setSlotValue(${slotVar}, ${itemVar}, signal);
+${compileTextBlockListStatements(state, node.repeat, targetVar)}
+}
+}\n`;
+      }
+      case 'while': {
+        return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
+          state,
+          node.condition
+        )}))) {
+${compileTextBlockListStatements(state, node.repeat, targetVar)}
+}\n`;
+      }
+      case 'if': {
+        return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
+          state,
+          node.condition
+        )}))) {
+${compileTextBlockListStatements(state, node.then, targetVar)}
+} else {
+${compileTextBlockListStatements(state, node.else, targetVar)}
+}\n`;
+      }
+      default: {
+        const valueVar = allocateTemp(state, 'value');
+        return `{
+const ${valueVar} = await (${compileExpressionSource(state, node)});
+if (${valueVar} !== undefined) {
+${targetVar} += context.convertToString(${valueVar});
+}
+}\n`;
+      }
+    }
+  };
+
+  const compileTextBlockListStatements = (
+    state: SourceCompileState,
+    nodes: readonly FunCityBlockNode[],
+    targetVar: string
+  ): string => {
+    return nodes
+      .map((node) => compileTextBlockStatements(state, node, targetVar))
+      .join('');
+  };
+
+  const compileExpressionSource = (
+    state: SourceCompileState,
+    node: FunCityExpressionNode
+  ): string => {
+    switch (node.kind) {
+      case 'number': {
+        return toNumberLiteral(state, node.value);
+      }
+      case 'string': {
+        return JSON.stringify(node.value);
+      }
+      case 'template': {
+        const textVar = allocateTemp(state, 'text');
+        return `(await (async () => {
+let ${textVar} = '';
+${compileTextBlockListStatements(state, node.blocks, textVar)}
+return ${textVar};
+})())`;
+      }
+      case 'variable': {
+        const variableResult = deconstructConditionalCombine(node.name);
+        const rangeIndex = addConstant(state, node.range);
+        return `runtime.resolveVariable(context, ${JSON.stringify(
+          variableResult.name
+        )}, ${variableResult.canIgnore ? 'true' : 'false'}, runtime.constants[${rangeIndex}], signal)`;
+      }
+      case 'dot': {
+        const segments = node.segments.map((segment) => {
+          const result = deconstructConditionalCombine(segment.name);
+          return {
+            name: result.name,
+            canIgnore: segment.optional || result.canIgnore,
+            range: segment.range,
+          } satisfies FunCitySourceDotSegmentInfo;
+        });
+        const segmentsIndex = addConstant(state, segments);
+        if (node.base.kind === 'variable') {
+          const baseResult = deconstructConditionalCombine(node.base.name);
+          const baseRangeIndex = addConstant(state, node.base.range);
+          const baseValueVar = allocateTemp(state, 'base');
+          return `(await (async () => {
+signal?.throwIfAborted();
+const ${baseValueVar} = context.getValue(${JSON.stringify(
+            baseResult.name
+          )}, signal);
+if (!${baseValueVar}.isFound) {
+${
+  baseResult.canIgnore || (node.segments[0]?.optional ?? false)
+    ? 'return undefined;'
+    : `runtime.throwError({ description: ${JSON.stringify(
+        `variable is not bound: ${baseResult.name}`
+      )}, range: runtime.constants[${baseRangeIndex}] });`
+}
+}
+return runtime.resolveDotSegments(context, ${baseValueVar}.value, runtime.constants[${segmentsIndex}]);
+})())`;
+        }
+        return `(await (async () => {
+signal?.throwIfAborted();
+return runtime.resolveDotSegments(
+context,
+await (${compileExpressionSource(state, node.base)}),
+runtime.constants[${segmentsIndex}]
+);
+})())`;
+      }
+      case 'apply': {
+        const applyNodeIndex = addConstant(state, node);
+        const rangeIndex = addConstant(state, node.range);
+        const argsNodeIndex = addConstant(state, node.args);
+        const argArraySource = `[${node.args
+          .map((arg) => `await (${compileExpressionSource(state, arg)})`)
+          .join(', ')}]`;
+        if (node.func.kind === 'variable') {
+          const specializedBuiltin = toSpecializableStandardCallTarget(
+            node.func.name
+          );
+          if (specializedBuiltin !== undefined) {
+            const bindingVar = allocateTemp(state, 'binding');
+            const funcVar = allocateTemp(state, 'func');
+            const builtinArgsVar = allocateTemp(state, 'args');
+            const callArgsVar = allocateTemp(state, 'args');
+            return `(await (async () => {
+signal?.throwIfAborted();
+const ${bindingVar} = context.getValue(${JSON.stringify(
+              node.func.name
+            )}, signal);
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
+const ${builtinArgsVar} = ${argArraySource};
+return runtime.invokeBuiltin(runtime.constants[${applyNodeIndex}], runtime.standardBuiltins.${node.func.name}, ${builtinArgsVar});
+}
+const ${funcVar} = ${bindingVar}.isFound
+? ${bindingVar}.value
+: runtime.resolveVariable(context, ${JSON.stringify(
+              node.func.name
+            )}, false, runtime.constants[${addConstant(
+              state,
+              node.func.range
+            )}], signal);
+if (typeof ${funcVar} !== 'function') {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+if (runtime.isFunCityFunction(${funcVar})) {
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
+}
+const ${callArgsVar} = ${argArraySource};
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${callArgsVar}, false);
+})())`;
+          }
+        }
+        const funcVar = allocateTemp(state, 'func');
+        const argsVar = allocateTemp(state, 'args');
+        return `(await (async () => {
+signal?.throwIfAborted();
+const ${funcVar} = await (${compileExpressionSource(state, node.func)});
+if (typeof ${funcVar} !== 'function') {
+runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
+}
+if (runtime.isFunCityFunction(${funcVar})) {
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, runtime.constants[${argsNodeIndex}], true);
+}
+const ${argsVar} = ${argArraySource};
+return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${argsVar}, false);
+})())`;
+      }
+      case 'list': {
+        return `[${node.items
+          .map((item) => `await (${compileExpressionSource(state, item)})`)
+          .join(', ')}]`;
+      }
+      case 'scope': {
+        if (node.nodes.length === 0) {
+          return '[]';
+        }
+        const resultVar = allocateTemp(state, 'result');
+        return `(await (async () => {
+let ${resultVar} = undefined;
+${node.nodes
+  .map(
+    (childNode) =>
+      `${resultVar} = await (${compileExpressionSource(state, childNode)});`
+  )
+  .join('\n')}
+return ${resultVar};
+})())`;
+      }
+    }
+  };
+
+  const createExpressionRunner = (
+    node: FunCityExpressionNode
+  ): FunCityGeneratedExpression => {
+    const cached = expressionCache.get(node);
+    if (cached) {
+      return cached;
+    }
+    const state: SourceCompileState = {
+      nextTempId: 0,
+      constants: [],
+    };
+    const runner = createSourceRunner<unknown>(`const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+return ${compileExpressionSource(state, node)};`);
+    const runtime = createRuntime(state.constants);
+    const generated: FunCityGeneratedExpression = (context, signal) =>
+      runner(context, signal, runtime);
+    expressionCache.set(node, generated);
+    return generated;
+  };
+
+  const createBlockRunner = (node: FunCityBlockNode): FunCityGeneratedBlock => {
+    const cached = blockCache.get(node);
+    if (cached) {
+      return cached;
+    }
+    const state: SourceCompileState = {
+      nextTempId: 0,
+      constants: [],
+    };
+    const resultVar = allocateTemp(state, 'result');
+    const runner = createSourceRunner<unknown[]>(`const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+const ${resultVar} = [];
+${compileBlockStatements(state, node, resultVar, false)}
+return ${resultVar};`);
+    const runtime = createRuntime(state.constants);
+    const generated: FunCityGeneratedBlock = (context, signal) =>
+      runner(context, signal, runtime);
+    blockCache.set(node, generated);
+    return generated;
+  };
+
+  const createProgramRunner = (
+    nodes: readonly FunCityBlockNode[]
+  ): FunCityGeneratedProgram => {
+    const cached = programCache.get(nodes);
+    if (cached) {
+      return cached;
+    }
+    const state: SourceCompileState = {
+      nextTempId: 0,
+      constants: [],
+    };
+    const resultVar = allocateTemp(state, 'result');
+    const runner = createSourceRunner<unknown[]>(`const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+const ${resultVar} = [];
+${compileBlockListStatements(state, nodes, resultVar, true)}
+return ${resultVar};`);
+    const runtime = createRuntime(state.constants);
+    const generated: FunCityGeneratedProgram = (context, signal) =>
+      runner(context, signal, runtime);
+    programCache.set(nodes, generated);
+    return generated;
+  };
+
+  const createTextProgramRunner = (
+    nodes: readonly FunCityBlockNode[]
+  ): FunCityGeneratedTextProgram => {
+    const cached = textProgramCache.get(nodes);
+    if (cached) {
+      return cached;
+    }
+    const state: SourceCompileState = {
+      nextTempId: 0,
+      constants: [],
+    };
+    const textVar = allocateTemp(state, 'text');
+    const runner = createSourceRunner<string>(`const {
+constants,
+standardBuiltins,
+asIterable,
+isConditionalTrue,
+isFunCityFunction,
+throwError,
+resolveVariable,
+resolveDotSegments,
+invokeCallable,
+invokeBuiltin
+} = runtime;
+let ${textVar} = '';
+${compileTextBlockListStatements(state, nodes, textVar)}
+return ${textVar};`);
+    const runtime = createRuntime(state.constants);
+    const generated: FunCityGeneratedTextProgram = (context, signal) =>
+      runner(context, signal, runtime);
+    textProgramCache.set(nodes, generated);
+    return generated;
+  };
+
+  const createExecutor = (): FunCityReducerExecutor => {
+    return {
+      reduceExpressionNode: (context, node, signal) =>
+        createExpressionRunner(node)(context, signal),
+      reduceExpressionNodeImmediate:
+        closureExecutor.reduceExpressionNodeImmediate,
+      reduceNode: (context, node, signal) =>
+        createBlockRunner(node)(context, signal),
+      reduceNodeImmediate: closureExecutor.reduceNodeImmediate,
+    };
+  };
+
+  return {
+    generateExpression: createExpressionRunner,
+    generateBlock: createBlockRunner,
+    generateProgram: createProgramRunner,
+    generateTextProgram: createTextProgramRunner,
+    createExecutor,
+  };
+};
+
+/**
+ * Create a dynamic code generator.
+ * @param options - Generator options.
+ * @returns Dynamic code generator instance.
+ */
+export const createDCodegen = (
+  options?: FunCityDynamicCodeGeneratorOptions
+): FunCityDynamicCodeGenerator => {
+  switch (options?.backend) {
+    case 'source':
+      return createSourceDCodegen();
+    case 'closure':
+    case undefined:
+      return createClosureDCodegen();
+  }
 };
 
 /**

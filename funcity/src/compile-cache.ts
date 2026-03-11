@@ -54,7 +54,7 @@ export interface FunCityCompiledScript {
 }
 
 const compilationCacheLimit = 64;
-const sharedDCodegen = createDCodegen();
+const sharedDCodegen = createDCodegen({ backend: 'source' });
 const compiledScriptCache = new Map<string, FunCityCompiledScript>();
 
 const toCompilationCacheKey = (

@@ -503,9 +503,7 @@ const createScopedReducerContext = (
       reduceImmediate: (node: FunCityExpressionNode) =>
         thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        Promise.resolve(
-          thisContext.reduceExpressionNodeImmediate(node, signal)
-        ),
+        thisContext.reduceExpressionNode(node, signal),
       reduceBlockImmediate: (
         nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
       ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
@@ -529,16 +527,13 @@ const createScopedReducerContext = (
     reduceExpressionNode: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
-    ) =>
-      Promise.resolve(
-        executor.reduceExpressionNodeImmediate(thisContext, node, signal)
-      ),
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
     reduceExpressionNodeImmediate: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
     ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
     reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
-      Promise.resolve(executor.reduceNodeImmediate(thisContext, node, signal)),
+      executor.reduceNode(thisContext, node, signal),
     reduceNodeImmediate: (
       node: FunCityBlockNode,
       signal: AbortSignal | undefined
@@ -703,9 +698,7 @@ export const createReducerContext = (
       reduceImmediate: (node: FunCityExpressionNode) =>
         thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        Promise.resolve(
-          thisContext.reduceExpressionNodeImmediate(node, signal)
-        ),
+        thisContext.reduceExpressionNode(node, signal),
       reduceBlockImmediate: (
         nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
       ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
@@ -729,16 +722,13 @@ export const createReducerContext = (
     reduceExpressionNode: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
-    ) =>
-      Promise.resolve(
-        executor.reduceExpressionNodeImmediate(thisContext, node, signal)
-      ),
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
     reduceExpressionNodeImmediate: (
       node: FunCityExpressionNode,
       signal: AbortSignal | undefined
     ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
     reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
-      Promise.resolve(executor.reduceNodeImmediate(thisContext, node, signal)),
+      executor.reduceNode(thisContext, node, signal),
     reduceNodeImmediate: (
       node: FunCityBlockNode,
       signal: AbortSignal | undefined
