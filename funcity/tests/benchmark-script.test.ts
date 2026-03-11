@@ -56,10 +56,11 @@ describe('benchmark script test', () => {
     const markdown = await readFile(markdownPath, 'utf8');
 
     expect(summary.profile).toBe('smoke');
+    expect(summary.runtimeComparisons).toHaveLength(1);
     expect(summary.scenarios).toHaveLength(4);
     expect(
-      summary.scenarios[0]?.benchmarks.map((result) => result.name)
-    ).toEqual(['reducer', 'jit-closure', 'jit-source', 'jit-selected']);
+      summary.runtimeComparisons[0]?.benchmarks.map((result) => result.name)
+    ).toEqual(['native-node', 'jit-closure', 'jit-source', 'jit-selected']);
     expect(
       summary.scenarios.map(
         (scenario) =>
@@ -67,6 +68,8 @@ describe('benchmark script test', () => {
             ?.backend
       )
     ).toEqual(['source', 'source', 'source', 'source']);
+    expect(summary.runtimeComparisons[0]?.nativeSource).toContain('fib');
     expect(markdown).toContain('# JIT Benchmark Summary');
+    expect(markdown).toContain('## Runtime Comparisons');
   });
 });

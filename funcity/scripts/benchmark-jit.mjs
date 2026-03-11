@@ -18,6 +18,7 @@ import {
   runCodeTokenizer,
   runParser,
   runReducer,
+  runScriptOnceToText,
   runTokenizer,
 } from '../dist/index.mjs';
 
@@ -161,6 +162,29 @@ fib 12`,
   ],
 };
 
+const runtimeComparisonProfiles = {
+  default: [
+    {
+      name: 'fib30-runtime-overhead',
+      iterations: 1,
+      warmups: 0,
+      source: `{{set fib (fun n (cond (le n 1) n (add (fib (sub n 1)) (fib (sub n 2)))))}}{{fib 30}}`,
+      nativeSource: `const fib = (n) => (n <= 1 ? n : fib(n - 1) + fib(n - 2)); fib(30);`,
+      nativeInput: 30,
+    },
+  ],
+  smoke: [
+    {
+      name: 'fib30-runtime-overhead',
+      iterations: 1,
+      warmups: 0,
+      source: `{{set fib (fun n (cond (le n 1) n (add (fib (sub n 1)) (fib (sub n 2)))))}}{{fib 18}}`,
+      nativeSource: `const fib = (n) => (n <= 1 ? n : fib(n - 1) + fib(n - 2)); fib(18);`,
+      nativeInput: 18,
+    },
+  ],
+};
+
 const scenarios = (profiles[options.profile] ?? profiles.default).map(
   (scenario) => ({
     ...scenario,
@@ -168,6 +192,15 @@ const scenarios = (profiles[options.profile] ?? profiles.default).map(
     warmups: scenario.warmups * options.warmupScale,
   })
 );
+
+const runtimeComparisons = (
+  runtimeComparisonProfiles[options.profile] ??
+  runtimeComparisonProfiles.default
+).map((scenario) => ({
+  ...scenario,
+  iterations: scenario.iterations * options.iterationScale,
+  warmups: scenario.warmups * options.warmupScale,
+}));
 
 const parseScenario = (scenario) => {
   const logs = [];
@@ -206,6 +239,107 @@ const benchmark = async (iterations, warmups, run) => {
   return {
     elapsedMs: Number((performance.now() - startedAt).toFixed(3)),
     result: lastResult,
+  };
+};
+
+const runNativeRecursiveFib = (input) => {
+  const fib = (n) => (n <= 1 ? n : fib(n - 1) + fib(n - 2));
+  return fib(input);
+};
+
+const createNativeFibRunner = (scenario) => {
+  return {
+    compileElapsedMs: 0,
+    run: async () => runNativeRecursiveFib(scenario.nativeInput),
+  };
+};
+
+const createApiRunner = (backend, scenario) => {
+  return {
+    compileElapsedMs: 0,
+    run: async () => {
+      return await runScriptOnceToText(scenario.source, {
+        backend,
+        sourceId: `${scenario.name}.${backend}.fc`,
+      });
+    },
+  };
+};
+
+const runRuntimeComparison = async (scenario) => {
+  const nativeRunner = createNativeFibRunner(scenario);
+  const closureRunner = createApiRunner('closure', scenario);
+  const sourceRunner = createApiRunner('source', scenario);
+  const selectedRunner = createApiRunner('source', scenario);
+
+  const nativeResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    nativeRunner.run
+  );
+  const closureResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    closureRunner.run
+  );
+  const sourceResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    sourceRunner.run
+  );
+  const selectedResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    selectedRunner.run
+  );
+
+  const sourceResultJson = stringifyResult(sourceResult.result);
+  for (const benchmarkResult of [closureResult, selectedResult]) {
+    if (stringifyResult(benchmarkResult.result) !== sourceResultJson) {
+      throw new Error(`benchmark result mismatch: ${scenario.name}`);
+    }
+  }
+
+  return {
+    name: scenario.name,
+    iterations: scenario.iterations,
+    warmups: scenario.warmups,
+    source: scenario.source,
+    nativeSource: scenario.nativeSource,
+    result: sourceResult.result,
+    benchmarks: [
+      {
+        name: 'native-node',
+        compileElapsedMs: nativeRunner.compileElapsedMs,
+        elapsedMs: nativeResult.elapsedMs,
+        relativeToNative: 1,
+      },
+      {
+        name: 'jit-closure',
+        compileElapsedMs: closureRunner.compileElapsedMs,
+        elapsedMs: closureResult.elapsedMs,
+        relativeToNative: Number(
+          (closureResult.elapsedMs / nativeResult.elapsedMs).toFixed(3)
+        ),
+      },
+      {
+        name: 'jit-source',
+        compileElapsedMs: sourceRunner.compileElapsedMs,
+        elapsedMs: sourceResult.elapsedMs,
+        relativeToNative: Number(
+          (sourceResult.elapsedMs / nativeResult.elapsedMs).toFixed(3)
+        ),
+      },
+      {
+        name: 'jit-selected',
+        backend: 'source',
+        compileElapsedMs: selectedRunner.compileElapsedMs,
+        elapsedMs: selectedResult.elapsedMs,
+        relativeToNative: Number(
+          (selectedResult.elapsedMs / nativeResult.elapsedMs).toFixed(3)
+        ),
+      },
+    ],
   };
 };
 
@@ -470,6 +604,37 @@ const buildMarkdown = (summary) => {
     }
   }
 
+  if ((summary.runtimeComparisons?.length ?? 0) >= 1) {
+    lines.push('## Runtime Comparisons', '');
+    for (const comparison of summary.runtimeComparisons) {
+      lines.push(
+        `### ${comparison.name}`,
+        '',
+        `- Iterations: \`${comparison.iterations}\``,
+        `- Warmups: \`${comparison.warmups}\``,
+        '',
+        '| Runner | Compile ms | Elapsed ms | Relative to native |',
+        '| --- | ---: | ---: | ---: |'
+      );
+      for (const benchmarkResult of comparison.benchmarks) {
+        lines.push(
+          `| ${benchmarkResult.name} | ${benchmarkResult.compileElapsedMs} | ${benchmarkResult.elapsedMs} | ${benchmarkResult.relativeToNative} |`
+        );
+      }
+      lines.push(
+        '',
+        '```funcity',
+        comparison.source,
+        '```',
+        '',
+        '```js',
+        comparison.nativeSource,
+        '```',
+        ''
+      );
+    }
+  }
+
   lines.push('## Scenarios', '');
   for (const scenario of summary.scenarios) {
     lines.push(
@@ -506,6 +671,11 @@ for (const scenario of scenarios) {
   scenariosResult.push(await runScenario(scenario));
 }
 
+const runtimeComparisonResults = [];
+for (const comparison of runtimeComparisons) {
+  runtimeComparisonResults.push(await runRuntimeComparison(comparison));
+}
+
 const summary = {
   runId,
   createdAt: startedAt.toISOString(),
@@ -514,6 +684,7 @@ const summary = {
   outputDir,
   gitHead: tryGetGitHead(),
   nodeVersion: process.version,
+  runtimeComparisons: runtimeComparisonResults,
   scenarios: scenariosResult,
 };
 
@@ -533,6 +704,7 @@ console.log(
       runId,
       profile: options.profile,
       comparisonPreviousRunId: summary.comparison?.previousRunId,
+      runtimeComparisons: summary.runtimeComparisons,
       scenarios: summary.scenarios.map((scenario) => ({
         name: scenario.name,
         parseElapsedMs: scenario.parseElapsedMs,
