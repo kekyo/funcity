@@ -103,6 +103,13 @@ export type FunCityLogEntry = FunCityWarningEntry | FunCityErrorEntry;
  */
 export type FunCityMaybePromise<T> = T | Promise<T>;
 
+/**
+ * Script execution backend.
+ * @remarks `reducer` uses the interpreter, `closure` uses the closure-based
+ *   JIT, and `source` uses the source-generated JIT.
+ */
+export type FunCityExecutionBackend = 'reducer' | 'closure' | 'source';
+
 export interface FunCityRangedObject {
   /**
    * This object range.
@@ -853,6 +860,10 @@ export interface FunCityOnceRunnerProps {
    * Predefined variables.
    */
   variables?: FunCityVariables;
+  /**
+   * Execution backend.
+   */
+  backend?: FunCityExecutionBackend;
   /**
    * Source identifier (file path, URL, etc).
    */

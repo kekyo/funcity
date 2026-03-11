@@ -4,6 +4,7 @@
 // https://github.com/kekyo/funcity/
 
 import {
+  FunCityExecutionBackend,
   FunCityOnceRunnerProps,
   FunCityReducerError,
   FunCityWarningEntry,
@@ -17,6 +18,10 @@ import { buildCandidateVariables } from './variables/standard-variables';
 
 //////////////////////////////////////////////////////////////////////////////
 
+const resolveExecutionBackend = (
+  backend: FunCityExecutionBackend | undefined
+): FunCityExecutionBackend => backend ?? 'source';
+
 /**
  * Simply runs a script once.
  * @param script Input script text.
@@ -29,9 +34,20 @@ export const runScriptOnce = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<unknown[]> => {
-  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
+  const {
+    variables = buildCandidateVariables(),
+    backend,
+    logs = [],
+    sourceId,
+  } = props;
+  const executionBackend = resolveExecutionBackend(backend);
 
-  const compiled = compileScriptCached(script, sourceId, 'template');
+  const compiled = compileScriptCached(
+    script,
+    sourceId,
+    'template',
+    executionBackend
+  );
   logs.push(...compiled.logs);
   if (compiled.logs.length >= 1) {
     return [];
@@ -41,7 +57,9 @@ export const runScriptOnce = async (
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    createSharedDCodegenExecutor()
+    executionBackend === 'reducer'
+      ? undefined
+      : createSharedDCodegenExecutor(executionBackend)
   );
   try {
     const resultList = await compiled.program(reducerContext, signal);
@@ -69,9 +87,20 @@ export const runScriptOnceToText = async (
   props: FunCityOnceRunnerProps,
   signal?: AbortSignal
 ): Promise<string | undefined> => {
-  const { variables = buildCandidateVariables(), logs = [], sourceId } = props;
+  const {
+    variables = buildCandidateVariables(),
+    backend,
+    logs = [],
+    sourceId,
+  } = props;
+  const executionBackend = resolveExecutionBackend(backend);
 
-  const compiled = compileScriptCached(script, sourceId, 'template');
+  const compiled = compileScriptCached(
+    script,
+    sourceId,
+    'template',
+    executionBackend
+  );
   logs.push(...compiled.logs);
   if (compiled.logs.length >= 1) {
     return undefined;
@@ -81,7 +110,9 @@ export const runScriptOnceToText = async (
   const reducerContext = createReducerContext(
     variables,
     warningLogs,
-    createSharedDCodegenExecutor()
+    executionBackend === 'reducer'
+      ? undefined
+      : createSharedDCodegenExecutor(executionBackend)
   );
   try {
     const text = await compiled.textProgram(reducerContext, signal);

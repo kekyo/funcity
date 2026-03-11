@@ -6,6 +6,7 @@
 import {
   type FunCityApplyNode,
   type FunCityBlockNode,
+  type FunCityExecutionBackend,
   type FunCityDotNode,
   type FunCityExpressionNode,
   type FunCityMaybePromise,
@@ -178,7 +179,10 @@ export interface FunCityDynamicCodeGenerator {
 /**
  * Dynamic code generator backend.
  */
-export type FunCityDynamicCodeGeneratorBackend = 'closure' | 'source';
+export type FunCityDynamicCodeGeneratorBackend = Exclude<
+  FunCityExecutionBackend,
+  'reducer'
+>;
 
 /**
  * Dynamic code generator options.

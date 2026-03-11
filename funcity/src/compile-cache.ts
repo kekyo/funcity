@@ -5,11 +5,14 @@
 
 import {
   type FunCityBlockNode,
+  type FunCityExecutionBackend,
   type FunCityLogEntry,
+  type FunCityReducerContext,
   type FunCityReducerExecutor,
 } from './types';
 import {
   createDCodegen,
+  type FunCityDynamicCodeGeneratorBackend,
   type FunCityGeneratedProgram,
   type FunCityGeneratedTextProgram,
 } from './dcodegen';
@@ -55,13 +58,28 @@ export interface FunCityCompiledScript {
 
 const compilationCacheLimit = 64;
 const sharedSourceDCodegen = createDCodegen({ backend: 'source' });
+const sharedClosureDCodegen = createDCodegen({ backend: 'closure' });
 const compiledScriptCache = new Map<string, FunCityCompiledScript>();
+const defaultExecutionBackend: FunCityExecutionBackend = 'source';
+
+const resolveExecutionBackend = (
+  backend: FunCityExecutionBackend | undefined
+): FunCityExecutionBackend => backend ?? defaultExecutionBackend;
+
+const isDynamicCodegenBackend = (
+  backend: FunCityExecutionBackend
+): backend is FunCityDynamicCodeGeneratorBackend => backend !== 'reducer';
+
+const getSharedDCodegen = (backend: FunCityDynamicCodeGeneratorBackend) => {
+  return backend === 'closure' ? sharedClosureDCodegen : sharedSourceDCodegen;
+};
 
 const toCompilationCacheKey = (
   script: string,
   sourceId: string,
-  mode: FunCityCompileMode
-) => `${mode}\u0000${sourceId}\u0000${script}`;
+  mode: FunCityCompileMode,
+  backend: FunCityExecutionBackend
+) => `${mode}\u0000${backend}\u0000${sourceId}\u0000${script}`;
 
 const setCompiledScriptCache = (
   key: string,
@@ -79,10 +97,46 @@ const setCompiledScriptCache = (
 
 /**
  * Create a reducer executor backed by the shared dynamic code generator.
+ * @param backend - Dynamic code generator backend.
  * @returns Reducer executor.
  */
-export const createSharedDCodegenExecutor = (): FunCityReducerExecutor => {
-  return sharedSourceDCodegen.createExecutor();
+export const createSharedDCodegenExecutor = (
+  backend?: FunCityDynamicCodeGeneratorBackend
+): FunCityReducerExecutor => {
+  return getSharedDCodegen(backend ?? defaultExecutionBackend).createExecutor();
+};
+
+const createReducerBackedProgram = (
+  nodes: readonly FunCityBlockNode[]
+): FunCityGeneratedProgram => {
+  return async (
+    context: FunCityReducerContext,
+    signal?: AbortSignal
+  ): Promise<unknown[]> => {
+    const resultList: unknown[] = [];
+    for (const node of nodes) {
+      const results = await context.reduceNode(node, signal);
+      for (const result of results) {
+        if (result !== undefined) {
+          resultList.push(result);
+        }
+      }
+    }
+    return resultList;
+  };
+};
+
+const createReducerBackedTextProgram = (
+  nodes: readonly FunCityBlockNode[]
+): FunCityGeneratedTextProgram => {
+  const reducerProgram = createReducerBackedProgram(nodes);
+  return async (
+    context: FunCityReducerContext,
+    signal?: AbortSignal
+  ): Promise<string> => {
+    const resultList = await reducerProgram(context, signal);
+    return resultList.map((value) => context.convertToString(value)).join('');
+  };
 };
 
 /**
@@ -90,14 +144,22 @@ export const createSharedDCodegenExecutor = (): FunCityReducerExecutor => {
  * @param script - Source text.
  * @param sourceId - Source identifier.
  * @param mode - Parse mode.
+ * @param backend - Execution backend.
  * @returns Cached compilation result.
  */
 export const compileScriptCached = (
   script: string,
   sourceId: string,
-  mode: FunCityCompileMode
+  mode: FunCityCompileMode,
+  backend?: FunCityExecutionBackend
 ): FunCityCompiledScript => {
-  const cacheKey = toCompilationCacheKey(script, sourceId, mode);
+  const resolvedBackend = resolveExecutionBackend(backend);
+  const cacheKey = toCompilationCacheKey(
+    script,
+    sourceId,
+    mode,
+    resolvedBackend
+  );
   const cached = compiledScriptCache.get(cacheKey);
   if (cached) {
     compiledScriptCache.delete(cacheKey);
@@ -113,13 +175,20 @@ export const compileScriptCached = (
   const nodes =
     mode === 'code' ? parseExpressions(tokens, logs) : runParser(tokens, logs);
 
+  const sharedDCodegen = isDynamicCodegenBackend(resolvedBackend)
+    ? getSharedDCodegen(resolvedBackend)
+    : undefined;
   const compiled: FunCityCompiledScript = {
     sourceId,
     mode,
     nodes,
     logs: logs.slice(),
-    program: sharedSourceDCodegen.generateProgram(nodes),
-    textProgram: sharedSourceDCodegen.generateTextProgram(nodes),
+    program:
+      sharedDCodegen?.generateProgram(nodes) ??
+      createReducerBackedProgram(nodes),
+    textProgram:
+      sharedDCodegen?.generateTextProgram(nodes) ??
+      createReducerBackedTextProgram(nodes),
   };
   setCompiledScriptCache(cacheKey, compiled);
   return compiled;

@@ -36,6 +36,15 @@ const renderApp = () =>
     </ThemeProvider>
   );
 
+const selectExecutionBackend = async (
+  getByRole: ReturnType<typeof renderApp>['getByRole'],
+  findByRole: ReturnType<typeof renderApp>['findByRole'],
+  optionName: string
+) => {
+  fireEvent.mouseDown(getByRole('combobox', { name: 'Execution backend' }));
+  fireEvent.click(await findByRole('option', { name: optionName }));
+};
+
 describe('funcity-it App', () => {
   beforeEach(() => {
     runScriptOnceToTextMock.mockReset();
@@ -99,6 +108,16 @@ describe('funcity-it App', () => {
     expect(titleLink).toHaveStyle({ alignItems: 'center' });
   });
 
+  it('shows an execution backend dropdown in the toolbar', async () => {
+    const { getByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    expect(getByRole('combobox', { name: 'Execution backend' })).toBeTruthy();
+  });
+
   it('captures console output into Logs', async () => {
     runScriptOnceToTextMock.mockImplementation(async () => {
       console.log('console output');
@@ -120,6 +139,22 @@ describe('funcity-it App', () => {
         logEditor?.querySelector('.cm-content')?.textContent ?? '';
       expect(outputText).toContain('script output');
       expect(logText).toContain('console output');
+    });
+  });
+
+  it('passes the selected execution backend to funcity', async () => {
+    runScriptOnceToTextMock.mockResolvedValue('script output');
+
+    const { getByRole, findByRole } = renderApp();
+
+    await selectExecutionBackend(getByRole, findByRole, 'Reducer');
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(runScriptOnceToTextMock).toHaveBeenCalled();
+      expect(runScriptOnceToTextMock.mock.calls[0]?.[1]).toMatchObject({
+        backend: 'reducer',
+      });
     });
   });
 
@@ -159,6 +194,28 @@ describe('funcity-it App', () => {
       expect(
         logEditor?.querySelectorAll('.cm-line.cm-console-line--log').length
       ).toBeGreaterThan(0);
+    });
+  });
+
+  it('appends elapsed time as the last log line', async () => {
+    runScriptOnceToTextMock.mockImplementation(async () => {
+      console.log('console output');
+      return 'script output';
+    });
+
+    const { container, getByRole } = renderApp();
+
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      const logEditor = container.querySelector('.funcity-cm--log');
+      const logText =
+        logEditor?.querySelector('.cm-content')?.textContent ?? '';
+
+      expect(logText).toContain('console output');
+      expect(logText).toMatch(
+        /Elapsed: [0-9]+(?:\.[0-9]+)? ms \(backend: source\)$/
+      );
     });
   });
 
