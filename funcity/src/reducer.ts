@@ -404,19 +404,73 @@ const createScopedReducerContext = (
 ): FunCityReducerContext => {
   signal?.throwIfAborted();
 
-  let thisVars: Map<string, unknown> | undefined;
+  let thisSlotIds: Map<string, number> | undefined;
+  let thisSlotValues: unknown[] | undefined;
+  let thisSlotVersion = 0;
   let thisContext: FunCityReducerContext;
+
+  const getSlotVersion = () => thisSlotVersion;
+
+  const resolveLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number | undefined => {
+    signal?.throwIfAborted();
+    return thisSlotIds?.get(name);
+  };
+
+  const ensureLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number => {
+    signal?.throwIfAborted();
+    let slot = thisSlotIds?.get(name);
+    if (slot !== undefined) {
+      return slot;
+    }
+    if (!thisSlotIds) {
+      thisSlotIds = new Map();
+    }
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    slot = thisSlotValues.length;
+    thisSlotIds.set(name, slot);
+    thisSlotValues.push(undefined);
+    thisSlotVersion++;
+    return slot;
+  };
+
+  const getSlotValue = (
+    slot: number,
+    signal: AbortSignal | undefined
+  ): unknown => {
+    signal?.throwIfAborted();
+    return thisSlotValues?.[slot];
+  };
+
+  const setSlotValue = (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ): void => {
+    signal?.throwIfAborted();
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    thisSlotValues[slot] = value;
+  };
 
   const getValue = (
     name: string,
     signal: AbortSignal | undefined
   ): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
-    if (thisVars?.has(name)) {
-      return { value: thisVars.get(name), isFound: true };
-    } else {
-      return parent.getValue(name, signal);
+    const slot = resolveLocalSlot(name, signal);
+    if (slot !== undefined) {
+      return { value: getSlotValue(slot, signal), isFound: true };
     }
+    return parent.getValue(name, signal);
   };
 
   const setValue = (
@@ -425,10 +479,8 @@ const createScopedReducerContext = (
     signal: AbortSignal | undefined
   ): void => {
     signal?.throwIfAborted();
-    if (!thisVars) {
-      thisVars = new Map();
-    }
-    thisVars.set(name, value);
+    const slot = ensureLocalSlot(name, signal);
+    setSlotValue(slot, value, signal);
   };
 
   const createFunctionContext = (
@@ -468,6 +520,11 @@ const createScopedReducerContext = (
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal, executor),
+    getSlotVersion,
+    resolveLocalSlot,
+    ensureLocalSlot,
+    getSlotValue,
+    setSlotValue,
     convertToString: parent.convertToString,
     reduceExpressionNode: (
       node: FunCityExpressionNode,
@@ -502,7 +559,9 @@ export const createReducerContext = (
   warningLogs: FunCityWarningEntry[],
   executor: FunCityReducerExecutor = defaultReducerExecutor
 ): FunCityReducerContext => {
-  let thisVars: Map<string, unknown> | undefined;
+  let thisSlotIds: Map<string, number> | undefined;
+  let thisSlotValues: unknown[] | undefined;
+  let thisSlotVersion = 0;
   let thisContext: FunCityReducerContext;
 
   const boundFunctionCache = new WeakMap<object, WeakMap<Function, Function>>();
@@ -523,18 +582,71 @@ export const createReducerContext = (
 
   const constructorCache = new WeakMap<Function, boolean>();
 
+  const getSlotVersion = () => thisSlotVersion;
+
+  const resolveLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number | undefined => {
+    signal?.throwIfAborted();
+    return thisSlotIds?.get(name);
+  };
+
+  const ensureLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number => {
+    signal?.throwIfAborted();
+    let slot = thisSlotIds?.get(name);
+    if (slot !== undefined) {
+      return slot;
+    }
+    if (!thisSlotIds) {
+      thisSlotIds = new Map();
+    }
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    slot = thisSlotValues.length;
+    thisSlotIds.set(name, slot);
+    thisSlotValues.push(undefined);
+    thisSlotVersion++;
+    return slot;
+  };
+
+  const getSlotValue = (
+    slot: number,
+    signal: AbortSignal | undefined
+  ): unknown => {
+    signal?.throwIfAborted();
+    return thisSlotValues?.[slot];
+  };
+
+  const setSlotValue = (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ): void => {
+    signal?.throwIfAborted();
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    thisSlotValues[slot] = value;
+  };
+
   const getValue = (
     name: string,
     signal: AbortSignal | undefined
   ): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
-    if (thisVars?.has(name)) {
-      return { value: thisVars.get(name), isFound: true };
-    } else if (variables.has(name)) {
-      return { value: variables.get(name), isFound: true };
-    } else {
-      return { value: undefined, isFound: false };
+    const slot = resolveLocalSlot(name, signal);
+    if (slot !== undefined) {
+      return { value: getSlotValue(slot, signal), isFound: true };
     }
+    if (variables.has(name)) {
+      return { value: variables.get(name), isFound: true };
+    }
+    return { value: undefined, isFound: false };
   };
 
   const setValue = (
@@ -543,10 +655,8 @@ export const createReducerContext = (
     signal: AbortSignal | undefined
   ): void => {
     signal?.throwIfAborted();
-    if (!thisVars) {
-      thisVars = new Map();
-    }
-    thisVars.set(name, value);
+    const slot = ensureLocalSlot(name, signal);
+    setSlotValue(slot, value, signal);
   };
 
   const appendWarning = (warning: FunCityWarningEntry): void => {
@@ -610,6 +720,11 @@ export const createReducerContext = (
     appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
       createScopedReducerContext(thisContext, signal, executor),
+    getSlotVersion,
+    resolveLocalSlot,
+    ensureLocalSlot,
+    getSlotValue,
+    setSlotValue,
     convertToString,
     reduceExpressionNode: (
       node: FunCityExpressionNode,

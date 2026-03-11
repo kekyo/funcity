@@ -734,6 +734,52 @@ export interface FunCityReducerContext {
    */
   readonly newScope: (signal: AbortSignal | undefined) => FunCityReducerContext;
   /**
+   * Get current scope slot version.
+   * @returns Slot version.
+   */
+  readonly getSlotVersion: () => number;
+  /**
+   * Resolve a variable name to the current scope slot when available.
+   * @param name - Variable name
+   * @param signal - AbortSignal when available.
+   * @returns Slot index or undefined when the current scope does not own it.
+   */
+  readonly resolveLocalSlot: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => number | undefined;
+  /**
+   * Ensure the current scope owns the slot for a variable name.
+   * @param name - Variable name
+   * @param signal - AbortSignal when available.
+   * @returns Slot index.
+   */
+  readonly ensureLocalSlot: (
+    name: string,
+    signal: AbortSignal | undefined
+  ) => number;
+  /**
+   * Get a value from the current scope slot.
+   * @param slot - Slot index
+   * @param signal - AbortSignal when available.
+   * @returns Slot value.
+   */
+  readonly getSlotValue: (
+    slot: number,
+    signal: AbortSignal | undefined
+  ) => unknown;
+  /**
+   * Set a value to the current scope slot.
+   * @param slot - Slot index
+   * @param value - New value
+   * @param signal - AbortSignal when available.
+   */
+  readonly setSlotValue: (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ) => void;
+  /**
    * Convert a value to string.
    * @param v - A value
    * @returns String

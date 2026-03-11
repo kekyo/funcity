@@ -64,11 +64,10 @@ const deconstructConditionalCombine = (
 
 const resolveVariable = (
   context: FunCityReducerContext,
-  name: string,
+  result: DeconstructConditionalCombineResult,
   range: FunCityRange,
   signal: AbortSignal | undefined
 ) => {
-  const result = deconstructConditionalCombine(name);
   const valueResult = context.getValue(result.name, signal);
   if (!valueResult.isFound) {
     if (!result.canIgnore) {
@@ -285,7 +284,8 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     context: FunCityReducerContext,
     node: FunCityDotNode,
     signal: AbortSignal | undefined,
-    compiledBase: FunCityGeneratedExpressionImmediate | undefined
+    compiledBase: FunCityGeneratedExpressionImmediate | undefined,
+    baseResult: DeconstructConditionalCombineResult | undefined
   ): FunCityMaybePromise<unknown> => {
     signal?.throwIfAborted();
     const firstSegmentOptional = node.segments[0]?.optional ?? false;
@@ -320,8 +320,7 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
       return value;
     };
 
-    if (node.base.kind === 'variable') {
-      const baseResult = deconstructConditionalCombine(node.base.name);
+    if (baseResult) {
       const valueResult = context.getValue(baseResult.name, signal);
       if (!valueResult.isFound) {
         if (!baseResult.canIgnore && !firstSegmentOptional) {
@@ -442,8 +441,9 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
         break;
       }
       case 'variable': {
+        const variableResult = deconstructConditionalCombine(node.name);
         generator = (context, signal) =>
-          resolveVariable(context, node.name, node.range, signal);
+          resolveVariable(context, variableResult, node.range, signal);
         break;
       }
       case 'dot': {
@@ -451,8 +451,12 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
           node.base.kind === 'variable'
             ? undefined
             : generateExpressionImmediate(node.base);
+        const baseResult =
+          node.base.kind === 'variable'
+            ? deconstructConditionalCombine(node.base.name)
+            : undefined;
         generator = (context, signal) =>
-          resolveDotNode(context, node, signal, compiledBase);
+          resolveDotNode(context, node, signal, compiledBase, baseResult);
         break;
       }
       case 'apply': {
