@@ -26,4 +26,30 @@ describe('scripting test', () => {
       expect(logs).toEqual([]);
     }
   });
+
+  it('passes aggressiveOptimize through the high-level runner', async () => {
+    const script = '{{set range (fun [start count] [999])}}{{range 1 3}}';
+
+    const normalLogs: FunCityLogEntry[] = [];
+    await expect(
+      runScriptOnceToText(script, {
+        backend: 'source',
+        aggressiveOptimize: false,
+        logs: normalLogs,
+        sourceId: 'hello.fc',
+      })
+    ).resolves.toBe('[999]');
+    expect(normalLogs).toEqual([]);
+
+    const aggressiveLogs: FunCityLogEntry[] = [];
+    await expect(
+      runScriptOnceToText(script, {
+        backend: 'source',
+        aggressiveOptimize: true,
+        logs: aggressiveLogs,
+        sourceId: 'hello.fc',
+      })
+    ).resolves.toBe('[1 2 3]');
+    expect(aggressiveLogs).toEqual([]);
+  });
 });

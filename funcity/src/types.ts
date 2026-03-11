@@ -877,6 +877,12 @@ export interface FunCityOnceRunnerProps {
    */
   backend?: FunCityExecutionBackend;
   /**
+   * Enable opt-in aggressive source JIT assumptions.
+   * @remarks This only affects the source JIT backend. Reducer execution and
+   *   the closure JIT ignore this option.
+   */
+  aggressiveOptimize?: boolean;
+  /**
    * Source identifier (file path, URL, etc).
    */
   sourceId: string;

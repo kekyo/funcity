@@ -58,6 +58,10 @@ export interface FunCityCompiledScript {
 
 const compilationCacheLimit = 64;
 const sharedSourceDCodegen = createDCodegen({ backend: 'source' });
+const sharedAggressiveSourceDCodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: true,
+});
 const sharedClosureDCodegen = createDCodegen({ backend: 'closure' });
 const compiledScriptCache = new Map<string, FunCityCompiledScript>();
 const defaultExecutionBackend: FunCityExecutionBackend = 'source';
@@ -70,16 +74,31 @@ const isDynamicCodegenBackend = (
   backend: FunCityExecutionBackend
 ): backend is FunCityDynamicCodeGeneratorBackend => backend !== 'reducer';
 
-const getSharedDCodegen = (backend: FunCityDynamicCodeGeneratorBackend) => {
-  return backend === 'closure' ? sharedClosureDCodegen : sharedSourceDCodegen;
+const resolveAggressiveOptimize = (
+  backend: FunCityExecutionBackend,
+  aggressiveOptimize: boolean | undefined
+): boolean => (backend === 'source' ? (aggressiveOptimize ?? false) : false);
+
+const getSharedDCodegen = (
+  backend: FunCityDynamicCodeGeneratorBackend,
+  aggressiveOptimize: boolean | undefined
+) => {
+  if (backend === 'closure') {
+    return sharedClosureDCodegen;
+  }
+  return resolveAggressiveOptimize(backend, aggressiveOptimize)
+    ? sharedAggressiveSourceDCodegen
+    : sharedSourceDCodegen;
 };
 
 const toCompilationCacheKey = (
   script: string,
   sourceId: string,
   mode: FunCityCompileMode,
-  backend: FunCityExecutionBackend
-) => `${mode}\u0000${backend}\u0000${sourceId}\u0000${script}`;
+  backend: FunCityExecutionBackend,
+  aggressiveOptimize: boolean
+) =>
+  `${mode}\u0000${backend}\u0000${aggressiveOptimize ? 'aggr1' : 'aggr0'}\u0000${sourceId}\u0000${script}`;
 
 const setCompiledScriptCache = (
   key: string,
@@ -101,9 +120,13 @@ const setCompiledScriptCache = (
  * @returns Reducer executor.
  */
 export const createSharedDCodegenExecutor = (
-  backend?: FunCityDynamicCodeGeneratorBackend
+  backend?: FunCityDynamicCodeGeneratorBackend,
+  aggressiveOptimize?: boolean
 ): FunCityReducerExecutor => {
-  return getSharedDCodegen(backend ?? defaultExecutionBackend).createExecutor();
+  return getSharedDCodegen(
+    backend ?? defaultExecutionBackend,
+    aggressiveOptimize
+  ).createExecutor();
 };
 
 const createReducerBackedProgram = (
@@ -151,14 +174,20 @@ export const compileScriptCached = (
   script: string,
   sourceId: string,
   mode: FunCityCompileMode,
-  backend?: FunCityExecutionBackend
+  backend?: FunCityExecutionBackend,
+  aggressiveOptimize?: boolean
 ): FunCityCompiledScript => {
   const resolvedBackend = resolveExecutionBackend(backend);
+  const resolvedAggressiveOptimize = resolveAggressiveOptimize(
+    resolvedBackend,
+    aggressiveOptimize
+  );
   const cacheKey = toCompilationCacheKey(
     script,
     sourceId,
     mode,
-    resolvedBackend
+    resolvedBackend,
+    resolvedAggressiveOptimize
   );
   const cached = compiledScriptCache.get(cacheKey);
   if (cached) {
@@ -176,7 +205,7 @@ export const compileScriptCached = (
     mode === 'code' ? parseExpressions(tokens, logs) : runParser(tokens, logs);
 
   const sharedDCodegen = isDynamicCodegenBackend(resolvedBackend)
-    ? getSharedDCodegen(resolvedBackend)
+    ? getSharedDCodegen(resolvedBackend, resolvedAggressiveOptimize)
     : undefined;
   const compiled: FunCityCompiledScript = {
     sourceId,

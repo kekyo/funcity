@@ -55,4 +55,28 @@ describe('compile cache test', () => {
     expect(source.program).not.toBe(closure.program);
     expect(source.textProgram).not.toBe(reducer.textProgram);
   });
+
+  it('separates cache entries by aggressiveOptimize for source backend', () => {
+    const script = 'Hello {{add 1 2}}';
+    const sourceId = 'hello.fc';
+
+    const normal = compileScriptCached(
+      script,
+      sourceId,
+      'template',
+      'source',
+      false
+    );
+    const aggressive = compileScriptCached(
+      script,
+      sourceId,
+      'template',
+      'source',
+      true
+    );
+
+    expect(aggressive).not.toBe(normal);
+    expect(aggressive.program).not.toBe(normal.program);
+    expect(aggressive.textProgram).not.toBe(normal.textProgram);
+  });
 });
