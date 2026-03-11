@@ -2139,13 +2139,27 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     argVars: readonly string[],
     operator: '+' | '-' | '*' | '/' | '%'
   ): string => {
-    const initial = `Number(${getBuiltinArgSource(argVars, 0)})`;
-    return argVars
+    const rawInitial = getBuiltinArgSource(argVars, 0);
+    const coercedInitial = `Number(${rawInitial})`;
+    const rawExpression = argVars
+      .slice(1)
+      .reduce(
+        (expression, argVar) => `(${expression} ${operator} ${argVar})`,
+        rawInitial
+      );
+    const coercedExpression = argVars
       .slice(1)
       .reduce(
         (expression, argVar) => `(${expression} ${operator} Number(${argVar}))`,
-        initial
+        coercedInitial
       );
+    const numberGuard = argVars
+      .map((argVar) => `typeof ${argVar} === 'number'`)
+      .join(' && ');
+    if (numberGuard.length === 0) {
+      return coercedExpression;
+    }
+    return `(${numberGuard} ? ${rawExpression} : ${coercedExpression})`;
   };
 
   const compileInlineStandardBuiltinSource = (

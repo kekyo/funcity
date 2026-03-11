@@ -381,7 +381,9 @@ describe('dynamic code generator test', () => {
           [
             applyNode('toString', [numberNode(12), stringNode('x')]),
             applyNode('add', [numberNode(1), numberNode(2), numberNode(3)]),
+            applyNode('add', [stringNode('1'), numberNode(2)]),
             applyNode('sub', [numberNode(10), numberNode(3), numberNode(2)]),
+            applyNode('sub', [stringNode('10'), variableNode('true')]),
             applyNode('mul', [numberNode(2), numberNode(3), numberNode(4)]),
             applyNode('lt', [numberNode(1), numberNode(2)]),
             applyNode('not', [variableNode('false')]),
