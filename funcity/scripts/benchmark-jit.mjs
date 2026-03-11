@@ -250,6 +250,16 @@ const createGeneratedRunner = (backend, scenario, nodes) => {
   };
 };
 
+const createSelectedRunner = (scenario, nodes) => {
+  const backend = scenario.output === 'text' ? 'closure' : 'source';
+  const generated = createGeneratedRunner(backend, scenario, nodes);
+  return {
+    name: 'jit-selected',
+    backend,
+    ...generated,
+  };
+};
+
 const stringifyResult = (result) => JSON.stringify(result);
 
 const runScenario = async (scenario) => {
@@ -261,6 +271,7 @@ const runScenario = async (scenario) => {
       : createReducerProgramRunner(nodes);
   const closure = createGeneratedRunner('closure', scenario, nodes);
   const sourceRunner = createGeneratedRunner('source', scenario, nodes);
+  const selectedRunner = createSelectedRunner(scenario, nodes);
 
   const reducer = await benchmark(
     scenario.iterations,
@@ -277,9 +288,14 @@ const runScenario = async (scenario) => {
     scenario.warmups,
     sourceRunner.run
   );
+  const selectedResult = await benchmark(
+    scenario.iterations,
+    scenario.warmups,
+    selectedRunner.run
+  );
 
   const reducerResultJson = stringifyResult(reducer.result);
-  for (const benchmarkResult of [closureResult, sourceResult]) {
+  for (const benchmarkResult of [closureResult, sourceResult, selectedResult]) {
     if (stringifyResult(benchmarkResult.result) !== reducerResultJson) {
       throw new Error(`benchmark result mismatch: ${scenario.name}`);
     }
@@ -315,6 +331,15 @@ const runScenario = async (scenario) => {
         elapsedMs: sourceResult.elapsedMs,
         speedupVsReducer: Number(
           (reducer.elapsedMs / sourceResult.elapsedMs).toFixed(3)
+        ),
+      },
+      {
+        name: selectedRunner.name,
+        backend: selectedRunner.backend,
+        compileElapsedMs: selectedRunner.compileElapsedMs,
+        elapsedMs: selectedResult.elapsedMs,
+        speedupVsReducer: Number(
+          (reducer.elapsedMs / selectedResult.elapsedMs).toFixed(3)
         ),
       },
     ],

@@ -54,7 +54,8 @@ export interface FunCityCompiledScript {
 }
 
 const compilationCacheLimit = 64;
-const sharedDCodegen = createDCodegen({ backend: 'source' });
+const sharedSourceDCodegen = createDCodegen({ backend: 'source' });
+const sharedClosureDCodegen = createDCodegen({ backend: 'closure' });
 const compiledScriptCache = new Map<string, FunCityCompiledScript>();
 
 const toCompilationCacheKey = (
@@ -82,7 +83,7 @@ const setCompiledScriptCache = (
  * @returns Reducer executor.
  */
 export const createSharedDCodegenExecutor = (): FunCityReducerExecutor => {
-  return sharedDCodegen.createExecutor();
+  return sharedSourceDCodegen.createExecutor();
 };
 
 /**
@@ -118,8 +119,8 @@ export const compileScriptCached = (
     mode,
     nodes,
     logs: logs.slice(),
-    program: sharedDCodegen.generateProgram(nodes),
-    textProgram: sharedDCodegen.generateTextProgram(nodes),
+    program: sharedSourceDCodegen.generateProgram(nodes),
+    textProgram: sharedClosureDCodegen.generateTextProgram(nodes),
   };
   setCompiledScriptCache(cacheKey, compiled);
   return compiled;

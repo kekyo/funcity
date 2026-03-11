@@ -59,7 +59,7 @@ describe('benchmark script test', () => {
     expect(summary.scenarios).toHaveLength(4);
     expect(
       summary.scenarios[0]?.benchmarks.map((result) => result.name)
-    ).toEqual(['reducer', 'jit-closure', 'jit-source']);
+    ).toEqual(['reducer', 'jit-closure', 'jit-source', 'jit-selected']);
     expect(markdown).toContain('# JIT Benchmark Summary');
   });
 });
