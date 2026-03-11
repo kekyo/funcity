@@ -258,12 +258,28 @@ describe('dynamic code generator test', () => {
       it('matches reducer on inlined standard builtin fast paths', async () => {
         await expectGeneratedMatchesReducer(
           [
+            applyNode('toString', [numberNode(12), stringNode('x')]),
             applyNode('add', [numberNode(1), numberNode(2), numberNode(3)]),
             applyNode('sub', [numberNode(10), numberNode(3), numberNode(2)]),
             applyNode('mul', [numberNode(2), numberNode(3), numberNode(4)]),
             applyNode('lt', [numberNode(1), numberNode(2)]),
             applyNode('not', [variableNode('false')]),
             applyNode('toNumber', [stringNode('12')]),
+            applyNode('toBigInt', [stringNode('12')]),
+            applyNode('typeof', [numberNode(10)]),
+            applyNode('trim', [stringNode(' hi ')]),
+            applyNode('toUpper', [stringNode('ab')]),
+            applyNode('toLower', [stringNode('AB')]),
+            applyNode('length', [stringNode('abcd')]),
+            applyNode('at', [numberNode(1), stringNode('abcd')]),
+            applyNode('first', [stringNode('abcd')]),
+            applyNode('last', [stringNode('abcd')]),
+            applyNode('slice', [numberNode(1), stringNode('abcd')]),
+            applyNode('slice', [
+              numberNode(1),
+              numberNode(3),
+              stringNode('abcd'),
+            ]),
           ],
           undefined,
           backend

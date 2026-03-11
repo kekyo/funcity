@@ -1570,11 +1570,48 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
     argVars: readonly string[]
   ): string | undefined => {
     switch (name) {
+      case 'toString': {
+        return `[${argVars.map((argVar) => `context.convertToString(${argVar})`).join(', ')}].join(',')`;
+      }
       case 'toBoolean': {
         return `runtime.isConditionalTrue(${getBuiltinArgSource(argVars, 0)})`;
       }
       case 'toNumber': {
         return `Number(${getBuiltinArgSource(argVars, 0)})`;
+      }
+      case 'toBigInt': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+const __value = ${argSource};
+switch (typeof __value) {
+case 'number':
+case 'bigint':
+case 'string':
+case 'boolean':
+return BigInt(__value);
+default:
+return BigInt(context.convertToString(__value));
+}
+})()`;
+      }
+      case 'typeof': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+const __value = ${argSource};
+if (__value === null) {
+return 'null';
+}
+if (typeof __value === 'string') {
+return 'string';
+}
+if (Array.isArray(__value)) {
+return 'array';
+}
+if (runtime.asIterable(__value)) {
+return 'iterable';
+}
+return typeof __value;
+})()`;
       }
       case 'add': {
         return compileNumericFoldSource(argVars, '+');
@@ -1611,6 +1648,147 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       }
       case 'not': {
         return `(!runtime.isConditionalTrue(${getBuiltinArgSource(argVars, 0)}))`;
+      }
+      case 'trim': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+let __value = ${argSource};
+if (__value === undefined || __value === null) {
+__value = '';
+} else if (typeof __value !== 'string') {
+__value = __value.toString() ?? '';
+}
+return __value.trim();
+})()`;
+      }
+      case 'toUpper': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+let __value = ${argSource};
+if (typeof __value !== 'string') {
+__value = __value.toString() ?? '';
+}
+return __value.toUpperCase();
+})()`;
+      }
+      case 'toLower': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+let __value = ${argSource};
+if (typeof __value !== 'string') {
+__value = __value.toString() ?? '';
+}
+return __value.toLowerCase();
+})()`;
+      }
+      case 'length': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+const __value = ${argSource};
+if (!__value) {
+return 0;
+}
+if (typeof __value === 'string' || Array.isArray(__value)) {
+return __value.length;
+}
+const __iterable = runtime.asIterable(__value);
+if (!__iterable) {
+return 0;
+}
+let __count = 0;
+for (const __item of __iterable) {
+__count++;
+}
+return __count;
+})()`;
+      }
+      case 'at': {
+        const indexSource = getBuiltinArgSource(argVars, 0);
+        const valueSource = getBuiltinArgSource(argVars, 1);
+        return `(() => {
+const __index = Number(${indexSource});
+const __value = ${valueSource};
+if (!__value) {
+return undefined;
+}
+if (typeof __value === 'string' || Array.isArray(__value)) {
+return __value[__index];
+}
+const __iterable = runtime.asIterable(__value);
+if (!__iterable) {
+return undefined;
+}
+let __current = 0;
+for (const __item of __iterable) {
+if (__current >= __index) {
+return __item;
+}
+__current++;
+}
+return undefined;
+})()`;
+      }
+      case 'first': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+const __value = ${argSource};
+if (!__value) {
+return undefined;
+}
+if (typeof __value === 'string' || Array.isArray(__value)) {
+return __value[0];
+}
+const __iterable = runtime.asIterable(__value);
+if (!__iterable) {
+return undefined;
+}
+for (const __item of __iterable) {
+return __item;
+}
+return undefined;
+})()`;
+      }
+      case 'last': {
+        const argSource = getBuiltinArgSource(argVars, 0);
+        return `(() => {
+const __value = ${argSource};
+if (!__value) {
+return undefined;
+}
+if (typeof __value === 'string' || Array.isArray(__value)) {
+return __value[__value.length - 1];
+}
+const __iterable = runtime.asIterable(__value);
+if (!__iterable) {
+return undefined;
+}
+let __lastItem = undefined;
+for (const __item of __iterable) {
+__lastItem = __item;
+}
+return __lastItem;
+})()`;
+      }
+      case 'slice': {
+        const startSource = getBuiltinArgSource(argVars, 0);
+        const middleSource = getBuiltinArgSource(argVars, 1);
+        const tailSource = getBuiltinArgSource(argVars, 2);
+        return `(() => {
+const __start = ${startSource} === undefined ? undefined : Number(${startSource});
+if (${tailSource} === undefined) {
+const __value = ${middleSource};
+if (typeof __value === 'string') {
+return __value.slice(__start);
+}
+return Array.from(__value).slice(__start, undefined);
+}
+const __end = ${middleSource} === undefined ? undefined : Number(${middleSource});
+const __value = ${tailSource};
+if (typeof __value === 'string') {
+return __value.slice(__start, __end);
+}
+return Array.from(__value).slice(__start, __end);
+})()`;
       }
       default: {
         return undefined;
