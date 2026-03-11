@@ -1297,6 +1297,75 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       : `context.getValue(${JSON.stringify(name)}, signal)`;
   };
 
+  const canExpressionSuspend = (node: FunCityExpressionNode): boolean => {
+    switch (node.kind) {
+      case 'number':
+      case 'string':
+      case 'variable': {
+        return false;
+      }
+      case 'template': {
+        return canBlockListSuspend(node.blocks);
+      }
+      case 'dot': {
+        return canExpressionSuspend(node.base);
+      }
+      case 'apply': {
+        return true;
+      }
+      case 'list': {
+        return node.items.some((item) => canExpressionSuspend(item));
+      }
+      case 'scope': {
+        return node.nodes.some((childNode) => canExpressionSuspend(childNode));
+      }
+    }
+  };
+
+  const canBlockSuspend = (node: FunCityBlockNode): boolean => {
+    switch (node.kind) {
+      case 'text': {
+        return false;
+      }
+      case 'for': {
+        return (
+          canExpressionSuspend(node.iterable) ||
+          canBlockListSuspend(node.repeat)
+        );
+      }
+      case 'while': {
+        return (
+          canExpressionSuspend(node.condition) ||
+          canBlockListSuspend(node.repeat)
+        );
+      }
+      case 'if': {
+        return (
+          canExpressionSuspend(node.condition) ||
+          canBlockListSuspend(node.then) ||
+          canBlockListSuspend(node.else)
+        );
+      }
+      default: {
+        return canExpressionSuspend(node);
+      }
+    }
+  };
+
+  const canBlockListSuspend = (nodes: readonly FunCityBlockNode[]): boolean => {
+    return nodes.some((node) => canBlockSuspend(node));
+  };
+
+  const wrapAwaitedSource = (source: string, canSuspend: boolean): string => {
+    return canSuspend ? `await (${source})` : `(${source})`;
+  };
+
+  const wrapSourceClosure = (body: string, canSuspend: boolean): string => {
+    return canSuspend
+      ? `(async () => {\n${body}\n})()`
+      : `(() => {\n${body}\n})()`;
+  };
+
   const toNumberLiteral = (
     state: SourceCompileState,
     value: number
@@ -1344,12 +1413,16 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
         const slotVar = allocateTemp(state, 'slot');
         const itemVar = allocateTemp(state, 'item');
         const rangeIndex = addConstant(state, node.range);
-        return `{
-const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
+        const iterableSource = compileExpressionSource(
           state,
           node.iterable,
           scope
-        )}));
+        );
+        return `{
+const ${iterableVar} = runtime.asIterable(${wrapAwaitedSource(
+          iterableSource,
+          canExpressionSuspend(node.iterable)
+        )});
 if (!${iterableVar}) {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
 }
@@ -1369,11 +1442,15 @@ ${compileBlockListStatements(
 }\n`;
       }
       case 'while': {
-        return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
+        const conditionSource = compileExpressionSource(
           state,
           node.condition,
           scope
-        )}))) {
+        );
+        return `while (runtime.isConditionalTrue(${wrapAwaitedSource(
+          conditionSource,
+          canExpressionSuspend(node.condition)
+        )})) {
 ${compileBlockListStatements(
   state,
   node.repeat,
@@ -1384,11 +1461,15 @@ ${compileBlockListStatements(
 }\n`;
       }
       case 'if': {
-        return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
+        const conditionSource = compileExpressionSource(
           state,
           node.condition,
           scope
-        )}))) {
+        );
+        return `if (runtime.isConditionalTrue(${wrapAwaitedSource(
+          conditionSource,
+          canExpressionSuspend(node.condition)
+        )})) {
 ${compileBlockListStatements(
   state,
   node.then,
@@ -1408,8 +1489,12 @@ ${compileBlockListStatements(
       }
       default: {
         const valueVar = allocateTemp(state, 'value');
+        const valueSource = compileExpressionSource(state, node, scope);
         return `{
-const ${valueVar} = await (${compileExpressionSource(state, node, scope)});
+const ${valueVar} = ${wrapAwaitedSource(
+          valueSource,
+          canExpressionSuspend(node)
+        )};
 ${
   filterUndefinedValues
     ? `if (${valueVar} !== undefined) { ${targetVar}.push(${valueVar}); }`
@@ -1455,12 +1540,16 @@ ${
         const slotVar = allocateTemp(state, 'slot');
         const itemVar = allocateTemp(state, 'item');
         const rangeIndex = addConstant(state, node.range);
-        return `{
-const ${iterableVar} = runtime.asIterable(await (${compileExpressionSource(
+        const iterableSource = compileExpressionSource(
           state,
           node.iterable,
           scope
-        )}));
+        );
+        return `{
+const ${iterableVar} = runtime.asIterable(${wrapAwaitedSource(
+          iterableSource,
+          canExpressionSuspend(node.iterable)
+        )});
 if (!${iterableVar}) {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
 }
@@ -1479,20 +1568,28 @@ ${compileTextBlockListStatements(
 }\n`;
       }
       case 'while': {
-        return `while (runtime.isConditionalTrue(await (${compileExpressionSource(
+        const conditionSource = compileExpressionSource(
           state,
           node.condition,
           scope
-        )}))) {
+        );
+        return `while (runtime.isConditionalTrue(${wrapAwaitedSource(
+          conditionSource,
+          canExpressionSuspend(node.condition)
+        )})) {
 ${compileTextBlockListStatements(state, node.repeat, targetVar, scope)}
 }\n`;
       }
       case 'if': {
-        return `if (runtime.isConditionalTrue(await (${compileExpressionSource(
+        const conditionSource = compileExpressionSource(
           state,
           node.condition,
           scope
-        )}))) {
+        );
+        return `if (runtime.isConditionalTrue(${wrapAwaitedSource(
+          conditionSource,
+          canExpressionSuspend(node.condition)
+        )})) {
 ${compileTextBlockListStatements(state, node.then, targetVar, scope)}
 } else {
 ${compileTextBlockListStatements(state, node.else, targetVar, scope)}
@@ -1500,8 +1597,12 @@ ${compileTextBlockListStatements(state, node.else, targetVar, scope)}
       }
       default: {
         const valueVar = allocateTemp(state, 'value');
+        const valueSource = compileExpressionSource(state, node, scope);
         return `{
-const ${valueVar} = await (${compileExpressionSource(state, node, scope)});
+const ${valueVar} = ${wrapAwaitedSource(
+          valueSource,
+          canExpressionSuspend(node)
+        )};
 if (${valueVar} !== undefined) {
 ${targetVar} += context.convertToString(${valueVar});
 }
@@ -1535,11 +1636,12 @@ ${targetVar} += context.convertToString(${valueVar});
       }
       case 'template': {
         const textVar = allocateTemp(state, 'text');
-        return `(await (async () => {
-let ${textVar} = '';
+        return wrapSourceClosure(
+          `let ${textVar} = '';
 ${compileTextBlockListStatements(state, node.blocks, textVar, scope)}
-return ${textVar};
-})())`;
+return ${textVar};`,
+          canBlockListSuspend(node.blocks)
+        );
       }
       case 'variable': {
         const variableResult = deconstructConditionalCombine(node.name);
@@ -1567,13 +1669,13 @@ return ${textVar};
           const localSlotRef = resolveLocalSlotRef(scope, baseResult.name);
           const baseRangeIndex = addConstant(state, node.base.range);
           const baseValueVar = allocateTemp(state, 'base');
-          return `(await (async () => {
-signal?.throwIfAborted();
+          return wrapSourceClosure(
+            `signal?.throwIfAborted();
 const ${baseValueVar} = ${
-            localSlotRef !== undefined
-              ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
-              : createLookupResultSource(scope, baseResult.name)
-          };
+              localSlotRef !== undefined
+                ? `{ isFound: true, value: context.getSlotValue(${localSlotRef}, signal) }`
+                : createLookupResultSource(scope, baseResult.name)
+            };
 if (!${baseValueVar}.isFound) {
 ${
   baseResult.canIgnore || (node.segments[0]?.optional ?? false)
@@ -1583,24 +1685,32 @@ ${
       )}, range: runtime.constants[${baseRangeIndex}] });`
 }
 }
-return runtime.resolveDotSegments(context, ${baseValueVar}.value, runtime.constants[${segmentsIndex}]);
-})())`;
+return runtime.resolveDotSegments(context, ${baseValueVar}.value, runtime.constants[${segmentsIndex}]);`,
+            false
+          );
         }
-        return `(await (async () => {
-signal?.throwIfAborted();
+        const baseSource = compileExpressionSource(state, node.base, scope);
+        return wrapSourceClosure(
+          `signal?.throwIfAborted();
 return runtime.resolveDotSegments(
 context,
-await (${compileExpressionSource(state, node.base, scope)}),
+${wrapAwaitedSource(baseSource, canExpressionSuspend(node.base))},
 runtime.constants[${segmentsIndex}]
-);
-})())`;
+);`,
+          canExpressionSuspend(node.base)
+        );
       }
       case 'apply': {
         const applyNodeIndex = addConstant(state, node);
         const rangeIndex = addConstant(state, node.range);
         const argsNodeIndex = addConstant(state, node.args);
         const argArraySource = `[${node.args
-          .map((arg) => `await (${compileExpressionSource(state, arg, scope)})`)
+          .map((arg) =>
+            wrapAwaitedSource(
+              compileExpressionSource(state, arg, scope),
+              canExpressionSuspend(arg)
+            )
+          )
           .join(', ')}]`;
         if (node.func.kind === 'variable') {
           const specializedBuiltin = toSpecializableStandardCallTarget(
@@ -1614,16 +1724,15 @@ runtime.constants[${segmentsIndex}]
               allocateTemp(state, 'arg')
             );
             const builtinArgStatements = node.args
-              .map(
-                (arg, index) =>
-                  `const ${builtinArgVars[index]} = await (${compileExpressionSource(
-                    state,
-                    arg,
-                    scope
-                  )});`
-              )
+              .map((arg, index) => {
+                const argSource = compileExpressionSource(state, arg, scope);
+                return `const ${builtinArgVars[index]} = ${wrapAwaitedSource(
+                  argSource,
+                  canExpressionSuspend(arg)
+                )};`;
+              })
               .join('\n');
-            return `(await (async () => {
+            return `(async () => {
 signal?.throwIfAborted();
 const ${bindingVar} = ${createLookupResultSource(scope, node.func.name)};
 if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardBuiltins.${node.func.name}) {
@@ -1650,14 +1759,18 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
 }
 const ${callArgsVar} = ${argArraySource};
 return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${callArgsVar}, false);
-})())`;
+})()`;
           }
         }
         const funcVar = allocateTemp(state, 'func');
         const argsVar = allocateTemp(state, 'args');
-        return `(await (async () => {
+        const funcSource = compileExpressionSource(state, node.func, scope);
+        return `(async () => {
 signal?.throwIfAborted();
-const ${funcVar} = await (${compileExpressionSource(state, node.func, scope)});
+const ${funcVar} = ${wrapAwaitedSource(
+          funcSource,
+          canExpressionSuspend(node.func)
+        )};
 if (typeof ${funcVar} !== 'function') {
 runtime.throwError({ description: 'could not apply it for function', range: runtime.constants[${rangeIndex}] });
 }
@@ -1666,12 +1779,15 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
 }
 const ${argsVar} = ${argArraySource};
 return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], signal, ${funcVar}, ${argsVar}, false);
-})())`;
+})()`;
       }
       case 'list': {
         return `[${node.items
-          .map(
-            (item) => `await (${compileExpressionSource(state, item, scope)})`
+          .map((item) =>
+            wrapAwaitedSource(
+              compileExpressionSource(state, item, scope),
+              canExpressionSuspend(item)
+            )
           )
           .join(', ')}]`;
       }
@@ -1680,20 +1796,20 @@ return runtime.invokeCallable(context, runtime.constants[${applyNodeIndex}], sig
           return '[]';
         }
         const resultVar = allocateTemp(state, 'result');
-        return `(await (async () => {
-let ${resultVar} = undefined;
+        return wrapSourceClosure(
+          `let ${resultVar} = undefined;
 ${node.nodes
-  .map(
-    (childNode) =>
-      `${resultVar} = await (${compileExpressionSource(
-        state,
-        childNode,
-        scope
-      )});`
-  )
+  .map((childNode) => {
+    const childSource = compileExpressionSource(state, childNode, scope);
+    return `${resultVar} = ${wrapAwaitedSource(
+      childSource,
+      canExpressionSuspend(childNode)
+    )};`;
+  })
   .join('\n')}
-return ${resultVar};
-})())`;
+return ${resultVar};`,
+          node.nodes.some((childNode) => canExpressionSuspend(childNode))
+        );
       }
     }
   };
