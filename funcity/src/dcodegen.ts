@@ -121,6 +121,19 @@ export interface FunCityGeneratedProgram {
 }
 
 /**
+ * Generated text program runner.
+ */
+export interface FunCityGeneratedTextProgram {
+  /**
+   * Run the generated text program.
+   * @param context - Reducer context
+   * @param signal - AbortSignal when available.
+   * @returns Reduced text.
+   */
+  (context: FunCityReducerContext, signal?: AbortSignal): Promise<string>;
+}
+
+/**
  * Dynamic code generator for AST nodes.
  */
 export interface FunCityDynamicCodeGenerator {
@@ -147,6 +160,14 @@ export interface FunCityDynamicCodeGenerator {
     nodes: readonly FunCityBlockNode[]
   ) => FunCityGeneratedProgram;
   /**
+   * Generate a function object for a text-rendering node list.
+   * @param nodes - Target node list.
+   * @returns Generated text program runner.
+   */
+  readonly generateTextProgram: (
+    nodes: readonly FunCityBlockNode[]
+  ) => FunCityGeneratedTextProgram;
+  /**
    * Create a reducer executor backed by this generator.
    * @returns Reducer executor.
    */
@@ -167,6 +188,16 @@ type FunCityGeneratedProgramImmediate = (
   context: FunCityReducerContext,
   signal?: AbortSignal
 ) => FunCityMaybePromise<unknown[]>;
+
+type FunCityGeneratedTextBlockImmediate = (
+  context: FunCityReducerContext,
+  signal?: AbortSignal
+) => FunCityMaybePromise<string>;
+
+type FunCityGeneratedTextProgramImmediate = (
+  context: FunCityReducerContext,
+  signal?: AbortSignal
+) => FunCityMaybePromise<string>;
 
 const filterUndefined = (results: readonly unknown[]) =>
   results.filter((result) => result !== undefined);
@@ -209,6 +240,35 @@ const createRawBlockRunnerImmediate = (
       resultList.push(...results);
     }
     return resultList;
+  };
+};
+
+const createTextBlockRunnerImmediate = (
+  generators: readonly FunCityGeneratedTextBlockImmediate[]
+): FunCityGeneratedTextBlockImmediate => {
+  return (
+    context: FunCityReducerContext,
+    signal?: AbortSignal
+  ): FunCityMaybePromise<string> => {
+    let result = '';
+    for (let index = 0; index < generators.length; index++) {
+      const text = generators[index]!(context, signal);
+      if (isPromiseLike(text)) {
+        return (async () => {
+          result += await text;
+          for (
+            let continueIndex = index + 1;
+            continueIndex < generators.length;
+            continueIndex++
+          ) {
+            result += await generators[continueIndex]!(context, signal);
+          }
+          return result;
+        })();
+      }
+      result += text;
+    }
+    return result;
   };
 };
 
@@ -260,6 +320,15 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     object,
     FunCityGeneratedBlockImmediate
   >();
+  const textBlockImmediateCache = new WeakMap<
+    FunCityBlockNode,
+    FunCityGeneratedTextBlockImmediate
+  >();
+  const textProgramImmediateCache = new WeakMap<
+    object,
+    FunCityGeneratedTextProgramImmediate
+  >();
+  const textProgramCache = new WeakMap<object, FunCityGeneratedTextProgram>();
   const programImmediateCache = new WeakMap<
     object,
     FunCityGeneratedProgramImmediate
@@ -277,6 +346,20 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
       nodes.map(generateBlockImmediate)
     );
     rawProgramImmediateCache.set(nodes, generator);
+    return generator;
+  };
+
+  const generateTextProgramImmediate = (
+    nodes: readonly FunCityBlockNode[]
+  ): FunCityGeneratedTextProgramImmediate => {
+    const cached = textProgramImmediateCache.get(nodes);
+    if (cached) {
+      return cached;
+    }
+    const generator = createTextBlockRunnerImmediate(
+      nodes.map(generateTextBlockImmediate)
+    );
+    textProgramImmediateCache.set(nodes, generator);
     return generator;
   };
 
@@ -431,13 +514,8 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
         break;
       }
       case 'template': {
-        const generatedBlocks = generateRawProgramImmediate(node.blocks);
-        generator = (context, signal) =>
-          resolveMaybePromise(generatedBlocks(context, signal), (results) =>
-            filterUndefined(results)
-              .map((result) => context.convertToString(result))
-              .join('')
-          );
+        const generatedText = generateTextProgramImmediate(node.blocks);
+        generator = (context, signal) => generatedText(context, signal);
         break;
       }
       case 'variable': {
@@ -670,6 +748,138 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     return generator;
   };
 
+  const generateTextBlockImmediate = (
+    node: FunCityBlockNode
+  ): FunCityGeneratedTextBlockImmediate => {
+    const cached = textBlockImmediateCache.get(node);
+    if (cached) {
+      return cached;
+    }
+
+    let generator: FunCityGeneratedTextBlockImmediate;
+    switch (node.kind) {
+      case 'text': {
+        generator = () => node.text;
+        break;
+      }
+      case 'for': {
+        const iterableGenerator = generateExpressionImmediate(node.iterable);
+        const repeatGenerator = generateTextProgramImmediate(node.repeat);
+        generator = (context, signal) =>
+          resolveMaybePromise(
+            iterableGenerator(context, signal),
+            (result): FunCityMaybePromise<string> => {
+              const iterable = asIterable(result);
+              if (!iterable) {
+                throwError({
+                  description: 'could not apply it for function',
+                  range: node.range,
+                });
+              }
+              const resolvedIterable = iterable as Iterable<unknown>;
+              const iterator = resolvedIterable[Symbol.iterator]();
+              let text = '';
+              for (
+                let current = iterator.next();
+                !current.done;
+                current = iterator.next()
+              ) {
+                context.setValue(node.bind.name, current.value, signal);
+                const repeated = repeatGenerator(context, signal);
+                if (isPromiseLike(repeated)) {
+                  return (async () => {
+                    text += await repeated;
+                    for (
+                      let next = iterator.next();
+                      !next.done;
+                      next = iterator.next()
+                    ) {
+                      context.setValue(node.bind.name, next.value, signal);
+                      text += await repeatGenerator(context, signal);
+                    }
+                    return text;
+                  })();
+                }
+                text += repeated;
+              }
+              return text;
+            }
+          );
+        break;
+      }
+      case 'while': {
+        const conditionGenerator = generateExpressionImmediate(node.condition);
+        const repeatGenerator = generateTextProgramImmediate(node.repeat);
+        generator = (
+          context: FunCityReducerContext,
+          signal?: AbortSignal
+        ): FunCityMaybePromise<string> => {
+          let text = '';
+          while (true) {
+            const condition = conditionGenerator(context, signal);
+            if (isPromiseLike(condition)) {
+              return (async () => {
+                let currentCondition = await condition;
+                while (isConditionalTrue(currentCondition)) {
+                  text += await repeatGenerator(context, signal);
+                  currentCondition = await conditionGenerator(context, signal);
+                }
+                return text;
+              })();
+            }
+            if (!isConditionalTrue(condition)) {
+              return text;
+            }
+            const repeated = repeatGenerator(context, signal);
+            if (isPromiseLike(repeated)) {
+              return (async () => {
+                text += await repeated;
+                while (true) {
+                  const currentCondition = await conditionGenerator(
+                    context,
+                    signal
+                  );
+                  if (!isConditionalTrue(currentCondition)) {
+                    break;
+                  }
+                  text += await repeatGenerator(context, signal);
+                }
+                return text;
+              })();
+            }
+            text += repeated;
+          }
+        };
+        break;
+      }
+      case 'if': {
+        const conditionGenerator = generateExpressionImmediate(node.condition);
+        const thenGenerator = generateTextProgramImmediate(node.then);
+        const elseGenerator = generateTextProgramImmediate(node.else);
+        generator = (context, signal) =>
+          resolveMaybePromise(
+            conditionGenerator(context, signal),
+            (condition): FunCityMaybePromise<string> =>
+              isConditionalTrue(condition)
+                ? thenGenerator(context, signal)
+                : elseGenerator(context, signal)
+          );
+        break;
+      }
+      default: {
+        const expressionGenerator = generateExpressionImmediate(node);
+        generator = (context, signal) =>
+          resolveMaybePromise(expressionGenerator(context, signal), (result) =>
+            result === undefined ? '' : context.convertToString(result)
+          );
+        break;
+      }
+    }
+
+    textBlockImmediateCache.set(node, generator);
+    return generator;
+  };
+
   const generateProgramImmediate = (
     nodes: readonly FunCityBlockNode[]
   ): FunCityGeneratedProgramImmediate => {
@@ -697,6 +907,20 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     const generator: FunCityGeneratedProgram = (context, signal) =>
       Promise.resolve(immediate(context, signal));
     programCache.set(nodes, generator);
+    return generator;
+  };
+
+  const generateTextProgram = (
+    nodes: readonly FunCityBlockNode[]
+  ): FunCityGeneratedTextProgram => {
+    const cached = textProgramCache.get(nodes);
+    if (cached) {
+      return cached;
+    }
+    const immediate = generateTextProgramImmediate(nodes);
+    const generator: FunCityGeneratedTextProgram = (context, signal) =>
+      Promise.resolve(immediate(context, signal));
+    textProgramCache.set(nodes, generator);
     return generator;
   };
 
@@ -732,6 +956,7 @@ export const createDCodegen = (): FunCityDynamicCodeGenerator => {
     generateExpression,
     generateBlock,
     generateProgram,
+    generateTextProgram,
     createExecutor,
   };
 };

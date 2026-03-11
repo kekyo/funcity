@@ -366,6 +366,12 @@ const runScriptWithContext = async (
 
   try {
     warningLogs.length = 0;
+    if (!onOutput) {
+      const dcodegen = createDCodegen();
+      const generator = dcodegen.generateTextProgram(nodes);
+      const output = await generator(context, signal);
+      return { output, logs: [...warningLogs] };
+    }
     const outputChunks: string[] = [];
     await reduceAndCollectResults(context, nodes, signal, {
       onResult: (result) => {

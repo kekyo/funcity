@@ -144,4 +144,23 @@ describe('dynamic code generator test', () => {
     await expect(generatedBlock(reducerContext)).resolves.toEqual([undefined]);
     expect(warningLogs).toEqual([]);
   });
+
+  it('renders text programs without building result arrays', async () => {
+    const warningLogs: FunCityWarningEntry[] = [];
+    const variables = buildCandidateVariables({ name: 'World' });
+    const dcodegen = createDCodegen();
+    const reducerContext = createReducerContext(
+      variables,
+      warningLogs,
+      dcodegen.createExecutor()
+    );
+    const generatedText = dcodegen.generateTextProgram([
+      textNode('Hello '),
+      variableNode('name'),
+      textNode('!'),
+    ]);
+
+    await expect(generatedText(reducerContext)).resolves.toBe('Hello World!');
+    expect(warningLogs).toEqual([]);
+  });
 });

@@ -85,13 +85,10 @@ export const runScriptOnceToText = async (
     warningLogs,
     dcodegen.createExecutor()
   );
-  const generator = dcodegen.generateProgram(nodes);
+  const generator = dcodegen.generateTextProgram(nodes);
   try {
-    const resultList = await generator(reducerContext, signal);
+    const text = await generator(reducerContext, signal);
     logs.push(...warningLogs);
-    const text = resultList
-      .map((result) => reducerContext.convertToString(result))
-      .join('');
     return text;
   } catch (error: unknown) {
     logs.push(...warningLogs);
