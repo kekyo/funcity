@@ -234,6 +234,27 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('matches reducer on intrinsic fun argument warnings', async () => {
+        await expectGeneratedMatchesReducer(
+          [
+            setNode('id', funNode(['value'], variableNode('value'))),
+            applyNode(variableNode('id'), [numberNode(7), numberNode(9)]),
+          ],
+          undefined,
+          backend
+        );
+      });
+
+      it('falls back when fun is shadowed', async () => {
+        await expectGeneratedMatchesReducer(
+          [applyNode('fun', [stringNode('lhs'), stringNode('rhs')])],
+          {
+            fun: (lhs: string, rhs: string) => `${lhs}:${rhs}`,
+          },
+          backend
+        );
+      });
+
       it('matches reducer on inlined standard builtin fast paths', async () => {
         await expectGeneratedMatchesReducer(
           [

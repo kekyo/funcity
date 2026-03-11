@@ -64,6 +64,29 @@ const deconstructConditionalCombine = (
   };
 };
 
+const extractLambdaParameterNames = (
+  node: FunCityExpressionNode
+): string[] | undefined => {
+  switch (node.kind) {
+    case 'variable': {
+      return [node.name];
+    }
+    case 'list': {
+      const names: string[] = [];
+      for (const item of node.items) {
+        if (item.kind !== 'variable') {
+          return undefined;
+        }
+        names.push(item.name);
+      }
+      return names;
+    }
+    default: {
+      return undefined;
+    }
+  }
+};
+
 const resolveVariable = (
   context: FunCityReducerContext,
   result: DeconstructConditionalCombineResult,
@@ -316,6 +339,7 @@ interface FunCitySourceRuntime {
   readonly standardBuiltins: typeof specializableStandardCallTargets;
   readonly standardIntrinsics: {
     readonly cond: Function;
+    readonly fun: Function;
   };
   readonly asIterable: typeof asIterable;
   readonly isConditionalTrue: typeof isConditionalTrue;
@@ -781,27 +805,89 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
           node.func.kind === 'variable' &&
           node.func.name === 'cond' &&
           node.args.length === 3;
+        const intrinsicFunParameters =
+          node.func.kind === 'variable' &&
+          node.func.name === 'fun' &&
+          node.args.length === 2
+            ? extractLambdaParameterNames(node.args[0]!)
+            : undefined;
+        const intrinsicFunBody =
+          intrinsicFunParameters !== undefined ? node.args[1]! : undefined;
+        const compiledIntrinsicFunBody =
+          intrinsicFunBody !== undefined
+            ? generateExpressionImmediate(intrinsicFunBody)
+            : undefined;
         const specializedBuiltinName =
           node.func.kind === 'variable' ? node.func.name : undefined;
         const specializedBuiltin =
           specializedBuiltinName !== undefined
             ? toSpecializableStandardCallTarget(specializedBuiltinName)
             : undefined;
-        generator = isIntrinsicCond
-          ? (context, signal) => {
-              const boundFunction = context.getValue('cond', signal);
-              if (
-                boundFunction.isFound &&
-                boundFunction.value === standardVariables.cond
-              ) {
-                return resolveMaybePromise(
-                  compiledArgs[0]!(context, signal),
-                  (condition): FunCityMaybePromise<unknown> =>
-                    isConditionalTrue(condition)
-                      ? compiledArgs[1]!(context, signal)
-                      : compiledArgs[2]!(context, signal)
-                );
-              }
+        if (isIntrinsicCond) {
+          generator = (context, signal) => {
+            const boundFunction = context.getValue('cond', signal);
+            if (
+              boundFunction.isFound &&
+              boundFunction.value === standardVariables.cond
+            ) {
+              return resolveMaybePromise(
+                compiledArgs[0]!(context, signal),
+                (condition): FunCityMaybePromise<unknown> =>
+                  isConditionalTrue(condition)
+                    ? compiledArgs[1]!(context, signal)
+                    : compiledArgs[2]!(context, signal)
+              );
+            }
+            return applyFunction(
+              context,
+              node,
+              signal,
+              compiledFunc,
+              compiledArgs
+            );
+          };
+          break;
+        }
+        if (
+          compiledIntrinsicFunBody !== undefined &&
+          intrinsicFunParameters !== undefined
+        ) {
+          generator = (context, signal) => {
+            const boundFunction = context.getValue('fun', signal);
+            if (
+              boundFunction.isFound &&
+              boundFunction.value === standardVariables.fun
+            ) {
+              return (...args: readonly unknown[]) => {
+                if (args.length < intrinsicFunParameters.length) {
+                  throwError({
+                    description: `Arguments are not filled: ${args.length} < ${intrinsicFunParameters.length}`,
+                    range: node.range,
+                  });
+                }
+                if (args.length > intrinsicFunParameters.length) {
+                  context.appendWarning({
+                    type: 'warning',
+                    description: `Too many arguments: ${args.length} > ${intrinsicFunParameters.length}`,
+                    range: node.range,
+                  });
+                }
+                const newContext = context.newScope(signal);
+                for (
+                  let index = 0;
+                  index < intrinsicFunParameters.length;
+                  index++
+                ) {
+                  const slot = newContext.ensureLocalSlot(
+                    intrinsicFunParameters[index]!,
+                    signal
+                  );
+                  newContext.setSlotValue(slot, args[index], signal);
+                }
+                return compiledIntrinsicFunBody(newContext, signal);
+              };
+            }
+            if (specializedBuiltin === undefined) {
               return applyFunction(
                 context,
                 node,
@@ -810,34 +896,62 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
                 compiledArgs
               );
             }
-          : specializedBuiltin === undefined
-            ? (context, signal) =>
-                applyFunction(context, node, signal, compiledFunc, compiledArgs)
-            : (context, signal) => {
-                const boundFunction = context.getValue(
-                  specializedBuiltinName!,
-                  signal
-                );
-                if (
-                  boundFunction.isFound &&
-                  boundFunction.value === specializedBuiltin
-                ) {
-                  return applySpecializedStandardFunction(
-                    context,
-                    node,
-                    signal,
-                    specializedBuiltin,
-                    compiledArgs
-                  );
-                }
-                return applyFunction(
-                  context,
-                  node,
-                  signal,
-                  compiledFunc,
-                  compiledArgs
-                );
-              };
+            const specializedFunction = context.getValue(
+              specializedBuiltinName!,
+              signal
+            );
+            if (
+              specializedFunction.isFound &&
+              specializedFunction.value === specializedBuiltin
+            ) {
+              return applySpecializedStandardFunction(
+                context,
+                node,
+                signal,
+                specializedBuiltin,
+                compiledArgs
+              );
+            }
+            return applyFunction(
+              context,
+              node,
+              signal,
+              compiledFunc,
+              compiledArgs
+            );
+          };
+          break;
+        }
+        if (specializedBuiltin === undefined) {
+          generator = (context, signal) =>
+            applyFunction(context, node, signal, compiledFunc, compiledArgs);
+          break;
+        }
+        generator = (context, signal) => {
+          const boundFunction = context.getValue(
+            specializedBuiltinName!,
+            signal
+          );
+          if (
+            boundFunction.isFound &&
+            boundFunction.value === specializedBuiltin
+          ) {
+            return applySpecializedStandardFunction(
+              context,
+              node,
+              signal,
+              specializedBuiltin,
+              compiledArgs
+            );
+          }
+          return applyFunction(
+            context,
+            node,
+            signal,
+            compiledFunc,
+            compiledArgs
+          );
+        };
         break;
       }
       case 'list': {
@@ -1493,6 +1607,7 @@ const createSourceDCodegen = (): FunCityDynamicCodeGenerator => {
       standardBuiltins: specializableStandardCallTargets,
       standardIntrinsics: {
         cond: standardVariables.cond as Function,
+        fun: standardVariables.fun as Function,
       },
       asIterable,
       isConditionalTrue,
@@ -1934,6 +2049,69 @@ return ${wrapAwaitedSource(elseSource, canExpressionSuspend(elseNode))};
 return ${compileGenericApplySource(state, node, scope)};`,
             true
           );
+        }
+        if (
+          node.func.kind === 'variable' &&
+          node.func.name === 'fun' &&
+          node.args.length === 2
+        ) {
+          const parameterNames = extractLambdaParameterNames(node.args[0]!);
+          if (parameterNames !== undefined) {
+            const bodyNode = node.args[1]!;
+            const bindingVar = allocateTemp(state, 'binding');
+            const lambdaArgsVar = allocateTemp(state, 'args');
+            const lambdaContextVar = allocateTemp(state, 'context');
+            const rangeIndex = addConstant(state, node.range);
+            const parameterSlots = parameterNames.map((name) => ({
+              name,
+              slotVar: allocateTemp(state, 'slot'),
+            }));
+            const lambdaScope = parameterSlots.reduce(
+              (currentScope, parameter) =>
+                extendCompileScope(
+                  currentScope,
+                  parameter.name,
+                  parameter.slotVar
+                ),
+              scope
+            );
+            const bodySource = compileExpressionSource(
+              state,
+              bodyNode,
+              lambdaScope
+            );
+            const bindingStatements = parameterSlots
+              .map(
+                (parameter, index) => `const ${
+                  parameter.slotVar
+                } = context.ensureLocalSlot(${JSON.stringify(
+                  parameter.name
+                )}, signal);
+context.setSlotValue(${parameter.slotVar}, ${lambdaArgsVar}[${index}], signal);`
+              )
+              .join('\n');
+            return wrapSourceClosure(
+              `signal?.throwIfAborted();
+const ${bindingVar} = ${createLookupResultSource(scope, 'fun')};
+if (${bindingVar}.isFound && ${bindingVar}.value === runtime.standardIntrinsics.fun) {
+return (...${lambdaArgsVar}) => {
+if (${lambdaArgsVar}.length < ${parameterNames.length}) {
+runtime.throwError({ description: 'Arguments are not filled: ' + ${lambdaArgsVar}.length + ' < ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+if (${lambdaArgsVar}.length > ${parameterNames.length}) {
+context.appendWarning({ type: 'warning', description: 'Too many arguments: ' + ${lambdaArgsVar}.length + ' > ${parameterNames.length}', range: runtime.constants[${rangeIndex}] });
+}
+const ${lambdaContextVar} = context.newScope(signal);
+return ((context) => {
+${bindingStatements}
+return ${bodySource};
+})(${lambdaContextVar});
+};
+}
+return ${compileGenericApplySource(state, node, scope)};`,
+              true
+            );
+          }
         }
         return compileGenericApplySource(state, node, scope);
       }
