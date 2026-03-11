@@ -36,6 +36,21 @@ const renderApp = () =>
     </ThemeProvider>
   );
 
+const selectExecutionBackend = async (
+  getByRole: ReturnType<typeof renderApp>['getByRole'],
+  findByRole: ReturnType<typeof renderApp>['findByRole'],
+  optionName: string
+) => {
+  fireEvent.mouseDown(getByRole('combobox', { name: 'Execution backend' }));
+  fireEvent.click(await findByRole('option', { name: optionName }));
+};
+
+const toggleAggressiveOptimize = (
+  getByRole: ReturnType<typeof renderApp>['getByRole']
+) => {
+  fireEvent.click(getByRole('checkbox', { name: 'Aggressive optimize' }));
+};
+
 describe('funcity-it App', () => {
   beforeEach(() => {
     runScriptOnceToTextMock.mockReset();
@@ -99,6 +114,26 @@ describe('funcity-it App', () => {
     expect(titleLink).toHaveStyle({ alignItems: 'center' });
   });
 
+  it('shows an execution backend dropdown in the toolbar', async () => {
+    const { getByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    expect(getByRole('combobox', { name: 'Execution backend' })).toBeTruthy();
+  });
+
+  it('shows an aggressiveOptimize checkbox in the toolbar', async () => {
+    const { getByRole } = renderApp();
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    expect(getByRole('checkbox', { name: 'Aggressive optimize' })).toBeTruthy();
+  });
+
   it('captures console output into Logs', async () => {
     runScriptOnceToTextMock.mockImplementation(async () => {
       console.log('console output');
@@ -121,6 +156,51 @@ describe('funcity-it App', () => {
       expect(outputText).toContain('script output');
       expect(logText).toContain('console output');
     });
+  });
+
+  it('passes the selected execution backend to funcity', async () => {
+    runScriptOnceToTextMock.mockResolvedValue('script output');
+
+    const { getByRole, findByRole } = renderApp();
+
+    await selectExecutionBackend(getByRole, findByRole, 'Reducer');
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(runScriptOnceToTextMock).toHaveBeenCalled();
+      expect(runScriptOnceToTextMock.mock.calls[0]?.[1]).toMatchObject({
+        backend: 'reducer',
+      });
+    });
+  });
+
+  it('passes aggressiveOptimize to funcity when enabled', async () => {
+    runScriptOnceToTextMock.mockResolvedValue('script output');
+
+    const { getByRole } = renderApp();
+
+    toggleAggressiveOptimize(getByRole);
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(runScriptOnceToTextMock).toHaveBeenCalled();
+      expect(runScriptOnceToTextMock.mock.calls[0]?.[1]).toMatchObject({
+        aggressiveOptimize: true,
+      });
+    });
+  });
+
+  it('disables aggressiveOptimize when reducer backend is selected', async () => {
+    const { getByRole, findByRole } = renderApp();
+
+    const checkbox = getByRole('checkbox', { name: 'Aggressive optimize' });
+    expect(checkbox).toBeEnabled();
+
+    await selectExecutionBackend(getByRole, findByRole, 'Reducer');
+
+    expect(
+      getByRole('checkbox', { name: 'Aggressive optimize' })
+    ).toBeDisabled();
   });
 
   it('adds prefixes and styles for console levels', async () => {
@@ -159,6 +239,28 @@ describe('funcity-it App', () => {
       expect(
         logEditor?.querySelectorAll('.cm-line.cm-console-line--log').length
       ).toBeGreaterThan(0);
+    });
+  });
+
+  it('appends elapsed time as the last log line', async () => {
+    runScriptOnceToTextMock.mockImplementation(async () => {
+      console.log('console output');
+      return 'script output';
+    });
+
+    const { container, getByRole } = renderApp();
+
+    fireEvent.click(getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      const logEditor = container.querySelector('.funcity-cm--log');
+      const logText =
+        logEditor?.querySelector('.cm-content')?.textContent ?? '';
+
+      expect(logText).toContain('console output');
+      expect(logText).toMatch(
+        /Elapsed: [0-9]+(?:\.[0-9]+)? ms \(backend: source\)$/
+      );
     });
   });
 

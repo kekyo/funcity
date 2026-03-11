@@ -88,6 +88,7 @@ const text = await runScriptOnceToText(script, {
   variables,
   logs,
   sourceId: 'hello.fc',
+  backend: 'source', // optional: 'reducer' | 'closure' | 'source'
 });
 
 // Display the result text
@@ -105,7 +106,7 @@ In other words, funcity is a processing system that brings the power of function
   You do not need to be aware that they are asynchronous functions when applying them.
 - There is also a CLI using the core engine.
   The CLI has both REPL mode and text processing mode.
-- The core engine includes a tokenizer, parser, and reducer (interpreter).
+- The core engine includes a tokenizer, parser, reducer (interpreter), and JIT code generators.
 - The core engine library is highly independent,
   requiring no dependencies on other libraries or packages.
   It can be easily integrated into your application.
@@ -673,6 +674,83 @@ const run = async (
 
 Note: This code is exposed as a similar function named `runScriptOnce()` and  `runScriptOnceToText()`.
 That it actually converts `results` to text using `convertToString()`.
+These high-level APIs accept `backend?: 'reducer' | 'closure' | 'source'`.
+If omitted, `source` is used.
+
+### Selecting an Execution Backend
+
+`runScriptOnce()` and `runScriptOnceToText()` accept the optional `backend` property:
+
+```typescript
+const text = await runScriptOnceToText(script, {
+  variables,
+  logs,
+  sourceId: 'hello.fc',
+  backend: 'source',
+});
+```
+
+- `reducer` uses the interpreter directly.
+- `closure` uses the closure-based JIT.
+- `source` uses the source-generated JIT.
+- The high-level one-shot runners default to `source`.
+- If your runtime environment does not allow dynamic code generation, use `closure` or `reducer` instead of `source`.
+
+### Executing with JIT-Generated Functions
+
+If a script is parsed once and executed many times, you can create reusable function objects from AST nodes yourself:
+
+```typescript
+const blocks = runTokenizer(script, logs, sourceId);
+const nodes = runParser(blocks, logs);
+
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: false, // optional, default: false
+});
+const variables = buildCandidateVariables();
+const warningLogs: FunCityWarningEntry[] = [];
+const context = createReducerContext(
+  variables,
+  warningLogs,
+  dcodegen.createExecutor()
+);
+
+const runText = dcodegen.generateTextProgram(nodes);
+const text = await runText(context);
+
+logs.push(...warningLogs);
+```
+
+- JIT generators work from parsed AST nodes, not directly from source text.
+- Always create the execution context with `createReducerContext(..., dcodegen.createExecutor())`.
+- `generateExpression()` executes one expression node, `generateProgram()` returns raw values, and `generateTextProgram()` returns concatenated text.
+- `createDCodegen()` accepts `{ backend?: 'closure' | 'source', aggressiveOptimize?: boolean }`.
+- `createDCodegen()` defaults to `{ backend: 'closure', aggressiveOptimize: false }`. Pass `{ backend: 'source' }` when you need the source-generated backend explicitly.
+- `aggressiveOptimize` is only used by the opt-in source JIT path. `closure` ignores it.
+- If you only need code syntax instead of full template syntax, tokenize and parse with `runCodeTokenizer()` / `parseExpressions()` first, then generate expression or program runners from those nodes.
+
+### `aggressiveOptimize`
+
+`aggressiveOptimize` is an opt-in source JIT mode. It is disabled by default because it relaxes reducer compatibility assumptions in exchange for more direct JIT lowering.
+
+Use it only when your funcity scripts and predefined variables follow these constraints:
+
+- The following names must be treated as non-shadowable: `set`, `fun`, `true`, `false`, `undefined`, `null`, `cond`, `add`, `sub`, `mul`, `div`, `mod`, `and`, `or`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `not`, `range`, `map`, `filter`, `reduce`.
+- Do not bind your own values or functions to those names through predefined variables, `set`, or nested scopes if you expect reducer-compatible behavior.
+- If your scripts intentionally override any of those names, leave `aggressiveOptimize` disabled.
+
+Example:
+
+```typescript
+const dcodegen = createDCodegen({
+  backend: 'source',
+  aggressiveOptimize: true,
+});
+```
+
+- This option is currently available on `createDCodegen()`.
+- The one-shot high-level APIs such as `runScriptOnce()` and `runScriptOnceToText()` do not expose `aggressiveOptimize`.
 
 ### Executing Only Functional Language Syntax
 

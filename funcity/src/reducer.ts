@@ -11,9 +11,11 @@ import {
   type FunCityReducerContext,
   type FunCityReducerContextValueResult,
   type FunCityFunctionContext,
+  type FunCityMaybePromise,
   type FunCityApplyNode,
   type FunCityDotNode,
   type FunCityRange,
+  type FunCityReducerExecutor,
   FunCityReducerError,
   FunCityWarningEntry,
 } from './types';
@@ -24,6 +26,7 @@ import {
   isFunCityFunction,
   internalCreateFunctionIdGenerator,
   internalConvertToString,
+  isPromiseLike,
 } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////
@@ -327,25 +330,199 @@ export const reduceNode = async (
 
 //////////////////////////////////////////////////////////////////////////////
 
+const defaultReducerExecutor: FunCityReducerExecutor = {
+  reduceExpressionNodeImmediate: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => reduceExpressionNode(context, node, signal),
+  reduceExpressionNode: (
+    context: FunCityReducerContext,
+    node: FunCityExpressionNode,
+    signal: AbortSignal | undefined
+  ) => Promise.resolve(reduceExpressionNode(context, node, signal)),
+  reduceNodeImmediate: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => reduceNode(context, node, signal),
+  reduceNode: (
+    context: FunCityReducerContext,
+    node: FunCityBlockNode,
+    signal: AbortSignal | undefined
+  ) => Promise.resolve(reduceNode(context, node, signal)),
+};
+
+const reduceBlockImmediate = (
+  context: FunCityReducerContext,
+  nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[],
+  signal: AbortSignal | undefined
+): FunCityMaybePromise<unknown[]> => {
+  const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
+  const resultList: unknown[] = [];
+  for (let index = 0; index < nodes.length; index++) {
+    const results = context.reduceNodeImmediate(nodes[index]!, signal);
+    if (isPromiseLike(results)) {
+      return (async () => {
+        const firstResults = await results;
+        for (const result of firstResults) {
+          if (result !== undefined) {
+            resultList.push(result);
+          }
+        }
+        for (
+          let continueIndex = index + 1;
+          continueIndex < nodes.length;
+          continueIndex++
+        ) {
+          const continueResults = await context.reduceNodeImmediate(
+            nodes[continueIndex]!,
+            signal
+          );
+          for (const result of continueResults) {
+            if (result !== undefined) {
+              resultList.push(result);
+            }
+          }
+        }
+        return resultList;
+      })();
+    }
+    for (const result of results) {
+      if (result !== undefined) {
+        resultList.push(result);
+      }
+    }
+  }
+  return resultList;
+};
+
+const createPreparedSlotState = (
+  slotNames: readonly string[] | undefined,
+  slotValues: readonly unknown[] | undefined,
+  signal: AbortSignal | undefined
+) => {
+  signal?.throwIfAborted();
+
+  let preparedSlotIds: Map<string, number> | undefined;
+  let preparedSlotValues: unknown[] | undefined;
+  let preparedSlotVersion = 0;
+
+  if (slotNames === undefined || slotNames.length === 0) {
+    return {
+      preparedSlotIds,
+      preparedSlotValues,
+      preparedSlotVersion,
+    };
+  }
+
+  for (let index = 0; index < slotNames.length; index++) {
+    const name = slotNames[index]!;
+    const existingSlot = preparedSlotIds?.get(name);
+    if (existingSlot !== undefined) {
+      preparedSlotValues![existingSlot] = slotValues?.[index];
+      continue;
+    }
+    if (!preparedSlotIds) {
+      preparedSlotIds = new Map();
+    }
+    if (!preparedSlotValues) {
+      preparedSlotValues = [];
+    }
+    const slot = preparedSlotValues.length;
+    preparedSlotIds.set(name, slot);
+    preparedSlotValues.push(slotValues?.[index]);
+    preparedSlotVersion++;
+  }
+
+  return {
+    preparedSlotIds,
+    preparedSlotValues,
+    preparedSlotVersion,
+  };
+};
+
 const createScopedReducerContext = (
   parent: FunCityReducerContext,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  executor: FunCityReducerExecutor,
+  initialSlotNames: readonly string[] | undefined,
+  initialSlotValues: readonly unknown[] | undefined
 ): FunCityReducerContext => {
   signal?.throwIfAborted();
 
-  let thisVars: Map<string, unknown> | undefined;
+  const preparedSlotState = createPreparedSlotState(
+    initialSlotNames,
+    initialSlotValues,
+    signal
+  );
+  let thisSlotIds = preparedSlotState.preparedSlotIds;
+  let thisSlotValues = preparedSlotState.preparedSlotValues;
+  let thisSlotVersion = preparedSlotState.preparedSlotVersion;
   let thisContext: FunCityReducerContext;
+
+  const getSlotVersion = () => thisSlotVersion;
+
+  const resolveLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number | undefined => {
+    signal?.throwIfAborted();
+    return thisSlotIds?.get(name);
+  };
+
+  const ensureLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number => {
+    signal?.throwIfAborted();
+    let slot = thisSlotIds?.get(name);
+    if (slot !== undefined) {
+      return slot;
+    }
+    if (!thisSlotIds) {
+      thisSlotIds = new Map();
+    }
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    slot = thisSlotValues.length;
+    thisSlotIds.set(name, slot);
+    thisSlotValues.push(undefined);
+    thisSlotVersion++;
+    return slot;
+  };
+
+  const getSlotValue = (
+    slot: number,
+    signal: AbortSignal | undefined
+  ): unknown => {
+    signal?.throwIfAborted();
+    return thisSlotValues?.[slot];
+  };
+
+  const setSlotValue = (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ): void => {
+    signal?.throwIfAborted();
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    thisSlotValues[slot] = value;
+  };
 
   const getValue = (
     name: string,
     signal: AbortSignal | undefined
   ): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
-    if (thisVars?.has(name)) {
-      return { value: thisVars.get(name), isFound: true };
-    } else {
-      return parent.getValue(name, signal);
+    const slot = resolveLocalSlot(name, signal);
+    if (slot !== undefined) {
+      return { value: getSlotValue(slot, signal), isFound: true };
     }
+    return parent.getValue(name, signal);
   };
 
   const setValue = (
@@ -354,31 +531,18 @@ const createScopedReducerContext = (
     signal: AbortSignal | undefined
   ): void => {
     signal?.throwIfAborted();
-    if (!thisVars) {
-      thisVars = new Map();
-    }
-    thisVars.set(name, value);
+    const slot = ensureLocalSlot(name, signal);
+    setSlotValue(slot, value, signal);
   };
 
   const createFunctionContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
-    const reduceBlock = async (
+    const reduceBlock = (
       nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
-    ): Promise<unknown[]> => {
-      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
-      const resultList: unknown[] = [];
-      for (const node of nodes) {
-        const results = await reduceNode(thisContext, node, signal);
-        for (const result of results) {
-          if (result !== undefined) {
-            resultList.push(result);
-          }
-        }
-      }
-      return resultList;
-    };
+    ): Promise<unknown[]> =>
+      Promise.resolve(reduceBlockImmediate(thisContext, nodeOrNodes, signal));
     return {
       thisNode,
       abortSignal: signal,
@@ -386,10 +550,22 @@ const createScopedReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning: parent.appendWarning,
       getBoundFunction: parent.getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal),
+      newScope: () =>
+        createScopedReducerContext(
+          thisContext,
+          signal,
+          executor,
+          undefined,
+          undefined
+        ),
       convertToString: parent.convertToString,
+      reduceImmediate: (node: FunCityExpressionNode) =>
+        thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        reduceExpressionNode(thisContext, node, signal),
+        thisContext.reduceExpressionNode(node, signal),
+      reduceBlockImmediate: (
+        nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+      ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
       reduceBlock,
     };
   };
@@ -400,8 +576,45 @@ const createScopedReducerContext = (
     getBoundFunction: parent.getBoundFunction,
     appendWarning: parent.appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal),
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        undefined,
+        undefined
+      ),
+    newCallScope: (
+      slotNames: readonly string[],
+      slotValues: readonly unknown[],
+      signal: AbortSignal | undefined
+    ) =>
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        slotNames,
+        slotValues
+      ),
+    getSlotVersion,
+    resolveLocalSlot,
+    ensureLocalSlot,
+    getSlotValue,
+    setSlotValue,
     convertToString: parent.convertToString,
+    reduceExpressionNode: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    reduceExpressionNodeImmediate: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
+    reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
+      executor.reduceNode(thisContext, node, signal),
+    reduceNodeImmediate: (
+      node: FunCityBlockNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceNodeImmediate(thisContext, node, signal),
     isConstructable: parent.isConstructable,
     createFunctionContext,
   };
@@ -415,9 +628,12 @@ const createScopedReducerContext = (
  */
 export const createReducerContext = (
   variables: FunCityVariables,
-  warningLogs: FunCityWarningEntry[]
+  warningLogs: FunCityWarningEntry[],
+  executor: FunCityReducerExecutor = defaultReducerExecutor
 ): FunCityReducerContext => {
-  let thisVars: Map<string, unknown> | undefined;
+  let thisSlotIds: Map<string, number> | undefined;
+  let thisSlotValues: unknown[] | undefined;
+  let thisSlotVersion = 0;
   let thisContext: FunCityReducerContext;
 
   const boundFunctionCache = new WeakMap<object, WeakMap<Function, Function>>();
@@ -438,18 +654,71 @@ export const createReducerContext = (
 
   const constructorCache = new WeakMap<Function, boolean>();
 
+  const getSlotVersion = () => thisSlotVersion;
+
+  const resolveLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number | undefined => {
+    signal?.throwIfAborted();
+    return thisSlotIds?.get(name);
+  };
+
+  const ensureLocalSlot = (
+    name: string,
+    signal: AbortSignal | undefined
+  ): number => {
+    signal?.throwIfAborted();
+    let slot = thisSlotIds?.get(name);
+    if (slot !== undefined) {
+      return slot;
+    }
+    if (!thisSlotIds) {
+      thisSlotIds = new Map();
+    }
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    slot = thisSlotValues.length;
+    thisSlotIds.set(name, slot);
+    thisSlotValues.push(undefined);
+    thisSlotVersion++;
+    return slot;
+  };
+
+  const getSlotValue = (
+    slot: number,
+    signal: AbortSignal | undefined
+  ): unknown => {
+    signal?.throwIfAborted();
+    return thisSlotValues?.[slot];
+  };
+
+  const setSlotValue = (
+    slot: number,
+    value: unknown,
+    signal: AbortSignal | undefined
+  ): void => {
+    signal?.throwIfAborted();
+    if (!thisSlotValues) {
+      thisSlotValues = [];
+    }
+    thisSlotValues[slot] = value;
+  };
+
   const getValue = (
     name: string,
     signal: AbortSignal | undefined
   ): FunCityReducerContextValueResult => {
     signal?.throwIfAborted();
-    if (thisVars?.has(name)) {
-      return { value: thisVars.get(name), isFound: true };
-    } else if (variables.has(name)) {
-      return { value: variables.get(name), isFound: true };
-    } else {
-      return { value: undefined, isFound: false };
+    const slot = resolveLocalSlot(name, signal);
+    if (slot !== undefined) {
+      return { value: getSlotValue(slot, signal), isFound: true };
     }
+    if (variables.has(name)) {
+      return { value: variables.get(name), isFound: true };
+    }
+    return { value: undefined, isFound: false };
   };
 
   const setValue = (
@@ -458,10 +727,8 @@ export const createReducerContext = (
     signal: AbortSignal | undefined
   ): void => {
     signal?.throwIfAborted();
-    if (!thisVars) {
-      thisVars = new Map();
-    }
-    thisVars.set(name, value);
+    const slot = ensureLocalSlot(name, signal);
+    setSlotValue(slot, value, signal);
   };
 
   const appendWarning = (warning: FunCityWarningEntry): void => {
@@ -492,21 +759,10 @@ export const createReducerContext = (
     thisNode: FunCityExpressionNode,
     signal: AbortSignal | undefined
   ): FunCityFunctionContext => {
-    const reduceBlock = async (
+    const reduceBlock = (
       nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
-    ): Promise<unknown[]> => {
-      const nodes = Array.isArray(nodeOrNodes) ? nodeOrNodes : [nodeOrNodes];
-      const resultList: unknown[] = [];
-      for (const node of nodes) {
-        const results = await reduceNode(thisContext, node, signal);
-        for (const result of results) {
-          if (result !== undefined) {
-            resultList.push(result);
-          }
-        }
-      }
-      return resultList;
-    };
+    ): Promise<unknown[]> =>
+      Promise.resolve(reduceBlockImmediate(thisContext, nodeOrNodes, signal));
     return {
       thisNode,
       abortSignal: signal,
@@ -514,10 +770,22 @@ export const createReducerContext = (
       setValue: (name: string, value: unknown) => setValue(name, value, signal),
       appendWarning,
       getBoundFunction,
-      newScope: () => createScopedReducerContext(thisContext, signal),
+      newScope: () =>
+        createScopedReducerContext(
+          thisContext,
+          signal,
+          executor,
+          undefined,
+          undefined
+        ),
       convertToString,
+      reduceImmediate: (node: FunCityExpressionNode) =>
+        thisContext.reduceExpressionNodeImmediate(node, signal),
       reduce: (node: FunCityExpressionNode) =>
-        reduceExpressionNode(thisContext, node, signal),
+        thisContext.reduceExpressionNode(node, signal),
+      reduceBlockImmediate: (
+        nodeOrNodes: FunCityBlockNode | readonly FunCityBlockNode[]
+      ) => reduceBlockImmediate(thisContext, nodeOrNodes, signal),
       reduceBlock,
     };
   };
@@ -528,8 +796,45 @@ export const createReducerContext = (
     getBoundFunction,
     appendWarning,
     newScope: (signal: AbortSignal | undefined) =>
-      createScopedReducerContext(thisContext, signal),
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        undefined,
+        undefined
+      ),
+    newCallScope: (
+      slotNames: readonly string[],
+      slotValues: readonly unknown[],
+      signal: AbortSignal | undefined
+    ) =>
+      createScopedReducerContext(
+        thisContext,
+        signal,
+        executor,
+        slotNames,
+        slotValues
+      ),
+    getSlotVersion,
+    resolveLocalSlot,
+    ensureLocalSlot,
+    getSlotValue,
+    setSlotValue,
     convertToString,
+    reduceExpressionNode: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNode(thisContext, node, signal),
+    reduceExpressionNodeImmediate: (
+      node: FunCityExpressionNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceExpressionNodeImmediate(thisContext, node, signal),
+    reduceNode: (node: FunCityBlockNode, signal: AbortSignal | undefined) =>
+      executor.reduceNode(thisContext, node, signal),
+    reduceNodeImmediate: (
+      node: FunCityBlockNode,
+      signal: AbortSignal | undefined
+    ) => executor.reduceNodeImmediate(thisContext, node, signal),
     isConstructable,
     createFunctionContext,
   };

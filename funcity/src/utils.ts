@@ -7,6 +7,7 @@ import {
   FunCityLogEntry,
   FunCityLogEntryWriter,
   FunCityLocation,
+  FunCityMaybePromise,
   FunCityRange,
   FunCityVariables,
 } from './types';
@@ -124,6 +125,21 @@ export const fromError = (error: any): string => {
   } else {
     return 'unknown';
   }
+};
+
+/**
+ * Check whether a value is promise-like.
+ * @param value - Target value.
+ * @returns True when the value has a `then` method.
+ */
+export const isPromiseLike = <T>(
+  value: FunCityMaybePromise<T>
+): value is Promise<T> => {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  const candidate = value as { then?: unknown };
+  return typeof candidate.then === 'function';
 };
 
 /**

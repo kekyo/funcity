@@ -7,6 +7,7 @@ import {
   FunCityBlockNode,
   FunCityExpressionNode,
   FunCityLogEntry,
+  FunCityMaybePromise,
   FunCityRange,
   FunCityVariables,
   FunCityFunctionContext,
@@ -15,19 +16,29 @@ import {
 } from '../types';
 import { runCodeTokenizer, runTokenizer } from '../tokenizer';
 import { parseExpressions, runParser } from '../parser';
-import { reduceExpressionNode, reduceNode } from '../reducer';
 import {
   asIterable,
   combineVariables,
   convertToString,
   isConditionalTrue,
+  isPromiseLike,
   makeFunCityFunction,
 } from '../utils';
 
 //////////////////////////////////////////////////////////////////////////////
 
+const resolveMaybePromise = <T, U>(
+  value: FunCityMaybePromise<T>,
+  onResolved: (value: T) => FunCityMaybePromise<U>
+): FunCityMaybePromise<U> => {
+  if (isPromiseLike(value)) {
+    return value.then((resolved) => onResolved(resolved));
+  }
+  return onResolved(value);
+};
+
 // `cond` function requires delayed execution both then/else expressions.
-const _cond = makeFunCityFunction(async function (
+const _cond = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -41,15 +52,16 @@ const _cond = makeFunCityFunction(async function (
     });
     return undefined;
   }
-  const cond = await this.reduce(arg0);
-  if (isConditionalTrue(cond)) {
-    return await this.reduce(arg1); // Delayed execution when condition is true.
-  } else {
-    return await this.reduce(arg2); // Delayed execution when condition is false.
-  }
+  return resolveMaybePromise(
+    this.reduceImmediate(arg0),
+    (cond): FunCityMaybePromise<unknown> =>
+      isConditionalTrue(cond)
+        ? this.reduceImmediate(arg1) // Delayed execution when condition is true.
+        : this.reduceImmediate(arg2) // Delayed execution when condition is false.
+  );
 });
 
-const _defaults = makeFunCityFunction(async function (
+const _defaults = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -63,14 +75,18 @@ const _defaults = makeFunCityFunction(async function (
     });
   }
 
-  const value = await this.reduce(arg0);
-  if (value !== undefined && value !== null) {
-    return value;
-  }
-  return await this.reduce(arg1);
+  return resolveMaybePromise(
+    this.reduceImmediate(arg0),
+    (value): FunCityMaybePromise<unknown> => {
+      if (value !== undefined && value !== null) {
+        return value;
+      }
+      return this.reduceImmediate(arg1);
+    }
+  );
 });
 
-const _set = makeFunCityFunction(async function (
+const _set = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -90,9 +106,10 @@ const _set = makeFunCityFunction(async function (
       range: arg0.range,
     });
   }
-  const value = await this.reduce(arg1);
-  this.setValue(arg0.name, value);
-  return undefined;
+  return resolveMaybePromise(this.reduceImmediate(arg1), (value) => {
+    this.setValue(arg0.name, value);
+    return undefined;
+  });
 });
 
 const extractParameterArguments = (
@@ -131,7 +148,7 @@ const extractParameterArguments = (
   }
 };
 
-const _fun = makeFunCityFunction(async function (
+const _fun = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   arg0: FunCityExpressionNode | undefined,
   arg1: FunCityExpressionNode | undefined,
@@ -154,7 +171,7 @@ const _fun = makeFunCityFunction(async function (
   const lambdaRange = this.thisNode.range;
   const createScope = this.newScope;
 
-  return async (...args: readonly unknown[]) => {
+  return (...args: readonly unknown[]) => {
     if (args.length < nameNodes.length) {
       throw new FunCityReducerError({
         type: 'error',
@@ -177,16 +194,11 @@ const _fun = makeFunCityFunction(async function (
         this.abortSignal
       );
     }
-    const result = await reduceExpressionNode(
-      newContext,
-      bodyNode,
-      this.abortSignal
-    );
-    return result;
+    return newContext.reduceExpressionNodeImmediate(bodyNode, this.abortSignal);
   };
 });
 
-const _typeof = async (arg0: unknown) => {
+const _typeof = (arg0: unknown) => {
   if (arg0 === null) {
     return 'null';
   } else if (typeof arg0 === 'string') {
@@ -200,22 +212,22 @@ const _typeof = async (arg0: unknown) => {
   }
 };
 
-const _toString = async (...args: unknown[]) => {
+const _toString = (...args: unknown[]) => {
   const results = args.map((arg0) => convertToString(arg0));
   return results.join(',');
 };
 
-const _toBoolean = async (arg0: unknown) => {
+const _toBoolean = (arg0: unknown) => {
   const r = isConditionalTrue(arg0);
   return r;
 };
 
-const _toNumber = async (arg0: unknown) => {
+const _toNumber = (arg0: unknown) => {
   const r = Number(arg0);
   return r;
 };
 
-const _toBigInt = async (arg0: unknown) => {
+const _toBigInt = (arg0: unknown) => {
   switch (typeof arg0) {
     case 'number':
     case 'bigint':
@@ -225,72 +237,72 @@ const _toBigInt = async (arg0: unknown) => {
       return r;
     }
     default: {
-      const r = BigInt(await _toString(arg0));
+      const r = BigInt(_toString(arg0));
       return r;
     }
   }
 };
 
-const _add = async (arg0: unknown, ...args: unknown[]) => {
+const _add = (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 + Number(v), Number(arg0));
   return r;
 };
 
-const _sub = async (arg0: unknown, ...args: unknown[]) => {
+const _sub = (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 - Number(v), Number(arg0));
   return r;
 };
 
-const _mul = async (arg0: unknown, ...args: unknown[]) => {
+const _mul = (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 * Number(v), Number(arg0));
   return r;
 };
 
-const _div = async (arg0: unknown, ...args: unknown[]) => {
+const _div = (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 / Number(v), Number(arg0));
   return r;
 };
 
-const _mod = async (arg0: unknown, ...args: unknown[]) => {
+const _mod = (arg0: unknown, ...args: unknown[]) => {
   const r = args.reduce((v0: number, v) => v0 % Number(v), Number(arg0));
   return r;
 };
 
-const _eq = async (arg0: unknown, arg1: unknown) => {
+const _eq = (arg0: unknown, arg1: unknown) => {
   const r = arg0 === arg1;
   return r;
 };
 
-const _ne = async (arg0: unknown, arg1: unknown) => {
+const _ne = (arg0: unknown, arg1: unknown) => {
   const r = arg0 !== arg1;
   return r;
 };
 
-const _lt = async (arg0: unknown, arg1: unknown) => {
+const _lt = (arg0: unknown, arg1: unknown) => {
   const r = (arg0 as any) < (arg1 as any);
   return r;
 };
 
-const _gt = async (arg0: unknown, arg1: unknown) => {
+const _gt = (arg0: unknown, arg1: unknown) => {
   const r = (arg0 as any) > (arg1 as any);
   return r;
 };
 
-const _le = async (arg0: unknown, arg1: unknown) => {
+const _le = (arg0: unknown, arg1: unknown) => {
   const r = (arg0 as any) <= (arg1 as any);
   return r;
 };
 
-const _ge = async (arg0: unknown, arg1: unknown) => {
+const _ge = (arg0: unknown, arg1: unknown) => {
   const r = (arg0 as any) >= (arg1 as any);
   return r;
 };
 
-const _now = async () => {
+const _now = () => {
   return new Date();
 };
 
-const _random = makeFunCityFunction(async function (
+const _random = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   arg0?: FunCityExpressionNode,
   arg1?: FunCityExpressionNode,
@@ -303,15 +315,20 @@ const _random = makeFunCityFunction(async function (
       range: this.thisNode.range,
     });
   }
-  const baseValue = await this.reduce(arg0);
-  const spanValue = arg1 ? await this.reduce(arg1) : baseValue;
-  const base = arg1 ? Number(baseValue) : 0;
-  const span = Number(spanValue);
-  const r = base + Math.floor(Math.random() * span);
-  return r;
+  return resolveMaybePromise(
+    this.reduceImmediate(arg0),
+    (baseValue): FunCityMaybePromise<number> => {
+      const spanValue = arg1 ? this.reduceImmediate(arg1) : baseValue;
+      return resolveMaybePromise(spanValue, (resolvedSpanValue) => {
+        const base = arg1 ? Number(baseValue) : 0;
+        const span = Number(resolvedSpanValue);
+        return base + Math.floor(Math.random() * span);
+      });
+    }
+  );
 });
 
-const _randomf = async (arg0?: unknown, arg1?: unknown) => {
+const _randomf = (arg0?: unknown, arg1?: unknown) => {
   if (arg0 === undefined) {
     return Math.random();
   }
@@ -346,18 +363,18 @@ const concatInner = (sep: string, args: Iterable<unknown>) => {
   return v;
 };
 
-const _concat = async (...args: unknown[]) => {
+const _concat = (...args: unknown[]) => {
   const r = concatInner('', args);
   return r;
 };
 
-const _join = async (arg0: unknown, ...args: unknown[]) => {
+const _join = (arg0: unknown, ...args: unknown[]) => {
   const sep = convertToString(arg0);
   const r = concatInner(sep, args);
   return r;
 };
 
-const _trim = async (arg0: unknown) => {
+const _trim = (arg0: unknown) => {
   let v: any = arg0;
   if (v === undefined || v === null) {
     v = '';
@@ -367,7 +384,7 @@ const _trim = async (arg0: unknown) => {
   return v.trim();
 };
 
-const _toUpper = async (arg0: unknown) => {
+const _toUpper = (arg0: unknown) => {
   let v: any = arg0;
   if (typeof v !== 'string') {
     v = v.toString() ?? '';
@@ -375,7 +392,7 @@ const _toUpper = async (arg0: unknown) => {
   return v.toUpperCase();
 };
 
-const _toLower = async (arg0: unknown) => {
+const _toLower = (arg0: unknown) => {
   let v: any = arg0;
   if (typeof v !== 'string') {
     v = v.toString() ?? '';
@@ -383,7 +400,7 @@ const _toLower = async (arg0: unknown) => {
   return v.toLowerCase();
 };
 
-const _length = async (arg0: unknown) => {
+const _length = (arg0: unknown) => {
   if (arg0) {
     if (typeof arg0 === 'string') {
       return arg0.length;
@@ -403,7 +420,7 @@ const _length = async (arg0: unknown) => {
   return 0;
 };
 
-const _and = makeFunCityFunction(async function (
+const _and = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   ...args: FunCityExpressionNode[]
 ) {
@@ -414,8 +431,27 @@ const _and = makeFunCityFunction(async function (
       range: this.thisNode.range,
     });
   }
-  for (const arg of args) {
-    const value = await this.reduce(arg);
+  for (let index = 0; index < args.length; index++) {
+    const value = this.reduceImmediate(args[index]!);
+    if (isPromiseLike(value)) {
+      return (async () => {
+        if (!isConditionalTrue(await value)) {
+          return false;
+        }
+        for (
+          let continueIndex = index + 1;
+          continueIndex < args.length;
+          continueIndex++
+        ) {
+          if (
+            !isConditionalTrue(await this.reduceImmediate(args[continueIndex]!))
+          ) {
+            return false;
+          }
+        }
+        return true;
+      })();
+    }
     if (!isConditionalTrue(value)) {
       return false;
     }
@@ -423,7 +459,7 @@ const _and = makeFunCityFunction(async function (
   return true;
 });
 
-const _or = makeFunCityFunction(async function (
+const _or = makeFunCityFunction(function (
   this: FunCityFunctionContext,
   ...args: FunCityExpressionNode[]
 ) {
@@ -434,8 +470,27 @@ const _or = makeFunCityFunction(async function (
       range: this.thisNode.range,
     });
   }
-  for (const arg of args) {
-    const value = await this.reduce(arg);
+  for (let index = 0; index < args.length; index++) {
+    const value = this.reduceImmediate(args[index]!);
+    if (isPromiseLike(value)) {
+      return (async () => {
+        if (isConditionalTrue(await value)) {
+          return true;
+        }
+        for (
+          let continueIndex = index + 1;
+          continueIndex < args.length;
+          continueIndex++
+        ) {
+          if (
+            isConditionalTrue(await this.reduceImmediate(args[continueIndex]!))
+          ) {
+            return true;
+          }
+        }
+        return false;
+      })();
+    }
     if (isConditionalTrue(value)) {
       return true;
     }
@@ -443,11 +498,11 @@ const _or = makeFunCityFunction(async function (
   return false;
 });
 
-const _not = async (arg0: unknown) => {
+const _not = (arg0: unknown) => {
   return !isConditionalTrue(arg0);
 };
 
-const _at = async (arg0: unknown, arg1: unknown) => {
+const _at = (arg0: unknown, arg1: unknown) => {
   const index = Number(arg0);
   if (arg1) {
     if (typeof arg1 === 'string') {
@@ -470,7 +525,7 @@ const _at = async (arg0: unknown, arg1: unknown) => {
   return undefined;
 };
 
-const _first = async (arg0: unknown) => {
+const _first = (arg0: unknown) => {
   if (arg0) {
     if (typeof arg0 === 'string') {
       return arg0[0];
@@ -488,7 +543,7 @@ const _first = async (arg0: unknown) => {
   return undefined;
 };
 
-const _last = async (arg0: unknown) => {
+const _last = (arg0: unknown) => {
   if (arg0) {
     if (typeof arg0 === 'string') {
       return arg0[arg0.length - 1];
@@ -508,7 +563,7 @@ const _last = async (arg0: unknown) => {
   return undefined;
 };
 
-const _range = async (arg0: unknown, arg1: unknown) => {
+const _range = (arg0: unknown, arg1: unknown) => {
   let value = Number(arg0);
   const count = Number(arg1);
   const resultList: unknown[] = [];
@@ -530,7 +585,7 @@ const sliceIterable = (
   return resultList.slice(start, end);
 };
 
-const _slice = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+const _slice = (arg0: unknown, arg1: unknown, arg2: unknown) => {
   const start = arg0 === undefined ? undefined : Number(arg0);
   if (arg2 === undefined) {
     if (typeof arg1 === 'string') {
@@ -545,7 +600,7 @@ const _slice = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return sliceIterable(arg2 as Iterable<unknown>, start, end);
 };
 
-const _reverse = async (arg0: unknown) => {
+const _reverse = (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   let resultList: unknown[] = [];
   for (const item of iter) {
@@ -554,7 +609,7 @@ const _reverse = async (arg0: unknown) => {
   return resultList.reverse();
 };
 
-const _sort = async (arg0: unknown) => {
+const _sort = (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   let resultList: unknown[] = [];
   for (const item of iter) {
@@ -585,7 +640,7 @@ const _flatMap = async (arg0: unknown, arg1: unknown) => {
   return resultList;
 };
 
-const _flatten = async (arg0: unknown) => {
+const _flatten = (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   const resultList: unknown[] = [];
   for (const item of iter) {
@@ -611,7 +666,7 @@ const _filter = async (arg0: unknown, arg1: unknown) => {
   return resultList;
 };
 
-const _collect = async (arg0: unknown) => {
+const _collect = (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   const resultList: unknown[] = [];
   for (const item of iter) {
@@ -622,7 +677,7 @@ const _collect = async (arg0: unknown) => {
   return resultList;
 };
 
-const _distinct = async (arg0: unknown) => {
+const _distinct = (arg0: unknown) => {
   const iter = arg0 as Iterable<unknown>;
   const seen = new Set<unknown>();
   const resultList: unknown[] = [];
@@ -650,7 +705,7 @@ const _distinctBy = async (arg0: unknown, arg1: unknown) => {
   return resultList;
 };
 
-const _union = async (arg0: unknown, arg1: unknown) => {
+const _union = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const union = (
       arg0 as Set<unknown> & { union?: (s: Set<unknown>) => Set<unknown> }
@@ -699,7 +754,7 @@ const _unionBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return resultList;
 };
 
-const _intersection = async (arg0: unknown, arg1: unknown) => {
+const _intersection = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const intersection = (
       arg0 as Set<unknown> & {
@@ -744,7 +799,7 @@ const _intersectionBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return resultList;
 };
 
-const _difference = async (arg0: unknown, arg1: unknown) => {
+const _difference = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const difference = (
       arg0 as Set<unknown> & {
@@ -789,7 +844,7 @@ const _differenceBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return resultList;
 };
 
-const _symmetricDifference = async (arg0: unknown, arg1: unknown) => {
+const _symmetricDifference = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const symmetricDifference = (
       arg0 as Set<unknown> & {
@@ -872,7 +927,7 @@ const _symmetricDifferenceBy = async (
   return resultList;
 };
 
-const _isSubsetOf = async (arg0: unknown, arg1: unknown) => {
+const _isSubsetOf = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const isSubsetOf = (
       arg0 as Set<unknown> & {
@@ -921,7 +976,7 @@ const _isSubsetOfBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return true;
 };
 
-const _isSupersetOf = async (arg0: unknown, arg1: unknown) => {
+const _isSupersetOf = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const isSupersetOf = (
       arg0 as Set<unknown> & {
@@ -964,7 +1019,7 @@ const _isSupersetOfBy = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return true;
 };
 
-const _isDisjointFrom = async (arg0: unknown, arg1: unknown) => {
+const _isDisjointFrom = (arg0: unknown, arg1: unknown) => {
   if (arg0 instanceof Set && arg1 instanceof Set) {
     const isDisjointFrom = (
       arg0 as Set<unknown> & {
@@ -1016,14 +1071,14 @@ const _reduce = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return acc;
 };
 
-const _match = async (arg0: unknown, arg1: unknown) => {
+const _match = (arg0: unknown, arg1: unknown) => {
   const re =
     arg0 instanceof RegExp ? arg0 : new RegExp(convertToString(arg0), 'g');
   const results = convertToString(arg1).match(re);
   return results;
 };
 
-const _replace = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
+const _replace = (arg0: unknown, arg1: unknown, arg2: unknown) => {
   const re =
     arg0 instanceof RegExp ? arg0 : new RegExp(convertToString(arg0), 'g');
   const replace = convertToString(arg1);
@@ -1031,7 +1086,7 @@ const _replace = async (arg0: unknown, arg1: unknown, arg2: unknown) => {
   return results;
 };
 
-const _regex = async (arg0: unknown, arg1: unknown) => {
+const _regex = (arg0: unknown, arg1: unknown) => {
   if (arg1) {
     const re = new RegExp(convertToString(arg0), convertToString(arg1));
     return re;
@@ -1041,12 +1096,12 @@ const _regex = async (arg0: unknown, arg1: unknown) => {
   }
 };
 
-const _bind = async (arg0: unknown, ...args: unknown[]) => {
+const _bind = (arg0: unknown, ...args: unknown[]) => {
   const predicate = arg0 as Function;
   return predicate.bind(undefined, ...args);
 };
 
-const _url = async (arg0: unknown, arg1: unknown) => {
+const _url = (arg0: unknown, arg1: unknown) => {
   const url = new URL(
     convertToString(arg0),
     arg1 !== undefined ? convertToString(arg1) : undefined
@@ -1194,11 +1249,7 @@ export const createIncludeFunction = (
     const scopedContext = context.newScope();
     const resultList: unknown[] = [];
     for (const node of nodes) {
-      const results = await reduceNode(
-        scopedContext,
-        node,
-        context.abortSignal
-      );
+      const results = await scopedContext.reduceNode(node, context.abortSignal);
       for (const result of results) {
         if (result !== undefined) {
           resultList.push(result);
