@@ -6,7 +6,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import dts from 'vite-plugin-dts';
+import dts from 'unplugin-dts/vite';
 import prettierMax from 'prettier-max';
 import screwUp from 'screw-up';
 
@@ -14,7 +14,13 @@ import screwUp from 'screw-up';
  * Vite configuration for building the library bundle.
  */
 export default defineConfig({
-  plugins: [prettierMax(), screwUp(), dts({ entryRoot: 'src' })],
+  plugins: [
+    prettierMax(),
+    screwUp(),
+    dts({
+      entryRoot: 'src',
+    }),
+  ],
   build: {
     lib: {
       entry: {
@@ -32,7 +38,12 @@ export default defineConfig({
         `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,
       formats: ['es', 'cjs'],
     },
-    rollupOptions: {
+    rolldownOptions: {
+      checks: {
+        // createIncludeFunction() intentionally keeps a dynamic import here,
+        // while the package also exposes compile-cache from the root entry.
+        ineffectiveDynamicImport: false,
+      },
       external: [
         'fs/promises',
         'path',

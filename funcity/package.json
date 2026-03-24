@@ -41,8 +41,8 @@
     "prettier-max": ">=1.14.0",
     "screw-up": ">=1.26.0",
     "typescript": ">=5.0.0",
+    "unplugin-dts": ">=1.0.0-beta.6",
     "vite": ">=5.0.0",
-    "vite-plugin-dts": ">=3.0.0",
     "vitest": ">=1.0.0"
   }
 }
