@@ -6,16 +6,15 @@
 import {
   FunCityBlockNode,
   FunCityExpressionNode,
+  FunCityFunctionContext,
   FunCityLogEntry,
   FunCityMaybePromise,
   FunCityRange,
+  FunCityReducerContext,
   FunCityVariables,
-  FunCityFunctionContext,
   FunCityVariableNode,
   FunCityReducerError,
 } from '../types';
-import { runCodeTokenizer, runTokenizer } from '../tokenizer';
-import { parseExpressions, runParser } from '../parser';
 import {
   asIterable,
   combineVariables,
@@ -110,6 +109,53 @@ const _set = makeFunCityFunction(function (
     this.setValue(arg0.name, value);
     return undefined;
   });
+});
+
+const isConstructable = (fn: Function): boolean => {
+  try {
+    Reflect.construct(Object, [], fn);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const _new = makeFunCityFunction(function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0) {
+    throw new FunCityReducerError({
+      type: 'error',
+      description: 'Required `new` constructor expression',
+      range: this.thisNode.range,
+    });
+  }
+
+  return resolveMaybePromise(
+    this.reduceImmediate(arg0),
+    (target): FunCityMaybePromise<unknown> => {
+      if (typeof target !== 'function') {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `new` constructor function',
+          range: arg0.range,
+        });
+      }
+      if (!isConstructable(target)) {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `new` constructable function',
+          range: arg0.range,
+        });
+      }
+      return resolveMaybePromise(
+        Promise.all(rest.map((arg) => this.reduce(arg))),
+        (args) => Reflect.construct(target, args)
+      );
+    }
+  );
 });
 
 const extractParameterArguments = (
@@ -1200,6 +1246,8 @@ export interface IncludeFunctions {
   readonly tryInclude: Function;
 }
 
+type CompileCacheModule = typeof import('../compile-cache');
+
 export const createIncludeFunction = (
   options: IncludeFunctionOptions
 ): IncludeFunctions => {
@@ -1212,17 +1260,15 @@ export const createIncludeFunction = (
     tryIncludeMissing = 'empty',
   } = options;
 
-  const parseScript = (script: string, sourceId: string) => {
-    const parseLogs: FunCityLogEntry[] = [];
-    const tokens =
-      mode === 'code'
-        ? runCodeTokenizer(script, parseLogs, sourceId)
-        : runTokenizer(script, parseLogs, sourceId);
-    const nodes =
-      mode === 'code'
-        ? parseExpressions(tokens, parseLogs)
-        : runParser(tokens, parseLogs);
-    return { nodes, logs: parseLogs };
+  let compileCacheModulePromise: Promise<CompileCacheModule> | undefined;
+  const getCompileCacheModule = async (): Promise<CompileCacheModule> => {
+    compileCacheModulePromise ??= import('../compile-cache');
+    return await compileCacheModulePromise;
+  };
+
+  const parseScript = async (script: string, sourceId: string) => {
+    const { compileScriptCached } = await getCompileCacheModule();
+    return compileScriptCached(script, sourceId, mode, 'reducer');
   };
 
   const resolveSource = async (
@@ -1239,14 +1285,78 @@ export const createIncludeFunction = (
     return resolved;
   };
 
+  const normalizeIncludeStack = (
+    includeStack: readonly string[],
+    sourceId: string
+  ): readonly string[] =>
+    includeStack[includeStack.length - 1] === sourceId
+      ? includeStack
+      : [...includeStack, sourceId];
+
+  const throwPrimaryParseError = (
+    parseLogs: readonly FunCityLogEntry[]
+  ): void => {
+    let primaryError: FunCityLogEntry | undefined;
+    for (const entry of parseLogs) {
+      if (entry.type === 'error' && primaryError === undefined) {
+        primaryError = entry;
+      } else {
+        logs.push(entry);
+      }
+    }
+    if (primaryError?.type === 'error') {
+      throw new FunCityReducerError(primaryError);
+    }
+  };
+
+  const withSameScopeIncludeFunctions = async (
+    context: FunCityFunctionContext,
+    includeFunctions: IncludeFunctions,
+    run: () => Promise<unknown[]>
+  ): Promise<unknown[]> => {
+    const previousInclude = context.getValue('include');
+    const previousTryInclude = context.getValue('tryInclude');
+    context.setValue('include', includeFunctions.include);
+    context.setValue('tryInclude', includeFunctions.tryInclude);
+    try {
+      return await run();
+    } finally {
+      if (previousInclude.isFound) {
+        context.setValue('include', previousInclude.value);
+      }
+      if (previousTryInclude.isFound) {
+        context.setValue('tryInclude', previousTryInclude.value);
+      }
+    }
+  };
+
+  const installIncludeFunctions = (
+    context: FunCityReducerContext,
+    includeFunctions: IncludeFunctions,
+    signal: AbortSignal | undefined
+  ): void => {
+    context.setValue('include', includeFunctions.include, signal);
+    context.setValue('tryInclude', includeFunctions.tryInclude, signal);
+  };
+
   const reduceWithScope = async (
     context: FunCityFunctionContext,
-    nodes: readonly FunCityBlockNode[]
+    nodes: readonly FunCityBlockNode[],
+    includeFunctions: IncludeFunctions
   ): Promise<unknown[]> => {
     if (scope === 'same') {
-      return await context.reduceBlock(nodes);
+      return await withSameScopeIncludeFunctions(
+        context,
+        includeFunctions,
+        () => context.reduceBlock(nodes)
+      );
     }
     const scopedContext = context.newScope();
+    installIncludeFunctions(
+      scopedContext,
+      includeFunctions,
+      context.abortSignal
+    );
     const resultList: unknown[] = [];
     for (const node of nodes) {
       const results = await scopedContext.reduceNode(node, context.abortSignal);
@@ -1259,77 +1369,100 @@ export const createIncludeFunction = (
     return resultList;
   };
 
-  const renderIncluded = async (
-    context: FunCityFunctionContext,
-    arg0: FunCityExpressionNode | undefined,
-    missingBehavior: IncludeMissingBehavior
-  ): Promise<string> => {
-    if (!arg0) {
-      throw new FunCityReducerError({
-        type: 'error',
-        description: 'Required `include` target',
-        range: context.thisNode.range,
-      });
-    }
-
-    const resolvedArg = await context.reduce(arg0);
-    if (resolvedArg === undefined || resolvedArg === null) {
-      if (missingBehavior === 'empty') {
-        return '';
+  const createIncludeFunctions = (
+    includeStack: readonly string[]
+  ): IncludeFunctions => {
+    const renderIncluded = async (
+      context: FunCityFunctionContext,
+      arg0: FunCityExpressionNode | undefined,
+      missingBehavior: IncludeMissingBehavior
+    ): Promise<string> => {
+      if (!arg0) {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `include` target',
+          range: context.thisNode.range,
+        });
       }
-      throw new FunCityReducerError({
-        type: 'error',
-        description: 'Required `include` target',
-        range: context.thisNode.range,
-      });
-    }
 
-    const request = String(resolvedArg);
-    const source = await resolveSource(request, {
-      sourceId: context.thisNode.range.sourceId,
-      range: context.thisNode.range,
-      signal: context.abortSignal,
+      const resolvedArg = await context.reduce(arg0);
+      if (resolvedArg === undefined || resolvedArg === null) {
+        if (missingBehavior === 'empty') {
+          return '';
+        }
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `include` target',
+          range: context.thisNode.range,
+        });
+      }
+
+      const request = String(resolvedArg);
+      const activeIncludeStack = normalizeIncludeStack(
+        includeStack,
+        context.thisNode.range.sourceId
+      );
+      const source = await resolveSource(request, {
+        sourceId: context.thisNode.range.sourceId,
+        range: context.thisNode.range,
+        signal: context.abortSignal,
+      });
+      if (!source) {
+        if (missingBehavior === 'empty') {
+          return '';
+        }
+        throw new FunCityReducerError({
+          type: 'error',
+          description: `Include source not found: ${request}`,
+          range: context.thisNode.range,
+        });
+      }
+
+      if (activeIncludeStack.includes(source.sourceId)) {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: `circular include detected: ${source.sourceId}`,
+          range: context.thisNode.range,
+        });
+      }
+
+      const parsed = await parseScript(source.script, source.sourceId);
+      if (parsed.logs.length > 0) {
+        throwPrimaryParseError(parsed.logs);
+      }
+
+      const nestedIncludeFunctions = createIncludeFunctions([
+        ...activeIncludeStack,
+        source.sourceId,
+      ]);
+      const reducedValues = await reduceWithScope(
+        context,
+        parsed.nodes,
+        nestedIncludeFunctions
+      );
+      return reducedValues
+        .map((value) => context.convertToString(value))
+        .join('');
+    };
+
+    const include = makeFunCityFunction(async function (
+      this: FunCityFunctionContext,
+      arg0?: FunCityExpressionNode
+    ) {
+      return await renderIncluded(this, arg0, includeMissing);
     });
-    if (!source) {
-      if (missingBehavior === 'empty') {
-        return '';
-      }
-      throw new FunCityReducerError({
-        type: 'error',
-        description: `Include source not found: ${request}`,
-        range: context.thisNode.range,
-      });
-    }
 
-    const parsed = parseScript(source.script, source.sourceId);
-    if (parsed.logs.length > 0) {
-      logs.push(...parsed.logs);
-    }
-    if (parsed.logs.some((entry) => entry.type === 'error')) {
-      throw new Error(`Include parse error: ${source.sourceId}`);
-    }
+    const tryInclude = makeFunCityFunction(async function (
+      this: FunCityFunctionContext,
+      arg0?: FunCityExpressionNode
+    ) {
+      return await renderIncluded(this, arg0, tryIncludeMissing);
+    });
 
-    const reducedValues = await reduceWithScope(context, parsed.nodes);
-    return reducedValues
-      .map((value) => context.convertToString(value))
-      .join('');
+    return { include, tryInclude };
   };
 
-  const include = makeFunCityFunction(async function (
-    this: FunCityFunctionContext,
-    arg0?: FunCityExpressionNode
-  ) {
-    return await renderIncluded(this, arg0, includeMissing);
-  });
-
-  const tryInclude = makeFunCityFunction(async function (
-    this: FunCityFunctionContext,
-    arg0?: FunCityExpressionNode
-  ) {
-    return await renderIncluded(this, arg0, tryIncludeMissing);
-  });
-
-  return { include, tryInclude };
+  return createIncludeFunctions([]);
 };
 
 /**
@@ -1343,6 +1476,7 @@ export const standardVariables = Object.freeze({
   cond: _cond,
   defaults: _defaults,
   set: _set,
+  new: _new,
   fun: _fun,
   toString: _toString,
   toBoolean: _toBoolean,

@@ -882,6 +882,7 @@ const results = await runReducer(nodes, variables, logs);
 | `typeof` | 第1引数に指定されたインスタンスの型名を返します。 |
 | `cond` | 第1引数の条件が真なら第2引数、偽なら第3引数を返します (funcity関数) |
 | `defaults` | 第1引数が`null`/`undefined`以外ならそのまま返し、`null`/`undefined`なら第2引数を返します (funcity関数) |
+| `new` | 第1引数の関数をコンストラクタとして評価し、残りの引数でインスタンス化します (funcity関数) |
 | `toString` | 引数群を文字列に変換します。 |
 | `toBoolean` | 第1引数を真偽値に変換します。 |
 | `toNumber` | 第1引数を数値に変換します。 |
@@ -994,6 +995,18 @@ const results = await runReducer(nodes, variables, logs);
 
 この関数もfuncity関数なので、第2引数は必要な時だけ評価されます。
 `0`、`false`、`''` はそのまま返されます。
+
+### new
+
+`new` は、第1引数をコンストラクタとして評価し、残りの引数を constructor 引数として適用します:
+
+```funcity
+{{new Date '2025/2/23'}}
+```
+
+コンストラクタ呼び出しは明示的になりました。
+以前のスクリプトで `Date '2025/2/23'` のような暗黙 constructor 呼び出しを使っていた場合は、
+`new Date '2025/2/23'` に置き換えてください。
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -1233,7 +1246,8 @@ CLIでは、以下のように定義されます:
 {{tryInclude 'optional.fc'}}
 ```
 
-解析エラーが含まれる場合は、どちらも例外を投げます。
+解析エラーまたは循環 include が検出された場合は、どちらも
+`FunCityReducerError` を送出します。`tryInclude` が無視するのはソース欠如だけです。
 
 プログラマブルにこれらの関数を使用する場合は、 `createIncludeFunction()` で作成し、変数に注入します:
 
@@ -1306,12 +1320,16 @@ const variables = buildCandidateVariables(objectVariables);
 
 ```funcity
 {{Math.sqrt 2}}
+{{new Date '2025/2/23'}}
 {{Date '2025/2/23'}}
 ```
 
-注意: funcityの重要な制約として、オブジェクトにコンストラクタが存在する場合は、オブジェクトを関数オブジェクトとして呼び出すことはできません。
-例えば、JavaScriptで区別される次の式: `new Date('2025/2/23')`, `Date('2025/2/23')` は、
-funcityで `Date '2025/2/23'` と記述すると常に `new Date('2025/2/23')`と解釈されます。
+コンストラクタ呼び出しと通常の関数呼び出しは区別されます。
+`new Date '2025/2/23'` は JavaScript の `new Date('2025/2/23')` と同じ意味で、
+`Date '2025/2/23'` は JavaScript の `Date('2025/2/23')` と同じ意味です。
+
+移行ガイド: 以前のスクリプトで `Foo ...` を暗黙 constructor 呼び出しとして使っていた場合は、
+`new Foo ...` に置き換えてください。
 
 CLI は `objectVariables` を既定で含みます。
 
@@ -1423,10 +1441,10 @@ const candidateVariables = buildCandidateVariables(
 
 ## 備考
 
-funcityは、ドキュメントサイトジェネレータ [mark-the-ripper](https://github.com/kekyo/mark-the-ripper) を設計中に、
+funcityは、ドキュメントサイトジェネレータ [a-terra-forge](https://github.com/kekyo/a-terra-forge) を設計中に、
 スクリプトエンジンとして独立させたほうが良さそうだと考えて分離したものです。
 
-したがって、mark-the-ripperはfuncityの関数型言語のパワーを享受できます。
+したがって、a-terra-forgeはfuncityの関数型言語のパワーを享受できます。
 
 ## ライセンス
 

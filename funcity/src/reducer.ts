@@ -165,11 +165,7 @@ const applyFunction = async (
           return arg;
         })
       );
-  const shouldConstruct = !isSpecial && context.isConstructable(func);
   try {
-    if (shouldConstruct) {
-      return Reflect.construct(func, args);
-    }
     const thisProxy = context.createFunctionContext(node, signal);
     return await func.call(thisProxy, ...args);
   } catch (e: unknown) {

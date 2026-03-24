@@ -79,7 +79,7 @@ describe('funcity-cli run', () => {
 
   it('exposes object variables', async () => {
     const iso = '2025-11-23T00:00:00.000Z';
-    const result = await runScriptToText(`{{Date '${iso}'}}`, 'hello.fc');
+    const result = await runScriptToText(`{{new Date '${iso}'}}`, 'hello.fc');
     expect(result.logs).toEqual([]);
     expect(result.output).toBe(iso);
   });
@@ -222,7 +222,14 @@ describe('funcity-cli include', () => {
         const result = await runScriptToText(script, scriptPath);
         expect(result.output).toBeUndefined();
         expect(result.logs.length).toBeGreaterThan(0);
-        expect(result.logs[0]?.description).toMatch(/Include parse error/);
+        expect(
+          result.logs.some(
+            (entry) =>
+              entry.type === 'error' &&
+              entry.range.sourceId === includePath &&
+              entry.description.length > 0
+          )
+        ).toBe(true);
       }
     );
   });

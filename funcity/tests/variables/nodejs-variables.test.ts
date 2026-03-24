@@ -53,4 +53,13 @@ describe('nodejs variables test', () => {
       expect((error as { code?: string }).code).toBe('MODULE_NOT_ALLOWED');
     }
   });
+
+  it('createRequireFunction allows node: prefixed modules when base module is accepted', () => {
+    const requireWithFilter = createRequireFunction(undefined, ['path']);
+    const pathModule = requireWithFilter('node:path') as {
+      join: typeof nodePath.join;
+    };
+
+    expect(pathModule.join('a', 'b')).toBe(nodePath.join('a', 'b'));
+  });
 });

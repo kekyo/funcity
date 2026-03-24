@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FunCityLogEntry, FunCityRange } from '../src/types';
-import { widerRange } from '../src/utils';
+import { convertToString, widerRange } from '../src/utils';
 
 const makeRange = (
   sourceId: string,
@@ -64,5 +64,13 @@ describe('widerRange', () => {
     widerRange(rangeA, rangeB, logs);
 
     expect(logs).toEqual([]);
+  });
+});
+
+describe('convertToString', () => {
+  it('stringifies URL values as origins', () => {
+    expect(convertToString(new URL('https://example.com/path?q=1'))).toBe(
+      'https://example.com'
+    );
   });
 });

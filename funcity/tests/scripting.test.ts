@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { FunCityLogEntry } from '../src/types';
 import { runScriptOnceToText } from '../src/scripting';
+import { objectVariables } from '../src/variables/object-variables';
+import { buildCandidateVariables } from '../src/variables/standard-variables';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,5 +53,32 @@ describe('scripting test', () => {
       })
     ).resolves.toBe('[1 2 3]');
     expect(aggressiveLogs).toEqual([]);
+  });
+
+  it('separates function calls from explicit constructor calls on every execution backend', async () => {
+    const widget = function (this: { label?: string }, label: string) {
+      if (new.target) {
+        this.label = `constructed:${label}`;
+        return;
+      }
+      return `called:${label}`;
+    };
+    const script =
+      "{{Widget 'call'}}{{set instance (new Widget 'ctor')}}{{instance.label}}";
+
+    for (const backend of ['reducer', 'closure', 'source'] as const) {
+      const logs: FunCityLogEntry[] = [];
+      await expect(
+        runScriptOnceToText(script, {
+          backend,
+          variables: buildCandidateVariables(objectVariables, {
+            Widget: widget,
+          }),
+          logs,
+          sourceId: 'hello.fc',
+        })
+      ).resolves.toBe('called:callconstructed:ctor');
+      expect(logs).toEqual([]);
+    }
   });
 });
