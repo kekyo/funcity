@@ -222,7 +222,14 @@ describe('funcity-cli include', () => {
         const result = await runScriptToText(script, scriptPath);
         expect(result.output).toBeUndefined();
         expect(result.logs.length).toBeGreaterThan(0);
-        expect(result.logs[0]?.description).toMatch(/Include parse error/);
+        expect(
+          result.logs.some(
+            (entry) =>
+              entry.type === 'error' &&
+              entry.range.sourceId === includePath &&
+              entry.description.length > 0
+          )
+        ).toBe(true);
       }
     );
   });

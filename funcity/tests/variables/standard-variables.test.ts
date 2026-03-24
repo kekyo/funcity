@@ -39,6 +39,23 @@ describe('standard variables test', () => {
     return reduced[0];
   };
 
+  const createIncludeVariables = (
+    sources: Readonly<Record<string, string | undefined>>,
+    logs: FunCityLogEntry[],
+    options: {
+      readonly scope?: 'same' | 'child';
+      readonly mode?: 'template' | 'code';
+    } = {}
+  ) => {
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => sources[request],
+      logs,
+      scope: options.scope,
+      mode: options.mode,
+    });
+    return buildCandidateVariables({ include, tryInclude });
+  };
+
   it('true', async () => {
     const value = await reduceSingle(variableNode('true'));
     expect(value).toBe(true);
@@ -879,23 +896,147 @@ describe('standard variables test', () => {
   });
   it('include parse error throws', async () => {
     const logs: FunCityLogEntry[] = [];
-    const { include, tryInclude } = createIncludeFunction({
-      resolve: async (request) => {
-        if (request === 'bad.fc') {
-          return '{{if}}{{end}}';
-        }
-        return undefined;
+    const variables = createIncludeVariables(
+      {
+        'bad.fc': '{{if}}{{end}}',
       },
-      logs,
-    });
-    const variables = buildCandidateVariables({ include, tryInclude });
+      logs
+    );
     const output = await runScriptOnceToText("{{include 'bad.fc'}}", {
       variables,
       logs,
       sourceId: 'main.fc',
     });
     expect(output).toBeUndefined();
-    expect(logs.some((entry) => entry.type === 'error')).toBe(true);
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          range: expect.objectContaining({
+            sourceId: 'bad.fc',
+          }),
+        }),
+      ])
+    );
+  });
+  it('include direct cycle reports reducer error', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const variables = createIncludeVariables(
+      {
+        'self.fc': "{{include 'self.fc'}}",
+      },
+      logs
+    );
+
+    const output = await runScriptOnceToText("{{include 'self.fc'}}", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+
+    expect(output).toBeUndefined();
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          description: 'circular include detected: self.fc',
+          range: expect.objectContaining({
+            sourceId: 'self.fc',
+          }),
+        }),
+      ])
+    );
+  });
+  it('include indirect cycle reports reducer error', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const variables = createIncludeVariables(
+      {
+        'a.fc': "{{include 'b.fc'}}",
+        'b.fc': "{{include 'a.fc'}}",
+      },
+      logs
+    );
+
+    const output = await runScriptOnceToText("{{include 'a.fc'}}", {
+      variables,
+      logs,
+      sourceId: 'main.fc',
+    });
+
+    expect(output).toBeUndefined();
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          description: 'circular include detected: a.fc',
+          range: expect.objectContaining({
+            sourceId: 'b.fc',
+          }),
+        }),
+      ])
+    );
+  });
+  it('include stack does not leak across sibling branches', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const variables = createIncludeVariables(
+      {
+        'a.fc': "{{include 'shared.fc'}}A",
+        'b.fc': "{{include 'shared.fc'}}B",
+        'shared.fc': 'S',
+      },
+      logs
+    );
+
+    const output = await runScriptOnceToText(
+      "{{include 'a.fc'}}{{include 'b.fc'}}",
+      {
+        variables,
+        logs,
+        sourceId: 'main.fc',
+      }
+    );
+
+    expect(output).toBe('SASB');
+    expect(logs).toEqual([]);
+  });
+  it('include stack does not leak across concurrent executions', async () => {
+    const logs: FunCityLogEntry[] = [];
+    const { include, tryInclude } = createIncludeFunction({
+      resolve: async (request) => {
+        await new Promise((resolve) =>
+          setTimeout(resolve, request === 'shared.fc' ? 5 : 1)
+        );
+        switch (request) {
+          case 'a.fc':
+            return "{{include 'shared.fc'}}A";
+          case 'b.fc':
+            return "{{include 'shared.fc'}}B";
+          case 'shared.fc':
+            return 'S';
+          default:
+            return undefined;
+        }
+      },
+      logs,
+    });
+    const variables = buildCandidateVariables({ include, tryInclude });
+
+    const [left, right] = await Promise.all([
+      runScriptOnceToText("{{include 'a.fc'}}", {
+        variables,
+        logs,
+        sourceId: 'main-a.fc',
+      }),
+      runScriptOnceToText("{{include 'b.fc'}}", {
+        variables,
+        logs,
+        sourceId: 'main-b.fc',
+      }),
+    ]);
+
+    expect(left).toBe('SA');
+    expect(right).toBe('SB');
+    expect(logs).toEqual([]);
   });
   it('url', async () => {
     const value = await reduceSingle(

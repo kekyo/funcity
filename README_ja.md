@@ -1233,7 +1233,8 @@ CLIでは、以下のように定義されます:
 {{tryInclude 'optional.fc'}}
 ```
 
-解析エラーが含まれる場合は、どちらも例外を投げます。
+解析エラーまたは循環 include が検出された場合は、どちらも
+`FunCityReducerError` を送出します。`tryInclude` が無視するのはソース欠如だけです。
 
 プログラマブルにこれらの関数を使用する場合は、 `createIncludeFunction()` で作成し、変数に注入します:
 
@@ -1423,10 +1424,10 @@ const candidateVariables = buildCandidateVariables(
 
 ## 備考
 
-funcityは、ドキュメントサイトジェネレータ [mark-the-ripper](https://github.com/kekyo/mark-the-ripper) を設計中に、
+funcityは、ドキュメントサイトジェネレータ [a-terra-forge](https://github.com/kekyo/a-terra-forge) を設計中に、
 スクリプトエンジンとして独立させたほうが良さそうだと考えて分離したものです。
 
-したがって、mark-the-ripperはfuncityの関数型言語のパワーを享受できます。
+したがって、a-terra-forgeはfuncityの関数型言語のパワーを享受できます。
 
 ## ライセンス
 

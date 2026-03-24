@@ -8,7 +8,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "vite/client"],
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,

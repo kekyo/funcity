@@ -14,13 +14,7 @@ import screwUp from 'screw-up';
  * Vite configuration for building the library bundle.
  */
 export default defineConfig({
-  plugins: [
-    prettierMax(),
-    screwUp(),
-    dts({
-      rollupTypes: true,
-    }),
-  ],
+  plugins: [prettierMax(), screwUp(), dts({ entryRoot: 'src' })],
   build: {
     lib: {
       entry: {

@@ -1237,7 +1237,9 @@ In the CLI, it is defined as follows:
 {{include 'foo.fc'}}
 {{tryInclude 'optional.fc'}}
 ```
-Both functions throw when a parse error is detected in the included script.
+Both functions throw `FunCityReducerError` when a parse error or a circular
+include is detected in the included script. `tryInclude` only ignores missing
+sources.
 
 To use these functions programmatically, create them with `createIncludeFunction()` and inject them into a variable:
 
@@ -1424,10 +1426,10 @@ const candidateVariables = buildCandidateVariables(
 
 ## Note
 
-funcity was separated from the document site generator [mark-the-ripper](https://github.com/kekyo/mark-the-ripper) during its design phase,
+funcity was separated from the document site generator [a-terra-forge](https://github.com/kekyo/a-terra-forge) during its design phase,
 as it seemed better suited to function as an independent scripting engine.
 
-Therefore, mark-the-ripper can leverage the power of funcity's functional language.
+Therefore, a-terra-forge can leverage the power of funcity's functional language.
 
 ## License
 

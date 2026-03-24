@@ -11,15 +11,15 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/src/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./node": {
-      "types": "./dist/node.d.ts",
+      "types": "./dist/src/node.d.ts",
       "import": "./dist/node.mjs",
       "require": "./dist/node.cjs"
     }

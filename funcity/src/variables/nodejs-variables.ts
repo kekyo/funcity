@@ -152,7 +152,7 @@ export const nodeJsVariables = Object.freeze({
         signal.addEventListener('abort', onAbort, { once: true });
       }
 
-      rl.question(question, (answer) => {
+      rl.question(question, (answer: string) => {
         finishResolve(answer);
       });
     });
