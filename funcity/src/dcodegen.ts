@@ -529,13 +529,9 @@ const invokeSourceCallable = async (
   signal: AbortSignal | undefined,
   callable: Function,
   args: readonly unknown[],
-  isSpecial: boolean
+  _isSpecial: boolean
 ): Promise<unknown> => {
-  const shouldConstruct = !isSpecial && context.isConstructable(callable);
   try {
-    if (shouldConstruct) {
-      return Reflect.construct(callable, args);
-    }
     const thisProxy = context.createFunctionContext(node, signal);
     return await callable.call(thisProxy, ...args);
   } catch (error: unknown) {
@@ -693,11 +689,7 @@ const createClosureDCodegen = (): FunCityDynamicCodeGenerator => {
       : collectExpressionValues(compiledArgs, context, signal);
 
     const invokeCallable = (args: readonly unknown[]) => {
-      const shouldConstruct = !isSpecial && context.isConstructable(callable);
       try {
-        if (shouldConstruct) {
-          return Reflect.construct(callable, args);
-        }
         const thisProxy = context.createFunctionContext(node, signal);
         return callable.call(thisProxy, ...args);
       } catch (error: unknown) {

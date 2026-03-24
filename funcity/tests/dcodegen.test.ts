@@ -390,6 +390,31 @@ describe('dynamic code generator test', () => {
         );
       });
 
+      it('matches reducer on explicit constructor calls', async () => {
+        const widget = function (this: { label?: string }, label: string) {
+          if (new.target) {
+            this.label = `constructed:${label}`;
+            return;
+          }
+          return `called:${label}`;
+        };
+
+        await expectGeneratedMatchesReducer(
+          [
+            applyNode('Widget', [stringNode('call')]),
+            setNode(
+              'instance',
+              applyNode('new', [variableNode('Widget'), stringNode('ctor')])
+            ),
+            dotNode(variableNode('instance'), [{ name: 'label' }]),
+          ],
+          {
+            Widget: widget,
+          },
+          backend
+        );
+      });
+
       it('matches reducer on control flow nodes', async () => {
         await expectGeneratedMatchesReducer(
           [

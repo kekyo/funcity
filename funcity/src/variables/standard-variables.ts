@@ -111,6 +111,53 @@ const _set = makeFunCityFunction(function (
   });
 });
 
+const isConstructable = (fn: Function): boolean => {
+  try {
+    Reflect.construct(Object, [], fn);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const _new = makeFunCityFunction(function (
+  this: FunCityFunctionContext,
+  arg0: FunCityExpressionNode | undefined,
+  ...rest: FunCityExpressionNode[]
+) {
+  if (!arg0) {
+    throw new FunCityReducerError({
+      type: 'error',
+      description: 'Required `new` constructor expression',
+      range: this.thisNode.range,
+    });
+  }
+
+  return resolveMaybePromise(
+    this.reduceImmediate(arg0),
+    (target): FunCityMaybePromise<unknown> => {
+      if (typeof target !== 'function') {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `new` constructor function',
+          range: arg0.range,
+        });
+      }
+      if (!isConstructable(target)) {
+        throw new FunCityReducerError({
+          type: 'error',
+          description: 'Required `new` constructable function',
+          range: arg0.range,
+        });
+      }
+      return resolveMaybePromise(
+        Promise.all(rest.map((arg) => this.reduce(arg))),
+        (args) => Reflect.construct(target, args)
+      );
+    }
+  );
+});
+
 const extractParameterArguments = (
   namesNode: FunCityExpressionNode,
   _context: FunCityFunctionContext
@@ -1429,6 +1476,7 @@ export const standardVariables = Object.freeze({
   cond: _cond,
   defaults: _defaults,
   set: _set,
+  new: _new,
   fun: _fun,
   toString: _toString,
   toBoolean: _toBoolean,

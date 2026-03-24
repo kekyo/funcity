@@ -884,6 +884,7 @@ The following are the standard functions:
 | `typeof` | Returns the type name. |
 | `cond` | If the condition in the first argument is true, returns the second argument; otherwise the third (funcity function) |
 | `defaults` | Returns the first argument unless it is `null`/`undefined`; otherwise returns the second (funcity function). |
+| `new` | Constructs an instance using the function in the first argument and the remaining arguments (funcity function). |
 | `toString` | Converts the arguments to a string. |
 | `toBoolean` | Converts the first argument to a boolean. |
 | `toNumber` | Converts the first argument to a number. |
@@ -999,6 +1000,17 @@ However, this function is special ("funcity function"): only one of the second a
 
 This function is also a "funcity function", so the second argument is evaluated only when needed.
 Values like `0`, `false`, and `''` are kept as-is.
+
+### new
+
+`new` evaluates the first argument as a constructor and applies the remaining arguments as constructor arguments:
+
+```funcity
+{{new Date '2025/2/23'}}
+```
+
+Constructor calls are explicit.
+If an older script relied on implicit constructor syntax such as `Date '2025/2/23'`, replace it with `new Date '2025/2/23'`.
 
 ### toString,toBoolean,toNumber,toBigInt
 
@@ -1313,12 +1325,16 @@ For example:
 
 ```funcity
 {{Math.sqrt 2}}
+{{new Date '2025/2/23'}}
 {{Date '2025/2/23'}}
 ```
 
-Note: As an important restriction of funcity, if an object has a constructor, you cannot call the object as a function object.
-For example, the following expressions distinguished in JavaScript: `new Date(‘2025/2/23’)`, `Date(‘2025/2/23’)`,
-are always interpreted as `new Date(‘2025/2/23’)` when written as `Date ‘2025/2/23’` in funcity syntax.
+Constructor calls and normal function calls are now distinct.
+`new Date '2025/2/23'` behaves like JavaScript `new Date('2025/2/23')`,
+while `Date '2025/2/23'` behaves like JavaScript `Date('2025/2/23')`.
+
+Migration guide: if an older script intended implicit construction with `Foo ...`,
+rewrite it as `new Foo ...`.
 
 CLI includes `objectVariables` by default.
 

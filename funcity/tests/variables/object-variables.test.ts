@@ -36,9 +36,19 @@ describe('object variables test', () => {
     expect(value).toStrictEqual(['alpha', 'beta']);
   });
 
-  it('Date constructor', async () => {
+  it('Date function call', async () => {
+    const value = await reduceSingle(
+      applyNode('Date', [stringNode('ignored')])
+    );
+    expect(typeof value).toBe('string');
+    expect(value).not.toBeInstanceOf(Date);
+  });
+
+  it('Date constructor via new', async () => {
     const iso = '2025-11-23T00:00:00.000Z';
-    const value = await reduceSingle(applyNode('Date', [stringNode(iso)]));
+    const value = await reduceSingle(
+      applyNode('new', [variableNode('Date'), stringNode(iso)])
+    );
     expect(value).toBeInstanceOf(Date);
     expect((value as Date).toISOString()).toBe(iso);
   });
